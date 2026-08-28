@@ -1,0 +1,455 @@
+{
+  "categories": [
+    {
+      "id": "all",
+      "name": "Tous les genres",
+      "slug": "all",
+      "icon": "Sparkles",
+      "color": "#9d4edd",
+      "display_order": 0
+    },
+    {
+      "id": "cat-1",
+      "name": "Business & Finance",
+      "slug": "business-finance",
+      "icon": "TrendingUp",
+      "color": "#9d4edd",
+      "display_order": 1
+    },
+    {
+      "id": "cat-2",
+      "name": "Développement Personnel",
+      "slug": "dev-perso",
+      "icon": "Sparkles",
+      "color": "#c77dff",
+      "display_order": 2
+    },
+    {
+      "id": "cat-3",
+      "name": "Intelligence Artificielle & Tech",
+      "slug": "tech-ia",
+      "icon": "Cpu",
+      "color": "#3a86ff",
+      "display_order": 3
+    },
+    {
+      "id": "cat-4",
+      "name": "Psychologie & Mental",
+      "slug": "psychologie",
+      "icon": "Brain",
+      "color": "#ff006e",
+      "display_order": 4
+    },
+    {
+      "id": "cat-5",
+      "name": "Histoire & Stratégie",
+      "slug": "strategie",
+      "icon": "Shield",
+      "color": "#fb5607",
+      "display_order": 5
+    },
+    {
+      "id": "cat-6",
+      "name": "Romans & Fiction",
+      "slug": "fiction",
+      "icon": "BookOpen",
+      "color": "#ffbe0b",
+      "display_order": 6
+    }
+  ],
+  "audiobooks": [
+    {
+      "id": "book-1787916454723",
+      "title": "test",
+      "author": "charly",
+      "narrator": "Alain",
+      "category_id": "cat-2",
+      "category_name": "Développement Personnel",
+      "price": 3500,
+      "discount_price": 2900,
+      "description": "test",
+      "synopsis": "",
+      "cover_url": "/uploads/1787916429877_066d92e1.png",
+      "cover_r2_key": "uploads/1787916429877_066d92e1.png",
+      "preview_url": "/uploads/1787916438340_2bec4cbb.mp3",
+      "preview_r2_key": "uploads/1787916438340_2bec4cbb.mp3",
+      "duration_seconds": 1800,
+      "rating": 5,
+      "rating_count": 1,
+      "is_featured": 1,
+      "is_bestseller": 0,
+      "chapters": [
+        {
+          "id": "chap-book-1787916454723-1",
+          "chapter_number": 1,
+          "title": "Chapitre 1 : Introduction",
+          "duration_seconds": 1800,
+          "audio_url": "/uploads/1787916452921_a2d75cd8.mp3",
+          "audio_r2_key": "uploads/1787916452921_a2d75cd8.mp3",
+          "audio_stream_url": "/api/chapters/chap-book-1787916454723-1/stream"
+        }
+      ],
+      "created_at": "2026-08-28T11:27:34.723Z"
+    },
+    {
+      "id": "book-1787900798236",
+      "title": "LES MORTS SONT-ILS TOUS LES ANCÊTRES",
+      "author": "KAMZOLES CHARLY",
+      "narrator": "Antoine",
+      "category_id": "cat-2",
+      "category_name": "Développement Personnel",
+      "price": 9500,
+      "discount_price": 5500,
+      "description": "Nsi : LE NOM QUI REVELE TOUT\n\nSelon les dictionnaires et travaux ethnographiques disponibles sur les langues bamiléké que nous avons consulté notament : Ghomálá’, Medumba, Fe’fe’ ou Nufi, Yemba\n\nles appellations principales documentées :\n\nNsi, Si, Sî ou Sí, vers, Le nom le plus courant et le plus ancien dans toutes les variantes bamiléké, Ghomálá’, Medumba, Fe’fe’ ou Nufi, Yemba. Il désigne le Dieu unique, créateur, omnipotent. On le retrouve dans de nombreux prénoms théophores, exemple : Siyapze veut dire Si trace ton chemin , Sibenou veut dire Si conduit tes affaires , Siping, etc. Dans le dictionnaire Ghomálá’, Si apparaît avec ce sens religieux.\n\nTa, ou Tà, Tata, vers, Très fréquent dans les prénoms, surtout en Ghomálá’ et Medumba. Sens : Père ou Dieu le Père . Exemple : Tayou = Ta + You , vers, Dieu a donné, dans certain dialéte, C’est une forme plus familière ou paternelle de Dieu.",
+      "synopsis": "",
+      "cover_url": "https://images.unsplash.com/photo-1532012197267-da84d127e765?w=800&q=80",
+      "cover_r2_key": "uploads/1787900737451_file",
+      "preview_url": "https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=ambient-piano-amp-strings-10711.mp3",
+      "preview_r2_key": "uploads/1787900756754_file",
+      "duration_seconds": 3000,
+      "rating": 5,
+      "rating_count": 1,
+      "is_featured": 1,
+      "is_bestseller": 0,
+      "chapters": [
+        {
+          "id": "chap-book-1787900798236-1",
+          "chapter_number": 1,
+          "title": "Chapitre 1",
+          "duration_seconds": 3000,
+          "audio_url": "https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=ambient-piano-amp-strings-10711.mp3",
+          "audio_r2_key": "uploads/1787900780075_file",
+          "audio_stream_url": "/api/chapters/chap-book-1787900798236-1/stream"
+        }
+      ],
+      "created_at": "2026-08-28T07:06:38.236Z"
+    },
+    {
+      "id": "book-1",
+      "title": "La Psychologie de l'Argent",
+      "author": "Morgan Housel",
+      "narrator": "Alexandre D.",
+      "description": "Quelques leçons intemporelles sur la richesse, la cupidité et le bonheur. Comment notre comportement influence nos finances bien plus que notre QI.",
+      "synopsis": "Dans La Psychologie de l'Argent, Morgan Housel partage 19 histoires courtes explorant les manières étranges dont les gens pensent à l'argent. Vous découvrirez comment maîtriser vos émotions, éviter les pièges financiers et bâtir une véritable liberté.",
+      "cover_url": "https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?w=800&q=80",
+      "preview_url": "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3",
+      "category_id": "cat-1",
+      "category_name": "Business & Finance",
+      "price": 3500,
+      "price_eur": 5.5,
+      "discount_price": 2900,
+      "duration_seconds": 21600,
+      "rating": 4.9,
+      "rating_count": 1420,
+      "is_featured": 1,
+      "is_bestseller": 1,
+      "is_free_for_members": 0,
+      "created_at": "2025-01-01T00:00:00Z",
+      "chapters": [
+        {
+          "id": "chap-1-1",
+          "chapter_number": 1,
+          "title": "Introduction : Le plus grand spectacle sur Terre",
+          "duration_seconds": 1800,
+          "audio_url": "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3"
+        },
+        {
+          "id": "chap-1-2",
+          "chapter_number": 2,
+          "title": "Personne n'est fou : Les expériences façonnent la vision",
+          "duration_seconds": 2400,
+          "audio_url": "https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=ambient-piano-amp-strings-10711.mp3"
+        },
+        {
+          "id": "chap-1-3",
+          "chapter_number": 3,
+          "title": "Chance & Risque : Deux faces d'une même pièce",
+          "duration_seconds": 2100,
+          "audio_url": "https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8bbf7341e.mp3?filename=cinematic-epic-10903.mp3"
+        },
+        {
+          "id": "chap-1-4",
+          "chapter_number": 4,
+          "title": "Ne jamais en avoir assez : Savoir dire stop",
+          "duration_seconds": 1900,
+          "audio_url": "https://cdn.pixabay.com/download/audio/2022/10/14/audio_9939f792cb.mp3?filename=electronic-future-beats-117997.mp3"
+        },
+        {
+          "id": "chap-1-5",
+          "chapter_number": 5,
+          "title": "Les Intérêts Composés : La magie du temps",
+          "duration_seconds": 2200,
+          "audio_url": "https://cdn.pixabay.com/download/audio/2021/08/04/audio_bb630cc098.mp3?filename=meditation-peace-6644.mp3"
+        }
+      ]
+    },
+    {
+      "id": "book-4",
+      "title": "Révolution IA : Comprendre et Dompter le Futur",
+      "author": "Dr. Sophie Laurent",
+      "narrator": "Claire V.",
+      "description": "Une plongée captivante dans le fonctionnement des LLMs, agents autonomes et l'impact sur le travail.",
+      "synopsis": "L'intelligence artificielle transforme déjà tous les secteurs. Comment rester indispensable ? Ce livre audio décortique sans jargon les rouages de l'IA générative et donne des clés d'action concrètes.",
+      "cover_url": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80",
+      "preview_url": "https://cdn.pixabay.com/download/audio/2022/10/14/audio_9939f792cb.mp3?filename=electronic-future-beats-117997.mp3",
+      "category_id": "cat-3",
+      "category_name": "Intelligence Artificielle & Tech",
+      "price": 5000,
+      "price_eur": 7.5,
+      "discount_price": 3900,
+      "duration_seconds": 25200,
+      "rating": 4.95,
+      "rating_count": 2150,
+      "is_featured": 1,
+      "is_bestseller": 1,
+      "is_free_for_members": 0,
+      "created_at": "2025-01-02T00:00:00Z",
+      "chapters": [
+        {
+          "id": "chap-4-1",
+          "chapter_number": 1,
+          "title": "Genèse des Modèles Géants : De Turing aux Transformers",
+          "duration_seconds": 2400,
+          "audio_url": "https://cdn.pixabay.com/download/audio/2022/10/14/audio_9939f792cb.mp3?filename=electronic-future-beats-117997.mp3"
+        },
+        {
+          "id": "chap-4-2",
+          "chapter_number": 2,
+          "title": "L'art du Prompting et les Agents Autonomes",
+          "duration_seconds": 3000,
+          "audio_url": "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3"
+        },
+        {
+          "id": "chap-4-3",
+          "chapter_number": 3,
+          "title": "L'Économie de l'IA : Qui gagne vraiment ?",
+          "duration_seconds": 2700,
+          "audio_url": "https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=ambient-piano-amp-strings-10711.mp3"
+        }
+      ]
+    },
+    {
+      "id": "book-2",
+      "title": "L'Effet Cumulé : Décuplez votre réussite",
+      "author": "Darren Hardy",
+      "narrator": "Nathalie Dupont",
+      "description": "Le principe fondamental pour transformer de petites actions quotidiennes en succès gigantesques au fil du temps.",
+      "synopsis": "Vos choix quotidiens déterminent votre destinée. Apprenez à créer des habitudes vertueuses et à éliminer les freins invisibles qui bloquent votre croissance personnelle et professionnelle.",
+      "cover_url": "https://images.unsplash.com/photo-1553729459-efe14ef6055d?w=800&q=80",
+      "preview_url": "https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=ambient-piano-amp-strings-10711.mp3",
+      "category_id": "cat-2",
+      "category_name": "Développement Personnel",
+      "price": 4000,
+      "price_eur": 6,
+      "discount_price": null,
+      "duration_seconds": 18000,
+      "rating": 4.85,
+      "rating_count": 980,
+      "is_featured": 1,
+      "is_bestseller": 1,
+      "is_free_for_members": 0,
+      "created_at": "2025-01-03T00:00:00Z",
+      "chapters": [
+        {
+          "id": "chap-2-1",
+          "chapter_number": 1,
+          "title": "Chapitre 1 : L'effet cumulé en action",
+          "duration_seconds": 3600,
+          "audio_url": "https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=ambient-piano-amp-strings-10711.mp3"
+        },
+        {
+          "id": "chap-2-2",
+          "chapter_number": 2,
+          "title": "Chapitre 2 : Les choix inconscients",
+          "duration_seconds": 3200,
+          "audio_url": "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3"
+        }
+      ]
+    },
+    {
+      "id": "book-3",
+      "title": "L'Art de la Guerre & Stratégie",
+      "author": "Sun Tzu (Adapté)",
+      "narrator": "Jean-Pierre M.",
+      "description": "Le traité stratégique le plus influent au monde, appliqué au leadership moderne et à la négociation.",
+      "synopsis": "Connaissez votre adversaire et connaissez-vous vous-même. Cette version enrichie offre des analyses concrètes pour le monde professionnel.",
+      "cover_url": "https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=800&q=80",
+      "preview_url": "https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8bbf7341e.mp3?filename=cinematic-epic-10903.mp3",
+      "category_id": "cat-5",
+      "category_name": "Histoire & Stratégie",
+      "price": 2500,
+      "price_eur": 3.9,
+      "discount_price": 1900,
+      "duration_seconds": 10800,
+      "rating": 4.7,
+      "rating_count": 640,
+      "is_featured": 0,
+      "is_bestseller": 0,
+      "is_free_for_members": 1,
+      "created_at": "2025-01-04T00:00:00Z",
+      "chapters": [
+        {
+          "id": "chap-3-1",
+          "chapter_number": 1,
+          "title": "Évaluation et plans initiaux",
+          "duration_seconds": 2700,
+          "audio_url": "https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8bbf7341e.mp3?filename=cinematic-epic-10903.mp3"
+        }
+      ]
+    },
+    {
+      "id": "book-5",
+      "title": "Le Pouvoir du Moment Présent",
+      "author": "Eckhart Tolle",
+      "narrator": "Marc Bellemare",
+      "description": "Guide d'éveil spirituel pour calmer le bavardage mental et vivre avec une clarté et une sérénité totales.",
+      "synopsis": "Pour entreprendre ce voyage dans Le Pouvoir du moment présent, il nous faut laisser derrière nous notre esprit analytique et son faux soi, l'ego.",
+      "cover_url": "https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=800&q=80",
+      "preview_url": "https://cdn.pixabay.com/download/audio/2021/08/04/audio_bb630cc098.mp3?filename=meditation-peace-6644.mp3",
+      "category_id": "cat-4",
+      "category_name": "Psychologie & Mental",
+      "price": 3800,
+      "price_eur": 5.9,
+      "discount_price": null,
+      "duration_seconds": 28800,
+      "rating": 4.88,
+      "rating_count": 3120,
+      "is_featured": 0,
+      "is_bestseller": 1,
+      "is_free_for_members": 0,
+      "created_at": "2025-01-05T00:00:00Z",
+      "chapters": [
+        {
+          "id": "chap-5-1",
+          "chapter_number": 1,
+          "title": "Vous n'êtes pas votre mental",
+          "duration_seconds": 3600,
+          "audio_url": "https://cdn.pixabay.com/download/audio/2021/08/04/audio_bb630cc098.mp3?filename=meditation-peace-6644.mp3"
+        }
+      ]
+    },
+    {
+      "id": "book-6",
+      "title": "L'Alchimiste & Secrets du Désert",
+      "author": "Paulo Coelho",
+      "narrator": "Michel A.",
+      "description": "L'histoire intemporelle de Santiago, un jeune berger andalou qui part à la recherche de sa Légende Personnelle.",
+      "synopsis": "Quand on veut une chose, tout l'Univers conspire à nous permettre de réaliser notre rêve. Une quête initiatique inoubliable sur l'écoute de son cœur.",
+      "cover_url": "https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?w=800&q=80",
+      "preview_url": "https://cdn.pixabay.com/download/audio/2022/05/16/audio_c1c1f7a0dc.mp3?filename=oriental-strings-111162.mp3",
+      "category_id": "cat-6",
+      "category_name": "Romans & Fiction",
+      "price": 3000,
+      "price_eur": 4.5,
+      "discount_price": null,
+      "duration_seconds": 14400,
+      "rating": 4.92,
+      "rating_count": 4800,
+      "is_featured": 0,
+      "is_bestseller": 1,
+      "is_free_for_members": 1,
+      "created_at": "2025-01-06T00:00:00Z",
+      "chapters": [
+        {
+          "id": "chap-6-1",
+          "chapter_number": 1,
+          "title": "Première Partie : Les rêves de Tarifa",
+          "duration_seconds": 3200,
+          "audio_url": "https://cdn.pixabay.com/download/audio/2022/05/16/audio_c1c1f7a0dc.mp3?filename=oriental-strings-111162.mp3"
+        }
+      ]
+    }
+  ],
+  "purchases": [
+    {
+      "id": "pur-1",
+      "user_id": "user-demo",
+      "audiobook_id": "book-1",
+      "amount_paid": 2900,
+      "purchased_at": "2025-01-10T10:00:00Z"
+    },
+    {
+      "id": "pur-2",
+      "user_id": "user-demo",
+      "audiobook_id": "book-4",
+      "amount_paid": 3900,
+      "purchased_at": "2025-01-12T14:30:00Z"
+    },
+    {
+      "id": "pur-1787901282364",
+      "user_id": "user-demo",
+      "audiobook_id": "book-1787900798236",
+      "amount_paid": 5500,
+      "payment_method": "wallet",
+      "phone_number": "690000000",
+      "transaction_id": "CP_1787901282363_YWTQQ",
+      "purchased_at": "2026-08-28T07:14:42.364Z",
+      "status": "completed"
+    },
+    {
+      "id": "pur-1787915330167",
+      "user_id": "user-demo",
+      "audiobook_id": "book-2",
+      "amount_paid": 4000,
+      "payment_method": "camerpay_om",
+      "phone_number": "690000000",
+      "transaction_id": "CP_1787915330167_5G457",
+      "purchased_at": "2026-08-28T11:08:50.167Z",
+      "status": "completed"
+    },
+    {
+      "id": "pur-1787916559939",
+      "user_id": "user-demo",
+      "audiobook_id": "book-1787916454723",
+      "amount_paid": 2900,
+      "payment_method": "camerpay_momo",
+      "phone_number": "690000000",
+      "transaction_id": "CP_1787916559939_2V4B5",
+      "purchased_at": "2026-08-28T11:29:19.939Z",
+      "status": "completed"
+    }
+  ],
+  "progress": [
+    {
+      "id": "prog-user-demo-book-1",
+      "user_id": "user-demo",
+      "audiobook_id": "book-1",
+      "current_chapter_id": "chap-1-1",
+      "position_seconds": 0,
+      "completed_percentage": 0,
+      "is_completed": 0,
+      "last_listened_at": "2026-08-28T11:18:05.076Z"
+    },
+    {
+      "id": "prog-2",
+      "user_id": "user-demo",
+      "audiobook_id": "book-4",
+      "current_chapter_id": "chap-4-1",
+      "position_seconds": 1200,
+      "completed_percentage": 50,
+      "is_completed": 0,
+      "last_listened_at": "2026-08-28T07:00:00Z"
+    },
+    {
+      "id": "prog-user-demo-book-6",
+      "user_id": "user-demo",
+      "audiobook_id": "book-6",
+      "current_chapter_id": "chap-6-1",
+      "position_seconds": 0,
+      "completed_percentage": 0,
+      "is_completed": 0,
+      "last_listened_at": "2026-08-28T07:07:13.372Z"
+    },
+    {
+      "id": "prog-user-demo-book-1787900798236",
+      "user_id": "user-demo",
+      "audiobook_id": "book-1787900798236",
+      "current_chapter_id": "chap-book-1787900798236-1",
+      "position_seconds": 0,
+      "completed_percentage": 0,
+      "is_completed": 0,
+      "last_listened_at": "2026-08-28T11:24:34.777Z"
+    }
+  ],
+  "push_subscriptions": []
+}

@@ -1,0 +1,47 @@
+# ============================================================
+# wrangler.toml - Configuration Cloudflare Pages & Workers RG Play
+# Account ID  : 29af63e0139b75f78259902d4ee51e07
+# Subdomain   : rgplay.workers.dev
+# Pages URL   : https://rg-play.pages.dev
+# ============================================================
+name = "rg-play"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = "./dist"
+
+# ============================================================
+# Bindings Cloudflare D1 SQL Database
+# ============================================================
+[[d1_databases]]
+binding = "DB"
+database_name = "rg-play-db"
+database_id = "755fd405-06f4-4534-92f8-426ca2bd23cb"
+migrations_dir = "./migrations"
+
+# ============================================================
+# Bindings Cloudflare R2 Audio & Cover Storage
+# ============================================================
+[[r2_buckets]]
+binding = "AUDIO_BUCKET"
+bucket_name = "rg-play-audio"
+
+# ============================================================
+# Bindings Cloudflare KV (Cache & Sessions)
+# ============================================================
+[[kv_namespaces]]
+binding = "KV_BINDING"
+id = "21ee756709cb4daba97631edb983504f"
+
+# ============================================================
+# Variables d'environnement Production
+# ============================================================
+[vars]
+ENVIRONMENT = "production"
+APP_NAME = "RG Play Audiobooks"
+APP_URL = "https://rg-play.pages.dev"
+WORKERS_SUBDOMAIN = "rgplay.workers.dev"
+CLOUDFLARE_ACCOUNT_ID = "29af63e0139b75f78259902d4ee51e07"
+R2_S3_ENDPOINT = "https://29af63e0139b75f78259902d4ee51e07.r2.cloudflarestorage.com"
+R2_BUCKET_NAME = "rg-play-audio"
+CAMERPAY_API_URL = "https://api.camerpay.com/v1"
+DEFAULT_CURRENCY = "XAF"
