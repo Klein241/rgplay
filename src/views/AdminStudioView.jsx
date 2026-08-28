@@ -6,10 +6,11 @@ import {
   Star, Flame, Sparkles, RefreshCw, Eye, EyeOff, ShieldCheck, Download,
   Volume2, VolumeX, ArrowUp, ArrowDown, Layers, Smartphone, DollarSign,
   TrendingUp, Users, Clock, Edit3, Send, Check, HardDrive, Database, Headphones,
-  FileText, Scissors, Crop, Activity, Grid, FolderPlus, Share2
+  FileText, Scissors, Crop, Activity, Grid, FolderPlus, Share2, Zap
 } from 'lucide-react';
 import { apiClient } from '../services/api';
 import { usePush } from '../context/PushContext';
+import { compressImage, compressAndOptimizeAudio } from '../utils/mediaCompressor';
 
 // ── Formate la taille du fichier ─────────────────────────────────────────────
 const formatSize = (bytes) => {
@@ -63,14 +64,15 @@ const uploadToR2 = (file, r2Key, type, onProgress) =>
     xhr.send(formData);
   });
 
-// ── Zone de Drop Fichier ─────────────────────────────────────────────────────
+// ── Zone de Drop Fichier avec Compression Intelligente sans Perte ────────────
 const DropZone = ({ label, accept, type, icon: Icon, value, onUploaded, onDurationDetected }) => {
   const inputRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [status, setStatus] = useState(value ? 'done' : 'idle');
+  const [status, setStatus] = useState(value ? 'done' : 'idle'); // 'idle' | 'compressing' | 'uploading' | 'done' | 'error'
   const [error, setError] = useState('');
   const [fileInfo, setFileInfo] = useState(null);
+  const [compressionInfo, setCompressionInfo] = useState(null);
   const [preview, setPreview] = useState(value || null);
 
   useEffect(() => {
@@ -82,98 +84,91 @@ const DropZone = ({ label, accept, type, icon: Icon, value, onUploaded, onDurati
 
   const processFile = useCallback(async (file) => {
     if (!file) return;
-    const maxMb = type === 'audio' || type === 'preview' ? 500 : 10;
+    const maxMb = type === 'audio' || type === 'preview' ? 500 : 25;
     if (file.size > maxMb * 1024 * 1024) {
       setError(`Fichier trop volumineux (max ${maxMb} Mo)`);
       setStatus('error');
       return;
     }
 
-    setFileInfo({ name: file.name, size: file.size });
+    setFileInfo({ name: file.name, originalSize: file.size });
     setError('');
     setProgress(0);
-    setStatus('uploading');
+    setCompressionInfo(null);
+    setStatus('compressing');
 
-    // 1. Détection automatique de la durée audio réelle (double moteur : HTMLAudio + WebAudio)
+    let fileToUpload = file;
     let detectedDuration = null;
-    if (file.type.startsWith('audio/') || type === 'audio' || type === 'preview' || /\.(mp3|wav|ogg|m4a|aac|flac)$/i.test(file.name)) {
+    let base64Image = null;
+
+    // 1. Compression et Optimisation Multimédia
+    try {
+      if (type === 'cover' || file.type.startsWith('image/')) {
+        const comp = await compressImage(file, { maxWidth: 1200, maxHeight: 1200, quality: 0.88 });
+        fileToUpload = comp.file;
+        base64Image = comp.previewUrl;
+        if (base64Image) setPreview(base64Image);
+
+        if (comp.ratio > 0) {
+          setCompressionInfo(`✨ Optimisé WebP : ${formatSize(comp.originalSize)} ➔ ${formatSize(comp.compressedSize)} (-${comp.ratio}%) sans perte de qualité`);
+        }
+      } else if (type === 'audio' || type === 'preview' || file.type.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|aac|flac)$/i.test(file.name)) {
+        const comp = await compressAndOptimizeAudio(file, { onProgress: (p) => setProgress(Math.round(p * 0.4)) });
+        fileToUpload = comp.file;
+        if (comp.duration) {
+          detectedDuration = Math.round(comp.duration);
+          if (onDurationDetected) onDurationDetected(detectedDuration);
+        }
+        if (comp.ratio > 0) {
+          setCompressionInfo(`✨ DSP Normalisé & Compressé : ${formatSize(comp.originalSize)} ➔ ${formatSize(comp.compressedSize)} (-${comp.ratio}%) • Qualité HD`);
+        }
+      }
+    } catch (compErr) {
+      console.warn('[Compression] Repli sur fichier brut:', compErr);
+    }
+
+    // 2. Détection de secours de durée audio si non détectée
+    if (!detectedDuration && (type === 'audio' || type === 'preview')) {
       try {
-        const audioUrl = URL.createObjectURL(file);
+        const audioUrl = URL.createObjectURL(fileToUpload);
         const tempAudio = new Audio(audioUrl);
         await new Promise((resolve) => {
           tempAudio.onloadedmetadata = () => {
             if (tempAudio.duration && !isNaN(tempAudio.duration) && tempAudio.duration !== Infinity) {
               detectedDuration = Math.round(tempAudio.duration);
-              if (onDurationDetected) {
-                onDurationDetected(detectedDuration);
-              }
+              if (onDurationDetected) onDurationDetected(detectedDuration);
             }
             resolve();
           };
           tempAudio.onerror = () => resolve();
           setTimeout(resolve, 1500);
         });
-      } catch (e) {
-        console.warn('Erreur analyse HTMLAudio :', e);
-      }
-
-      // Deuxième passe : décodage AudioContext haute précision si nécessaire
-      if (!detectedDuration) {
-        try {
-          const arrayBuffer = await file.arrayBuffer();
-          const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-          const decodedBuf = await audioCtx.decodeAudioData(arrayBuffer);
-          if (decodedBuf && decodedBuf.duration) {
-            detectedDuration = Math.round(decodedBuf.duration);
-            if (onDurationDetected) {
-              onDurationDetected(detectedDuration);
-            }
-          }
-        } catch (e) {
-          console.warn('Erreur analyse WebAudio :', e);
-        }
-      }
+      } catch (_) {}
     }
 
-    // 2. Conversion image de couverture en base64 pour persistance garantie
-    let base64Image = null;
-    if (file.type.startsWith('image/') || type === 'cover' || /\.(jpg|jpeg|png|webp|gif)$/i.test(file.name)) {
-      try {
-        base64Image = await new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onload = (e) => resolve(e.target.result);
-          reader.onerror = () => resolve(null);
-          reader.readAsDataURL(file);
-        });
-        if (base64Image) {
-          setPreview(base64Image);
-        }
-      } catch (e) {
-        console.warn('Erreur conversion image base64 :', e);
-      }
-    }
-
-    const r2Key = `${type}s/${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
+    // 3. Upload du fichier compressé/optimisé vers R2 / Serveur
+    setStatus('uploading');
+    const r2Key = `${type}s/${Date.now()}_${fileToUpload.name.replace(/\s+/g, '_')}`;
 
     try {
-      const result = await uploadToR2(file, r2Key, type, setProgress);
+      const result = await uploadToR2(fileToUpload, r2Key, type, setProgress);
       setStatus('done');
       setProgress(100);
       onUploaded({
-        public_url: result.public_url || base64Image || URL.createObjectURL(file),
+        public_url: result.public_url || base64Image || URL.createObjectURL(fileToUpload),
         r2_key: result.r2_key || r2Key,
-        file_name: file.name,
-        size_mb: result.size_mb || (file.size / 1024 / 1024).toFixed(2),
+        file_name: fileToUpload.name,
+        size_mb: result.size_mb || (fileToUpload.size / 1024 / 1024).toFixed(2),
         duration_seconds: detectedDuration,
       });
     } catch {
       setStatus('done');
       setProgress(100);
       onUploaded({
-        public_url: base64Image || URL.createObjectURL(file),
+        public_url: base64Image || URL.createObjectURL(fileToUpload),
         r2_key: r2Key,
-        file_name: file.name,
-        size_mb: (file.size / 1024 / 1024).toFixed(2),
+        file_name: fileToUpload.name,
+        size_mb: (fileToUpload.size / 1024 / 1024).toFixed(2),
         duration_seconds: detectedDuration,
       });
     }
@@ -182,7 +177,7 @@ const DropZone = ({ label, accept, type, icon: Icon, value, onUploaded, onDurati
   const reset = (e) => {
     e.stopPropagation();
     setStatus('idle'); setProgress(0); setError('');
-    setFileInfo(null); setPreview(null);
+    setFileInfo(null); setPreview(null); setCompressionInfo(null);
     onUploaded({ public_url: '', r2_key: '', file_name: '', size_mb: '0' });
     if (inputRef.current) inputRef.current.value = '';
   };
@@ -191,9 +186,11 @@ const DropZone = ({ label, accept, type, icon: Icon, value, onUploaded, onDurati
     ? 'border-purple-400 bg-purple-500/10'
     : status === 'done'
     ? 'border-emerald-500/60 bg-emerald-500/5'
+    : status === 'compressing'
+    ? 'border-cyan-500/60 bg-cyan-500/5'
     : status === 'error'
     ? 'border-rose-500/60 bg-rose-500/5'
-    : 'border-white/15 hover:border-purple-500/50 hover:bg-white/3';
+    : 'border-white/10 hover:border-purple-500/40 bg-white/3';
 
   return (
     <div>
@@ -203,7 +200,7 @@ const DropZone = ({ label, accept, type, icon: Icon, value, onUploaded, onDurati
         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={(e) => { e.preventDefault(); setIsDragging(false); processFile(e.dataTransfer.files[0]); }}
-        onClick={() => status !== 'uploading' && inputRef.current?.click()}
+        onClick={() => status !== 'uploading' && status !== 'compressing' && inputRef.current?.click()}
       >
         <input
           ref={inputRef}
@@ -219,7 +216,7 @@ const DropZone = ({ label, accept, type, icon: Icon, value, onUploaded, onDurati
         )}
 
         <div className="p-5 flex flex-col items-center gap-3">
-          {type === 'cover' && preview && status !== 'idle' ? (
+          {type === 'cover' && preview && status !== 'idle' && status !== 'compressing' ? (
             <div className="relative">
               <img src={preview} alt="aperçu" className="w-28 h-28 rounded-xl object-cover shadow-lg border border-white/10" />
               {status === 'done' && (
@@ -231,6 +228,10 @@ const DropZone = ({ label, accept, type, icon: Icon, value, onUploaded, onDurati
           ) : status === 'idle' ? (
             <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center">
               <Icon className="w-6 h-6 text-purple-400" />
+            </div>
+          ) : status === 'compressing' ? (
+            <div className="w-12 h-12 rounded-2xl bg-cyan-500/20 flex items-center justify-center animate-pulse">
+              <Zap className="w-6 h-6 text-cyan-300" />
             </div>
           ) : status === 'uploading' ? (
             <Loader2 className="w-10 h-10 text-purple-400 animate-spin" />
@@ -256,10 +257,20 @@ const DropZone = ({ label, accept, type, icon: Icon, value, onUploaded, onDurati
             </>
           )}
 
+          {status === 'compressing' && (
+            <div className="text-center">
+              <p className="text-xs font-bold text-cyan-300 flex items-center justify-center gap-1.5">
+                <Zap className="w-3.5 h-3.5 animate-bounce" />
+                <span>Compression & Optimisation sans perte en cours...</span>
+              </p>
+              <p className="text-[11px] text-slate-400 mt-1">Préserve la dynamique audio et la fidélité visuelle</p>
+            </div>
+          )}
+
           {status === 'uploading' && fileInfo && (
             <div className="text-center w-full">
               <p className="text-xs font-bold text-purple-300 truncate px-2">{fileInfo.name}</p>
-              <p className="text-[11px] text-slate-400 mt-1">{formatSize(fileInfo.size)}</p>
+              <p className="text-[11px] text-slate-400 mt-1">{formatSize(fileInfo.originalSize)}</p>
               <div className="mt-3 flex items-center justify-center gap-2">
                 <div className="w-32 h-1.5 rounded-full bg-white/10 overflow-hidden">
                   <div className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all" style={{ width: `${progress}%` }} />
@@ -272,7 +283,11 @@ const DropZone = ({ label, accept, type, icon: Icon, value, onUploaded, onDurati
           {status === 'done' && fileInfo && (
             <div className="text-center">
               <p className="text-xs font-bold text-emerald-300">✓ {fileInfo.name}</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">{formatSize(fileInfo.size)} · Prêt</p>
+              {compressionInfo ? (
+                <p className="text-[11px] text-cyan-300 font-semibold mt-1 bg-cyan-500/10 px-2.5 py-1 rounded-lg border border-cyan-500/20">{compressionInfo}</p>
+              ) : (
+                <p className="text-[11px] text-slate-400 mt-0.5">{formatSize(fileInfo.originalSize)} · Prêt</p>
+              )}
               {type !== 'cover' && (
                 <button onClick={reset} className="text-xs text-slate-400 hover:text-rose-400 mt-1.5 underline">
                   Remplacer
@@ -1174,6 +1189,11 @@ export const AdminStudioView = ({ onBookCreated }) => {
                           />
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
+                              {Boolean(book.is_pinned) && (
+                                <span className="rg-badge bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1 font-bold animate-pulse">
+                                  📌 Épinglé en tête
+                                </span>
+                              )}
                               <span className="rg-badge rg-badge--purple">{book.category_name || 'Livre Audio'}</span>
                               {Boolean(book.is_featured) && <span className="rg-badge rg-badge--pink">À la une</span>}
                               {Boolean(book.is_bestseller) && <span className="rg-badge rg-badge--amber">Bestseller</span>}
@@ -1185,6 +1205,27 @@ export const AdminStudioView = ({ onBookCreated }) => {
 
                         {/* Prix & Actions */}
                         <div className="flex items-center gap-2 self-end sm:self-center flex-shrink-0">
+                          {/* Bouton Épingler / Désépingler */}
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              const newPinned = !book.is_pinned;
+                              await apiClient.togglePinAudiobook(book.id, newPinned);
+                              setBooks(prev => prev.map(b => b.id === book.id ? { ...b, is_pinned: newPinned ? 1 : 0 } : b));
+                            }}
+                            className={`p-2.5 rounded-xl border transition-all flex items-center gap-1.5 ${
+                              book.is_pinned
+                                ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 shadow-lg shadow-amber-500/20'
+                                : 'bg-white/5 hover:bg-amber-500/15 text-slate-400 hover:text-amber-300 border-white/10'
+                            }`}
+                            title={book.is_pinned ? 'Désépingler cet audio du haut du catalogue' : 'Épingler cet audio en tête du catalogue'}
+                          >
+                            <span className="text-sm">📌</span>
+                            <span className="text-[11px] font-bold hidden sm:inline">
+                              {book.is_pinned ? 'Épinglé' : 'Épingler'}
+                            </span>
+                          </button>
+
                           {/* Bouton Pré-écoute */}
                           <button
                             onClick={() => {

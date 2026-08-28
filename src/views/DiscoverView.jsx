@@ -68,6 +68,7 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
     };
   }, [selectedType, selectedCategory, searchQuery]);
 
+  const pinnedBooks = audiobooks.filter(b => Boolean(b.is_pinned));
   const trendingBooks = audiobooks.slice(0, 6);
   const podcasts = audiobooks.filter(b => b.content_type === 'podcast');
   const musicTracks = audiobooks.filter(b => b.content_type === 'music');
@@ -216,6 +217,34 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
           </div>
         </div>
       </section>
+
+      {/* ── 3.5. Section Audios Épinglés (Sélection Éditeur RG Play) ── */}
+      {!searchQuery && selectedCategory === 'all' && pinnedBooks.length > 0 && (
+        <section className="animate-fadeIn">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shadow-lg shadow-amber-500/20">
+                  <span className="text-base">📌</span>
+                </div>
+                <div>
+                  <h2 className="text-lg font-black text-white">
+                    Sélection Épinglée par l'Éditeur
+                  </h2>
+                  <p className="text-xs text-amber-300 font-medium">
+                    {pinnedBooks.length} contenu{pinnedBooks.length > 1 ? 's' : ''} mis en avant
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-stretch gap-4 overflow-x-auto pb-3 no-scrollbar">
+              {pinnedBooks.map((book) => (
+                <AudiobookCard key={book.id} book={book} layout="carousel" onSelect={onSelectBook} />
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ── 4. Carrousel Pour Vous / Tendances ── */}
       {!searchQuery && selectedCategory === 'all' && trendingBooks.length > 0 && (

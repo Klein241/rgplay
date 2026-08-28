@@ -1,0 +1,1 @@
+ALTER TABLE audiobooks ADD COLUMN is_pinned INTEGER DEFAULT 0;

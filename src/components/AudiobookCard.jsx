@@ -80,6 +80,11 @@ export const AudiobookCard = ({ book, onSelect, isPurchased = false, layout = 'g
 
             {/* Badges sécurisés */}
             <div className="absolute top-2.5 left-2.5 flex flex-col gap-1.5 pointer-events-none">
+              {Boolean(book.is_pinned) && (
+                <span className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-lg flex items-center gap-1 border border-amber-300/40">
+                  📌 Épinglé
+                </span>
+              )}
               {book.content_type && book.content_type !== 'audiobook' && (
                 <span className={`text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full shadow-md text-slate-950 flex items-center gap-1 ${
                   book.content_type === 'podcast' ? 'bg-amber-400' :
@@ -168,6 +173,11 @@ export const AudiobookCard = ({ book, onSelect, isPurchased = false, layout = 'g
 
           {/* Badges superposés */}
           <div className="absolute top-3 left-3 flex flex-wrap gap-1.5 pointer-events-none">
+            {Boolean(book.is_pinned) && (
+              <span className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-lg flex items-center gap-1 border border-amber-300/40">
+                📌 Épinglé
+              </span>
+            )}
             {book.content_type && book.content_type !== 'audiobook' && (
               <span className={`text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full shadow-md text-slate-950 flex items-center gap-1 ${
                 book.content_type === 'podcast' ? 'bg-amber-400' :

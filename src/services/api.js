@@ -443,6 +443,32 @@ export const apiClient = {
     };
   },
 
+  // Épingler / Désépingler un livre audio (Admin)
+  async togglePinAudiobook(bookId, isPinned) {
+    let serverResult = null;
+    try {
+      const res = await fetch(`${API_BASE}/admin/books/${bookId}/toggle-pin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_pinned: isPinned }),
+      });
+      if (res.ok) serverResult = await res.json();
+    } catch (e) {
+      console.warn('Échec toggle pin serveur:', e);
+    }
+
+    try {
+      const cached = JSON.parse(localStorage.getItem('rg_cached_books') || '[]');
+      const updated = cached.map(b => b.id === bookId ? { ...b, is_pinned: isPinned ? 1 : 0 } : b);
+      localStorage.setItem('rg_cached_books', JSON.stringify(updated));
+    } catch (_) {}
+
+    window.dispatchEvent(new CustomEvent('rg:book-created', { detail: { id: bookId, is_pinned: isPinned } }));
+    syncChannel?.postMessage({ type: 'book-updated', bookId, is_pinned: isPinned });
+
+    return { success: true, is_pinned: isPinned, serverResult };
+  },
+
   // Créer ou Modifier une Catégorie / Catalogue
   async createCategory(catData) {
     const catId = catData.id || `cat-${Date.now()}`;

@@ -153,9 +153,18 @@ export async function onRequest(context) {
         if (featured === 'true') {
           query += ' AND a.is_featured = 1';
         }
-        query += ' ORDER BY a.is_featured DESC, a.rating DESC';
+        query += ' ORDER BY a.is_pinned DESC, a.is_featured DESC, a.rating DESC';
 
-        const { results } = await env.DB.prepare(query).bind(...queryParams).all();
+        let rawResults = [];
+        try {
+          const res = await env.DB.prepare(query).bind(...queryParams).all();
+          rawResults = res.results || [];
+        } catch (queryErr) {
+          // Si la colonne is_pinned n'existe pas encore, exécuter fallback sans is_pinned
+          const fallbackQuery = query.replace('a.is_pinned DESC, ', '');
+          const res = await env.DB.prepare(fallbackQuery).bind(...queryParams).all();
+          rawResults = res.results || [];
+        }
 
         // Récupérer TOUS les chapitres pour chaque livre depuis la table chapters de D1
         let chaptersByBook = {};
@@ -176,7 +185,7 @@ export async function onRequest(context) {
         }
 
         // Enrichir et garantir des URLs publiques valides pour chaque livre
-        const enriched = results.map(book => {
+        const enriched = rawResults.map(book => {
           let coverUrl = book.cover_url;
           if (coverUrl && (coverUrl.startsWith('data:image/') || (coverUrl.startsWith('http') && !coverUrl.includes('r2.cloudflarestorage.com')))) {
             // URL personnalisée ou image Base64 valide
@@ -206,6 +215,7 @@ export async function onRequest(context) {
           return {
             ...book,
             content_type: book.content_type || 'audiobook',
+            is_pinned: Boolean(book.is_pinned),
             cover_url: coverUrl,
             preview_url: previewUrl,
             chapters: bookChapters,
@@ -1057,11 +1067,48 @@ export async function onRequest(context) {
       }, corsHeaders);
     }
 
+    // ─── POST /api/admin/books/:id/toggle-pin (Épingler / Désépingler un livre) ───
+    const togglePinMatch = path.match(/^\/admin\/books\/([a-zA-Z0-9_-]+)\/toggle-pin$/);
+    if (togglePinMatch && method === 'POST') {
+      const bookId = togglePinMatch[1];
+      const body = await request.json().catch(() => ({}));
+      const isPinned = body.is_pinned !== undefined ? (body.is_pinned ? 1 : 0) : 1;
+
+      if (env.DB) {
+        try {
+          await env.DB.prepare('UPDATE audiobooks SET is_pinned = ? WHERE id = ?').bind(isPinned, bookId).run();
+        } catch (colErr) {
+          try {
+            await env.DB.prepare('ALTER TABLE audiobooks ADD COLUMN is_pinned INTEGER DEFAULT 0').run();
+            await env.DB.prepare('UPDATE audiobooks SET is_pinned = ? WHERE id = ?').bind(isPinned, bookId).run();
+          } catch (_) {}
+        }
+      }
+
+      if (env.KV_BINDING) {
+        try {
+          const list = await env.KV_BINDING.list({ prefix: 'books_' });
+          for (const key of list.keys) {
+            await env.KV_BINDING.delete(key.name);
+          }
+        } catch (_) {}
+        await env.KV_BINDING.delete(`book_${bookId}`);
+      }
+
+      return jsonResponse({
+        success: true,
+        book_id: bookId,
+        is_pinned: Boolean(isPinned),
+        message: isPinned ? 'Audio épinglé en tête du catalogue !' : 'Audio désépinglé'
+      }, corsHeaders);
+    }
+
     // ─── POST /api/admin/books (Ajout / Mise à jour Livre dans D1) ─
     if (path === '/admin/books' && method === 'POST') {
       const body = await request.json();
       const bookId = body.id || `book-${Date.now()}`;
       const contentType = body.content_type || 'audiobook';
+      const isPinned = body.is_pinned !== undefined ? (body.is_pinned ? 1 : 0) : 0;
 
       if (env.DB) {
         try {
@@ -1070,14 +1117,15 @@ export async function onRequest(context) {
               id, title, author, narrator, description, synopsis,
               price, discount_price, category_id, content_type, cover_url, cover_r2_key,
               preview_url, preview_r2_key, duration_seconds, rating, rating_count, 
-              is_featured, is_bestseller, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 5.0, 1, 1, 0, CURRENT_TIMESTAMP)
+              is_featured, is_bestseller, is_pinned, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 5.0, 1, 1, 0, ?, CURRENT_TIMESTAMP)
           `).bind(
             bookId, body.title, body.author, body.narrator, body.description, body.synopsis || '',
             body.price, body.discount_price || null, body.category_id, contentType,
             body.cover_url, body.cover_r2_key || null,
             body.preview_url, body.preview_r2_key || null,
-            body.duration_seconds || 0
+            body.duration_seconds || 0,
+            isPinned
           ).run();
 
           if (body.chapters && Array.isArray(body.chapters)) {
