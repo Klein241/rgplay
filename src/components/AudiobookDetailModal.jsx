@@ -330,7 +330,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
             </div>
           )}
 
-          {/* Actions & Paiement CamerPay */}
+          {/* Actions & Paiement Sécurisé */}
           <div className="mt-6 pt-4 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4">
             {/* Bouton Extrait Gratuit */}
             <button
@@ -342,7 +342,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
             </button>
 
             {/* Bouton Achat ou Lecture */}
-            {isPurchased ? (
+            {(isPurchased || book.price === 0 || book.is_free_for_members) ? (
               <button
                 onClick={() => {
                   playBook(book, 0, 0);
@@ -351,7 +351,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
                 className="w-full sm:w-auto flex-1 btn-gradient py-3 px-6 rounded-2xl flex items-center justify-center gap-2 text-sm font-bold shadow-lg"
               >
                 <Play className="w-4 h-4 fill-white" />
-                <span>Écouter le Livre Complet</span>
+                <span>{book.price === 0 ? "Écouter Gratuitement" : "Écouter le Livre Complet"}</span>
               </button>
             ) : (
               <button
@@ -362,7 +362,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
               >
                 <div className="flex items-center gap-1.5">
                   <Smartphone className="w-4 h-4" />
-                  <span>Acheter via CamerPay</span>
+                  <span>Acheter l'Audio Complet</span>
                 </div>
                 <span className="w-1.5 h-1.5 rounded-full bg-white/60"></span>
                 <span className="text-amber-300 font-extrabold">
@@ -376,10 +376,10 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
           <div className="mt-3 flex items-center justify-center gap-4 text-[11px] text-slate-400">
             <span className="flex items-center gap-1">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Paiement sécurisé CamerPay</span>
+              <span>Paiement 100% sécurisé</span>
             </span>
             <span>•</span>
-            <span>Orange Money / MTN MoMo / CB</span>
+            <span>Orange Money / MTN MoMo / Carte</span>
           </div>
         </div>
       </div>

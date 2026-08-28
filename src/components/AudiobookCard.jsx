@@ -1,20 +1,39 @@
-import React from 'react';
-import { Star, Play, Clock, Headphones, Sparkles, CheckCircle2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Star, Play, Clock, Headphones, Sparkles, CheckCircle2, Share2 } from 'lucide-react';
 import { useAudio } from '../context/AudioContext';
 
 const DEFAULT_COVER = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80';
 
 export const AudiobookCard = ({ book, onSelect, isPurchased = false, layout = 'grid' }) => {
   const { currentBook, isPlaying, playPreview, playBook } = useAudio();
+  const [copied, setCopied] = useState(false);
 
   const isCurrentPlaying = currentBook?.id === book.id && isPlaying;
 
   const handleQuickPlay = (e) => {
     e.stopPropagation();
-    if (isPurchased) {
+    if (isPurchased || book.price === 0 || book.is_free_for_members) {
       playBook(book, 0, 0);
     } else {
       playPreview(book);
+    }
+  };
+
+  const handleShare = async (e) => {
+    e.stopPropagation();
+    const url = `${window.location.origin}/?book=${book.id}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: book.title,
+          text: `Écoutez "${book.title}" par ${book.author} sur RG Play`,
+          url,
+        });
+      } catch (_) {}
+    } else {
+      navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -45,8 +64,16 @@ export const AudiobookCard = ({ book, onSelect, isPurchased = false, layout = 'g
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
             />
             
-            {/* Lueur et bouton play sur hover */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-end p-3">
+            {/* Lueur et boutons sur hover */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-between p-3">
+              <button
+                onClick={handleShare}
+                className="w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur-md transition-transform hover:scale-110 active:scale-95"
+                title="Partager ce livre"
+              >
+                <Share2 className="w-4 h-4 text-purple-300" />
+              </button>
+
               <button
                 onClick={handleQuickPlay}
                 className="w-11 h-11 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 text-white flex items-center justify-center shadow-xl shadow-purple-600/60 hover:scale-110 active:scale-95 transition-transform"
@@ -72,6 +99,12 @@ export const AudiobookCard = ({ book, onSelect, isPurchased = false, layout = 'g
                 </span>
               )}
             </div>
+
+            {copied && (
+              <div className="absolute top-2.5 right-2.5 px-2 py-1 rounded-lg bg-emerald-500 text-slate-950 font-bold text-[10px] shadow-lg animate-fadeIn">
+                Lien copié !
+              </div>
+            )}
           </div>
 
           {/* Détails du livre */}
@@ -139,6 +172,15 @@ export const AudiobookCard = ({ book, onSelect, isPurchased = false, layout = 'g
             )}
           </div>
 
+          {/* Bouton de Partage rapide */}
+          <button
+            onClick={handleShare}
+            className="absolute bottom-3 left-3 w-10 h-10 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur-md transition-all hover:scale-110 active:scale-95 shadow-lg border border-white/10"
+            title="Partager ce livre audio"
+          >
+            <Share2 className="w-4 h-4 text-purple-300" />
+          </button>
+
           {/* Bouton d'écoute rapide */}
           <button
             onClick={handleQuickPlay}
@@ -150,6 +192,12 @@ export const AudiobookCard = ({ book, onSelect, isPurchased = false, layout = 'g
               <Play className="w-5 h-5 fill-white ml-0.5" />
             )}
           </button>
+
+          {copied && (
+            <div className="absolute top-3 right-3 px-2.5 py-1 rounded-lg bg-emerald-500 text-slate-950 font-bold text-[11px] shadow-lg animate-fadeIn z-10">
+              Lien copié !
+            </div>
+          )}
         </div>
 
         {/* Textes du Livre */}

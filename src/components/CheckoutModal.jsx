@@ -9,7 +9,7 @@ import { useAudio } from '../context/AudioContext';
 
 export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
   const { playBook } = useAudio();
-  const [paymentMethod, setPaymentMethod] = useState('camerpay_om'); // 'camerpay_om', 'camerpay_momo', 'card', 'wallet'
+  const [paymentMethod, setPaymentMethod] = useState('mobile_om'); // 'mobile_om', 'mobile_momo', 'card', 'wallet'
   const [phoneNumber, setPhoneNumber] = useState('690000000');
   const [cardNumber, setCardNumber] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -24,11 +24,11 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
     e.preventDefault();
     setIsProcessing(true);
 
-    if (paymentMethod.startsWith('camerpay')) {
+    if (paymentMethod.startsWith('mobile') || paymentMethod.startsWith('camerpay')) {
       setStep('ussd_wait');
     }
 
-    // Simulation de délai réseau & confirmation CamerPay / Cloudflare D1
+    // Confirmation réseau & Cloudflare D1
     setTimeout(async () => {
       try {
         const res = await apiClient.checkout({
@@ -85,7 +85,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
               </div>
               <div>
                 <h3 className="text-lg font-bold text-white font-['Outfit']">Paiement Sécurisé</h3>
-                <p className="text-xs text-purple-300">Intégration CamerPay Multi-Opérateurs</p>
+                <p className="text-xs text-purple-300">Orange Money, MTN MoMo & Carte</p>
               </div>
             </div>
 
@@ -115,29 +115,29 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                   {/* Orange Money */}
                   <button
                     type="button"
-                    onClick={() => setPaymentMethod('camerpay_om')}
+                    onClick={() => setPaymentMethod('mobile_om')}
                     className={`p-3 rounded-2xl border flex flex-col items-start transition-all ${
-                      paymentMethod === 'camerpay_om'
+                      paymentMethod === 'mobile_om' || paymentMethod === 'camerpay_om'
                         ? 'bg-orange-500/20 border-orange-500 text-white shadow-lg shadow-orange-500/20'
                         : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
                     }`}
                   >
                     <span className="text-xs font-bold text-orange-400">Orange Money</span>
-                    <span className="text-[10px] text-slate-400">CamerPay OM</span>
+                    <span className="text-[10px] text-slate-400">Code #150#</span>
                   </button>
 
                   {/* MTN MoMo */}
                   <button
                     type="button"
-                    onClick={() => setPaymentMethod('camerpay_momo')}
+                    onClick={() => setPaymentMethod('mobile_momo')}
                     className={`p-3 rounded-2xl border flex flex-col items-start transition-all ${
-                      paymentMethod === 'camerpay_momo'
+                      paymentMethod === 'mobile_momo' || paymentMethod === 'camerpay_momo'
                         ? 'bg-yellow-500/20 border-yellow-500 text-white shadow-lg shadow-yellow-500/20'
                         : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
                     }`}
                   >
                     <span className="text-xs font-bold text-yellow-400">MTN MoMo</span>
-                    <span className="text-[10px] text-slate-400">CamerPay MoMo</span>
+                    <span className="text-[10px] text-slate-400">Code *126#</span>
                   </button>
 
                   {/* Carte Bancaire */}
@@ -164,17 +164,17 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                         : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
                     }`}
                   >
-                    <span className="text-xs font-bold text-emerald-400">Solde (15 000 F)</span>
+                    <span className="text-xs font-bold text-emerald-400">Solde Compte</span>
                     <span className="text-[10px] text-slate-400">Débit immédiat</span>
                   </button>
                 </div>
               </div>
 
               {/* Champ Numéro de Téléphone pour Mobile Money */}
-              {paymentMethod.startsWith('camerpay') && (
+              {(paymentMethod.startsWith('mobile') || paymentMethod.startsWith('camerpay')) && (
                 <div>
                   <label className="text-xs font-semibold text-slate-300 block mb-1.5">
-                    Numéro de Téléphone {paymentMethod === 'camerpay_om' ? 'Orange' : 'MTN'} :
+                    Numéro de Téléphone {paymentMethod.includes('om') ? 'Orange' : 'MTN'} :
                   </label>
                   <div className="flex rounded-2xl overflow-hidden border border-white/10 focus-within:border-purple-500 transition-colors">
                     <span className="bg-white/10 px-3.5 py-2.5 text-xs font-bold text-slate-300 flex items-center">

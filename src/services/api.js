@@ -242,7 +242,7 @@ export const apiClient = {
     } catch (e) {}
   },
 
-  // Achat via CamerPay (Mobile Money Orange / MTN / Carte)
+  // Achat via Mobile Money (Orange / MTN / Carte)
   async checkout({ audiobook, payment_method, phone_number }) {
     try {
       const res = await fetch(`${API_BASE}/checkout`, {
@@ -268,8 +268,8 @@ export const apiClient = {
     this._addToLocalLibrary(audiobook);
     return {
       success: true,
-      transaction_id: `CP_${Date.now()}`,
-      message: 'Paiement CamerPay validé avec succès ! Le livre a été débloqué dans votre bibliothèque.',
+      transaction_id: `TX_${Date.now()}`,
+      message: 'Paiement validé avec succès ! Le livre a été débloqué dans votre bibliothèque.',
     };
   },
 
