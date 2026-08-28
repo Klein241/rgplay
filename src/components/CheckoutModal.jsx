@@ -1,92 +1,185 @@
-import React, { useState } from 'react';
-import { 
-  X, Smartphone, CreditCard, Wallet, ShieldCheck, CheckCircle2, 
-  ArrowRight, ArrowLeft, Loader2, Sparkles, AlertCircle, Lock, 
-  KeyRound, Eye, EyeOff, ShieldAlert, Check
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  X, Smartphone, CreditCard, CheckCircle2,
+  ArrowRight, Loader2, AlertCircle, ShieldCheck,
+  Phone, RefreshCw, Clock, XCircle, Wifi
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { apiClient } from '../services/api';
 import { useAudio } from '../context/AudioContext';
 
+// ─── Constantes ────────────────────────────────────────────────────────────
+const POLL_INTERVAL_MS  = 3000;   // Polling toutes les 3 secondes
+const PAYMENT_TIMEOUT_S = 180;    // 3 minutes avant expiration
+
 export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
   const { playBook } = useAudio();
-  const [paymentMethod, setPaymentMethod] = useState('mobile_om'); // 'mobile_om', 'mobile_momo', 'card', 'wallet'
-  const [phoneNumber, setPhoneNumber] = useState('690000000');
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardExpiry, setCardExpiry] = useState('');
-  const [cardCvv, setCardCvv] = useState('');
-  
-  // Saisie du mot de passe / PIN de débit
-  const [secretPin, setSecretPin] = useState('');
-  const [showPin, setShowPin] = useState(false);
-  const [pinError, setPinError] = useState('');
 
-  const [step, setStep] = useState('form'); // 'form', 'pin_auth', 'processing', 'success'
-  const [isProcessing, setIsProcessing] = useState(false);
+  // ── Formulaire ──────────────────────────────────────────────────────────
+  const [paymentMethod, setPaymentMethod] = useState('orange_money');
+  const [phoneNumber, setPhoneNumber]     = useState('');
+  const [phoneError, setPhoneError]       = useState('');
+
+  // ── Flux de paiement ─────────────────────────────────────────────────────
+  // 'form' → 'initiating' → 'waiting_phone' → 'success' | 'failed'
+  const [step, setStep]               = useState('form');
+  const [initError, setInitError]     = useState('');
   const [transactionId, setTransactionId] = useState('');
+  const [elapsedSec, setElapsedSec]   = useState(0);
 
-  if (!isOpen || !book) return null;
+  // ── Refs pour le nettoyage ────────────────────────────────────────────────
+  const pollIntervalRef  = useRef(null);
+  const timerIntervalRef = useRef(null);
+  const isMountedRef     = useRef(true);
 
-  const finalPrice = book.discount_price || book.price;
+  const finalPrice = book?.discount_price || book?.price;
 
-  // 1. Passage à l'étape de saisie du mot de passe / code secret
-  const handleProceedToPin = (e) => {
-    e.preventDefault();
-    setPinError('');
-    setSecretPin('');
-    setStep('pin_auth');
+  // ── Nettoyage à la fermeture ─────────────────────────────────────────────
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      clearAllIntervals();
+    };
+  }, []);
+
+  // Réinitialiser quand le modal s'ouvre
+  useEffect(() => {
+    if (isOpen) {
+      setStep('form');
+      setPhoneNumber('');
+      setPhoneError('');
+      setInitError('');
+      setTransactionId('');
+      setElapsedSec(0);
+      setPaymentMethod('orange_money');
+    }
+  }, [isOpen]);
+
+  const clearAllIntervals = () => {
+    if (pollIntervalRef.current)  clearInterval(pollIntervalRef.current);
+    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+    pollIntervalRef.current  = null;
+    timerIntervalRef.current = null;
   };
 
-  // 2. Validation du Code Secret & Déclenchement du Débit
-  const handleConfirmDebit = async (e) => {
-    if (e) e.preventDefault();
-    if (!secretPin || secretPin.length < 4) {
-      setPinError('Veuillez saisir votre mot de passe / code secret (minimum 4 caractères).');
-      return;
+  // ── Validation du numéro ────────────────────────────────────────────────
+  const validatePhone = (num) => {
+    const digits = num.replace(/\D/g, '');
+    if (digits.length < 9) return 'Numéro trop court (min. 9 chiffres)';
+    if (digits.length > 9) return 'Numéro trop long (max. 9 chiffres sans indicatif)';
+    if (paymentMethod === 'orange_money' && !digits.match(/^6[89]/)) {
+      return 'Orange Money : numéro doit commencer par 68 ou 69';
     }
+    if (paymentMethod === 'mtn_momo' && !digits.match(/^6[567]/)) {
+      return 'MTN MoMo : numéro doit commencer par 65, 66 ou 67';
+    }
+    return '';
+  };
 
-    setPinError('');
-    setIsProcessing(true);
-    setStep('processing');
+  // ── Étape 1 : Soumettre le formulaire → appel CamerPay ───────────────────
+  const handleSubmitForm = async (e) => {
+    e.preventDefault();
+    setPhoneError('');
+    setInitError('');
+
+    const cleanPhone = phoneNumber.replace(/\D/g, '');
+    const err = validatePhone(cleanPhone);
+    if (err) { setPhoneError(err); return; }
+
+    setStep('initiating');
 
     try {
-      const res = await apiClient.checkout({
+      const result = await apiClient.initiatePayment({
         audiobook: book,
-        payment_method: paymentMethod,
-        phone_number: phoneNumber,
-        secret_pin: secretPin,
+        payment_method: paymentMethod,   // 'orange_money' | 'mtn_momo'
+        customer_phone: cleanPhone,
       });
 
-      const tx = res.transaction_id || `TX_${Date.now()}_${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
-      setTransactionId(tx);
-      setStep('success');
-      setIsProcessing(false);
+      if (!isMountedRef.current) return;
 
-      // Déclencher les confettis
-      confetti({
-        particleCount: 90,
-        spread: 80,
-        origin: { y: 0.6 },
-        colors: ['#9d4edd', '#c77dff', '#f72585', '#06d6a0', '#ffbe0b']
-      });
-
-      if (onSuccess) onSuccess(book);
+      if (result.success && result.transaction_id) {
+        setTransactionId(result.transaction_id);
+        setElapsedSec(0);
+        setStep('waiting_phone');
+        startPolling(result.transaction_id);
+        startTimer();
+      } else {
+        setInitError(result.error || 'Réponse inattendue du serveur de paiement.');
+        setStep('form');
+      }
     } catch (err) {
-      setIsProcessing(false);
-      setStep('pin_auth');
-      setPinError('Échec de la validation du mot de passe ou solde insuffisant. Veuillez réessayer.');
+      if (!isMountedRef.current) return;
+      setInitError(err.message || 'Impossible de contacter le service de paiement.');
+      setStep('form');
     }
   };
 
-  const handleKeypadPress = (digit) => {
-    if (secretPin.length < 6) {
-      setSecretPin(prev => prev + digit);
-      setPinError('');
-    }
+  // ── Polling : vérification du statut toutes les 3 secondes ───────────────
+  const startPolling = useCallback((txId) => {
+    clearAllIntervals();
+
+    pollIntervalRef.current = setInterval(async () => {
+      if (!isMountedRef.current) { clearAllIntervals(); return; }
+      try {
+        const status = await apiClient.getPaymentStatus(txId);
+        if (!isMountedRef.current) return;
+
+        if (status.status === 'completed') {
+          clearAllIntervals();
+          // Ajouter immédiatement à la bibliothèque locale
+          apiClient._addToLocalLibrary(book);
+          setStep('success');
+          confetti({
+            particleCount: 120,
+            spread: 90,
+            origin: { y: 0.5 },
+            colors: ['#9d4edd', '#c77dff', '#f72585', '#06d6a0', '#ffbe0b'],
+          });
+          if (onSuccess) onSuccess(book);
+        } else if (status.status === 'failed') {
+          clearAllIntervals();
+          setStep('failed');
+        }
+        // 'pending' → continuer le polling
+      } catch (e) {
+        // Erreur réseau temporaire → continuer le polling
+        console.warn('[POLLING] Erreur temporaire :', e.message);
+      }
+    }, POLL_INTERVAL_MS);
+  }, [book, onSuccess]);
+
+  // ── Timer d'expiration ────────────────────────────────────────────────────
+  const startTimer = () => {
+    timerIntervalRef.current = setInterval(() => {
+      if (!isMountedRef.current) return;
+      setElapsedSec(prev => {
+        const next = prev + 1;
+        if (next >= PAYMENT_TIMEOUT_S) {
+          clearAllIntervals();
+          setStep('timeout');
+        }
+        return next;
+      });
+    }, 1000);
   };
 
-  const handleKeypadDelete = () => {
-    setSecretPin(prev => prev.slice(0, -1));
+  // ── Annuler / Réessayer ───────────────────────────────────────────────────
+  const handleCancel = () => {
+    clearAllIntervals();
+    setStep('form');
+    setTransactionId('');
+    setElapsedSec(0);
+    setInitError('');
+  };
+
+  const handleRetry = () => {
+    clearAllIntervals();
+    setStep('form');
+    setTransactionId('');
+    setElapsedSec(0);
+    setInitError('');
+    setPhoneNumber('');
   };
 
   const handleStartListening = () => {
@@ -94,449 +187,414 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
     onClose();
   };
 
-  const getMethodDetails = () => {
-    switch (paymentMethod) {
-      case 'mobile_om':
-        return {
-          title: 'Orange Money Cameroun',
-          subtitle: `Compte +237 ${phoneNumber}`,
-          pinLabel: 'Code Secret Orange Money (PIN)',
-          icon: '🟠',
-          color: 'text-orange-400',
-        };
-      case 'mobile_momo':
-        return {
-          title: 'MTN Mobile Money',
-          subtitle: `Compte +237 ${phoneNumber}`,
-          pinLabel: 'Code Secret MTN MoMo (PIN)',
-          icon: '🟡',
-          color: 'text-yellow-400',
-        };
-      case 'card':
-        return {
-          title: 'Carte Bancaire Visa / Mastercard',
-          subtitle: cardNumber ? `Carte se terminant par •••• ${cardNumber.slice(-4)}` : 'Carte Visa / Mastercard Sécurisée',
-          pinLabel: 'Mot de Passe 3D Secure / Code Secret Bancaire',
-          icon: '💳',
-          color: 'text-purple-400',
-        };
-      case 'wallet':
-        return {
-          title: 'Portefeuille RG Play',
-          subtitle: 'Solde du compte utilisateur',
-          pinLabel: 'Mot de passe de confirmation de compte',
-          icon: '💼',
-          color: 'text-emerald-400',
-        };
-      default:
-        return {
-          title: 'Paiement Sécurisé',
-          subtitle: 'Compte Débité',
-          pinLabel: 'Code Secret / Mot de Passe',
-          icon: '🔒',
-          color: 'text-purple-400',
-        };
-    }
+  // ── Helpers UI ────────────────────────────────────────────────────────────
+  const formatTime = (sec) => {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
-  const methodDetails = getMethodDetails();
+  const remainingSec = PAYMENT_TIMEOUT_S - elapsedSec;
 
+  const METHODS = [
+    {
+      id: 'orange_money',
+      label: 'Orange Money',
+      icon: '🟠',
+      color: 'border-orange-500 bg-orange-500/10 text-orange-300',
+      activeColor: 'ring-2 ring-orange-400',
+      hint: 'Numéros 68x / 69x',
+    },
+    {
+      id: 'mtn_momo',
+      label: 'MTN MoMo',
+      icon: '🟡',
+      color: 'border-yellow-500 bg-yellow-500/10 text-yellow-300',
+      activeColor: 'ring-2 ring-yellow-400',
+      hint: 'Numéros 65x / 66x / 67x',
+    },
+  ];
+
+  if (!isOpen || !book) return null;
+
+  // ════════════════════════════════════════════════════════════════════════
   return (
-    <div className="fixed inset-0 z-55 overflow-y-auto bg-black/85 backdrop-blur-xl flex items-center justify-center p-3 sm:p-4 animate-fadeIn">
-      <div className="glass-card rounded-3xl w-full max-w-md border border-purple-500/40 p-5 sm:p-7 shadow-2xl relative">
-        
-        {/* Bouton de fermeture */}
-        {step !== 'processing' && (
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 p-2 rounded-full hover:bg-white/10 text-slate-400 hover:text-white transition-colors z-20"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        )}
+    <div className="fixed inset-0 z-55 overflow-y-auto bg-black/85 backdrop-blur-xl flex items-center justify-center p-3 sm:p-4">
+      <div className="glass-card rounded-3xl w-full max-w-md border border-purple-500/40 shadow-2xl relative overflow-hidden">
 
-        {/* ══════════════════════════════════════════════════════════════════
-            ÉTAPE 1 : CHOIX DU MOYEN DE PAIEMENT & COORDONNÉES
-            ══════════════════════════════════════════════════════════════════ */}
-        {step === 'form' && (
-          <div>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-600 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/30">
-                <Smartphone className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-white font-['Outfit']">Paiement Sécurisé</h3>
-                <p className="text-xs text-purple-300">Orange Money, MTN MoMo & Carte Bancaire</p>
-              </div>
-            </div>
+        {/* Dégradé décoratif en fond */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute -top-16 -right-16 w-48 h-48 bg-purple-600/20 rounded-full blur-3xl" />
+          <div className="absolute -bottom-16 -left-16 w-48 h-48 bg-fuchsia-600/15 rounded-full blur-3xl" />
+        </div>
 
-            {/* Récapitulatif du Livre */}
-            <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-3 mb-5">
-              <img
-                src={book.cover_url}
-                alt={book.title}
-                className="w-14 h-14 rounded-xl object-cover shadow"
-              />
-              <div className="flex-1 min-w-0">
-                <h4 className="text-xs sm:text-sm font-bold text-white truncate">{book.title}</h4>
-                <p className="text-[11px] text-slate-400">{book.author}</p>
-                <p className="text-xs font-extrabold text-emerald-400 mt-1">
-                  Montant à débiter : <span className="text-sm font-black">{finalPrice} FCFA</span>
-                </p>
-              </div>
-            </div>
+        <div className="relative z-10 p-6 sm:p-8">
 
-            <form onSubmit={handleProceedToPin} className="space-y-4">
-              {/* Choix des Moyens de Paiement */}
-              <div>
-                <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block mb-2">
-                  Sélectionnez le compte à débiter :
-                </label>
-                <div className="grid grid-cols-2 gap-2.5">
-                  {/* Orange Money */}
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod('mobile_om')}
-                    className={`p-3 rounded-2xl border flex flex-col items-start transition-all ${
-                      paymentMethod === 'mobile_om'
-                        ? 'bg-orange-500/20 border-orange-500 text-white shadow-lg shadow-orange-500/20'
-                        : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
-                    }`}
-                  >
-                    <span className="text-xs font-bold text-orange-400">Orange Money</span>
-                    <span className="text-[10px] text-slate-400">Code #150#</span>
-                  </button>
+          {/* ══════════════════════════════════════════════════════════════
+              ÉTAPE 1 — FORMULAIRE
+          ══════════════════════════════════════════════════════════════ */}
+          {(step === 'form' || step === 'initiating') && (
+            <form onSubmit={handleSubmitForm} className="space-y-5">
 
-                  {/* MTN MoMo */}
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod('mobile_momo')}
-                    className={`p-3 rounded-2xl border flex flex-col items-start transition-all ${
-                      paymentMethod === 'mobile_momo'
-                        ? 'bg-yellow-500/20 border-yellow-500 text-white shadow-lg shadow-yellow-500/20'
-                        : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
-                    }`}
-                  >
-                    <span className="text-xs font-bold text-yellow-400">MTN MoMo</span>
-                    <span className="text-[10px] text-slate-400">Code *126#</span>
-                  </button>
-
-                  {/* Carte Bancaire */}
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod('card')}
-                    className={`p-3 rounded-2xl border flex flex-col items-start transition-all ${
-                      paymentMethod === 'card'
-                        ? 'bg-purple-500/20 border-purple-500 text-white shadow-lg shadow-purple-500/20'
-                        : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
-                    }`}
-                  >
-                    <span className="text-xs font-bold text-purple-300">Carte Visa / MC</span>
-                    <span className="text-[10px] text-slate-400">Débit sécurisé</span>
-                  </button>
-
-                  {/* Portefeuille RG Play */}
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod('wallet')}
-                    className={`p-3 rounded-2xl border flex flex-col items-start transition-all ${
-                      paymentMethod === 'wallet'
-                        ? 'bg-emerald-500/20 border-emerald-500 text-white shadow-lg shadow-emerald-500/20'
-                        : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
-                    }`}
-                  >
-                    <span className="text-xs font-bold text-emerald-400">Solde Compte</span>
-                    <span className="text-[10px] text-slate-400">Débit direct</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Champ Numéro de Téléphone pour Mobile Money */}
-              {paymentMethod.startsWith('mobile') && (
+              {/* En-tête */}
+              <div className="flex items-start justify-between">
                 <div>
-                  <label className="text-xs font-semibold text-slate-300 block mb-1.5">
-                    Numéro de Téléphone {paymentMethod === 'mobile_om' ? 'Orange' : 'MTN'} :
-                  </label>
-                  <div className="flex rounded-2xl overflow-hidden border border-white/10 focus-within:border-purple-500 transition-colors">
-                    <span className="bg-white/10 px-3.5 py-2.5 text-xs font-bold text-slate-300 flex items-center">
-                      🇨🇲 +237
+                  <p className="text-xs font-semibold uppercase tracking-widest text-purple-400 mb-1">
+                    Paiement Sécurisé
+                  </p>
+                  <h2 className="text-xl font-bold text-white leading-tight">
+                    Débloquer ce livre
+                  </h2>
+                </div>
+                <button type="button" onClick={onClose}
+                  className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors">
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Résumé du produit */}
+              <div className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10">
+                <img
+                  src={book.cover_url}
+                  alt={book.title}
+                  className="w-16 h-16 rounded-xl object-cover flex-shrink-0 shadow-lg"
+                  onError={e => { e.target.src = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=200&q=80'; }}
+                />
+                <div className="min-w-0">
+                  <p className="font-semibold text-white text-sm leading-snug line-clamp-2">{book.title}</p>
+                  <p className="text-slate-400 text-xs mt-0.5">{book.author}</p>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    {book.discount_price && (
+                      <span className="text-slate-500 line-through text-xs">{book.price?.toLocaleString()} FCFA</span>
+                    )}
+                    <span className="text-xl font-black text-purple-300">
+                      {finalPrice?.toLocaleString()} <span className="text-sm font-semibold">FCFA</span>
                     </span>
-                    <input
-                      type="tel"
-                      value={phoneNumber}
-                      onChange={(e) => setPhoneNumber(e.target.value)}
-                      placeholder="690 00 00 00"
-                      required
-                      className="w-full bg-white/5 px-3 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none"
-                    />
                   </div>
                 </div>
-              )}
-
-              {/* Champ Carte Bancaire */}
-              {paymentMethod === 'card' && (
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-xs font-semibold text-slate-300 block mb-1">Numéro de Carte Visa / Mastercard :</label>
-                    <input
-                      type="text"
-                      placeholder="4111 2222 3333 4444"
-                      value={cardNumber}
-                      onChange={(e) => setCardNumber(e.target.value)}
-                      required
-                      className="w-full bg-white/5 border border-white/10 rounded-2xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-purple-500"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs font-semibold text-slate-300 block mb-1">Expiration :</label>
-                      <input
-                        type="text"
-                        placeholder="MM/AA"
-                        value={cardExpiry}
-                        onChange={(e) => setCardExpiry(e.target.value)}
-                        className="w-full bg-white/5 border border-white/10 rounded-2xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-slate-300 block mb-1">CVV (3 chiffres) :</label>
-                      <input
-                        type="password"
-                        maxLength="4"
-                        placeholder="123"
-                        value={cardCvv}
-                        onChange={(e) => setCardCvv(e.target.value)}
-                        className="w-full bg-white/5 border border-white/10 rounded-2xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Bouton vers la saisie du mot de passe */}
-              <button
-                type="submit"
-                className="w-full btn-gradient py-3.5 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 shadow-xl shadow-purple-600/30 group"
-              >
-                <Lock className="w-4 h-4 text-purple-200 group-hover:scale-110 transition-transform" />
-                <span>Procéder à l'Autorisation ({finalPrice} FCFA)</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </form>
-          </div>
-        )}
-
-        {/* ══════════════════════════════════════════════════════════════════
-            ÉTAPE 2 : MODAL D'AUTORISATION & SAISIE DU MOT DE PASSE / PIN
-            ══════════════════════════════════════════════════════════════════ */}
-        {step === 'pin_auth' && (
-          <div className="space-y-4 animate-fadeIn">
-            {/* Header avec icône de cadenas de sécurité */}
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <button
-                type="button"
-                onClick={() => setStep('form')}
-                className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 flex items-center gap-1 text-xs"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Retour</span>
-              </button>
-              <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
-                <ShieldCheck className="w-4 h-4" />
-                <span>Autorisation Sécurisée</span>
               </div>
-            </div>
 
-            {/* Récapitulatif du débit */}
-            <div className="p-3.5 rounded-2xl bg-black/40 border border-purple-500/30 text-center space-y-1.5">
-              <span className="text-2xl">{methodDetails.icon}</span>
-              <h4 className="text-xs font-bold text-slate-200">{methodDetails.title}</h4>
-              <p className="text-[11px] text-purple-300">{methodDetails.subtitle}</p>
-              <div className="pt-2">
-                <span className="text-xs text-slate-400 block">Montant exact à débiter :</span>
-                <span className="text-2xl font-black text-emerald-400">{finalPrice} FCFA</span>
-              </div>
-            </div>
-
-            {/* Formulaire de Mot de Passe / Code Secret */}
-            <form onSubmit={handleConfirmDebit} className="space-y-4">
+              {/* Sélection méthode de paiement */}
               <div>
-                <label className="text-xs font-bold text-slate-200 flex items-center justify-between mb-1.5">
-                  <span className="flex items-center gap-1.5">
-                    <KeyRound className="w-3.5 h-3.5 text-pink-400" />
-                    {methodDetails.pinLabel}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowPin(!showPin)}
-                    className="text-[11px] text-purple-300 hover:text-purple-200 flex items-center gap-1"
-                  >
-                    {showPin ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                    <span>{showPin ? 'Masquer' : 'Afficher'}</span>
-                  </button>
-                </label>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2.5">
+                  Méthode de paiement
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  {METHODS.map(m => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => { setPaymentMethod(m.id); setPhoneError(''); }}
+                      className={`flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all duration-200
+                        ${m.color}
+                        ${paymentMethod === m.id ? m.activeColor + ' scale-[1.02]' : 'opacity-70 hover:opacity-100'}`}
+                    >
+                      <span className="text-2xl">{m.icon}</span>
+                      <span className="font-bold text-sm">{m.label}</span>
+                      <span className="text-xs opacity-70">{m.hint}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-                {/* Champ Password / PIN */}
+              {/* Numéro de téléphone */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                  Votre numéro de téléphone
+                </label>
                 <div className="relative">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center gap-2 text-slate-400">
+                    <Phone size={16} />
+                    <span className="text-sm font-semibold text-slate-300">+237</span>
+                    <span className="text-slate-600">|</span>
+                  </div>
                   <input
-                    type={showPin ? 'text' : 'password'}
-                    value={secretPin}
-                    onChange={(e) => {
-                      setSecretPin(e.target.value);
-                      setPinError('');
+                    type="tel"
+                    value={phoneNumber}
+                    onChange={e => {
+                      setPhoneNumber(e.target.value);
+                      setPhoneError('');
                     }}
-                    placeholder="Entrez votre mot de passe ou code secret..."
-                    autoFocus
-                    required
-                    maxLength="8"
-                    className="w-full bg-white/8 border border-white/20 focus:border-emerald-400 rounded-2xl px-4 py-3 text-center text-lg font-mono font-bold tracking-widest text-white focus:outline-none transition-colors"
+                    placeholder="6XXXXXXXX"
+                    maxLength={9}
+                    inputMode="numeric"
+                    className="w-full pl-24 pr-4 py-3.5 rounded-xl bg-white/5 border border-white/10 text-white
+                      placeholder-slate-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500
+                      text-lg font-mono tracking-widest transition-all"
+                    disabled={step === 'initiating'}
                   />
                 </div>
-
-                {/* Clavier Virtuel Numérique Rapide pour Mobile Money */}
-                {paymentMethod.startsWith('mobile') && (
-                  <div className="mt-3 p-2 rounded-2xl bg-white/4 border border-white/8">
-                    <div className="grid grid-cols-3 gap-1.5 max-w-[240px] mx-auto">
-                      {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-                        <button
-                          key={num}
-                          type="button"
-                          onClick={() => handleKeypadPress(String(num))}
-                          className="py-2.5 rounded-xl bg-white/5 hover:bg-purple-600/30 text-white font-bold text-sm hover:scale-105 active:scale-95 transition-all"
-                        >
-                          {num}
-                        </button>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={() => setSecretPin('')}
-                        className="py-2.5 rounded-xl bg-white/5 hover:bg-rose-500/30 text-rose-300 font-bold text-xs"
-                      >
-                        C
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleKeypadPress('0')}
-                        className="py-2.5 rounded-xl bg-white/5 hover:bg-purple-600/30 text-white font-bold text-sm"
-                      >
-                        0
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleKeypadDelete}
-                        className="py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 font-bold text-xs"
-                      >
-                        ⌫
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {pinError && (
-                  <p className="text-[11px] text-rose-400 font-semibold mt-2 flex items-center gap-1 justify-center">
-                    <AlertCircle className="w-3.5 h-3.5" />
-                    <span>{pinError}</span>
+                {phoneError && (
+                  <p className="text-red-400 text-xs mt-1.5 flex items-center gap-1.5">
+                    <AlertCircle size={12} /> {phoneError}
                   </p>
                 )}
+              </div>
 
-                <p className="text-[10px] text-slate-400 text-center mt-2 leading-relaxed">
-                  🔒 Transaction chiffrée SSL 256 bits. Votre mot de passe autorise le débit immédiat.
+              {/* Erreur d'initiation */}
+              {initError && (
+                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 flex items-start gap-2.5">
+                  <AlertCircle size={16} className="text-red-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-red-300 text-sm">{initError}</p>
+                </div>
+              )}
+
+              {/* Info sécurité */}
+              <div className="flex items-center gap-2.5 text-xs text-slate-500">
+                <ShieldCheck size={14} className="text-emerald-500 flex-shrink-0" />
+                <span>Vous recevrez un message sur votre téléphone pour confirmer avec votre code PIN. <strong className="text-slate-400">Votre PIN n'est jamais saisi ici.</strong></span>
+              </div>
+
+              {/* Bouton principal */}
+              <button
+                type="submit"
+                disabled={step === 'initiating'}
+                className="w-full py-4 rounded-2xl font-bold text-white text-base
+                  bg-gradient-to-r from-purple-600 to-fuchsia-600
+                  hover:from-purple-500 hover:to-fuchsia-500
+                  disabled:opacity-60 disabled:cursor-not-allowed
+                  flex items-center justify-center gap-2.5
+                  shadow-lg shadow-purple-500/30
+                  transition-all duration-200 active:scale-[0.98]"
+              >
+                {step === 'initiating' ? (
+                  <>
+                    <Loader2 size={20} className="animate-spin" />
+                    Connexion à {paymentMethod === 'orange_money' ? 'Orange Money' : 'MTN MoMo'}...
+                  </>
+                ) : (
+                  <>
+                    Payer {finalPrice?.toLocaleString()} FCFA
+                    <ArrowRight size={20} />
+                  </>
+                )}
+              </button>
+            </form>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════════
+              ÉTAPE 2 — EN ATTENTE DE CONFIRMATION SUR LE TÉLÉPHONE
+          ══════════════════════════════════════════════════════════════ */}
+          {step === 'waiting_phone' && (
+            <div className="text-center space-y-6 py-2">
+
+              {/* Animation téléphone */}
+              <div className="relative mx-auto w-28 h-28">
+                {/* Anneaux de pulsation */}
+                <div className="absolute inset-0 rounded-full bg-purple-500/20 animate-ping" style={{ animationDuration: '1.5s' }} />
+                <div className="absolute inset-3 rounded-full bg-purple-500/30 animate-ping" style={{ animationDuration: '1.8s', animationDelay: '0.3s' }} />
+                {/* Icône centrale */}
+                <div className="absolute inset-6 rounded-full bg-gradient-to-br from-purple-600 to-fuchsia-600 flex items-center justify-center shadow-xl">
+                  <Smartphone size={28} className="text-white" />
+                </div>
+              </div>
+
+              {/* Titre */}
+              <div>
+                <h2 className="text-2xl font-black text-white mb-2">
+                  Vérifiez votre téléphone !
+                </h2>
+                <p className="text-slate-400 text-sm leading-relaxed max-w-xs mx-auto">
+                  Un message de confirmation a été envoyé sur le numéro&nbsp;
+                  <span className="font-bold text-white">+237 {phoneNumber}</span>.
                 </p>
               </div>
 
-              {/* Bouton de confirmation finale de débit */}
-              <button
-                type="submit"
-                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-slate-950 font-black text-sm flex items-center justify-center gap-2 shadow-xl shadow-emerald-500/25 hover:scale-[1.02] active:scale-98 transition-all"
-              >
-                <Check className="w-4 h-4 stroke-[3]" />
-                <span>Confirmer & Débiter {finalPrice} FCFA</span>
-              </button>
-            </form>
-          </div>
-        )}
+              {/* Instructions étapes */}
+              <div className="text-left space-y-3 p-4 rounded-2xl bg-white/5 border border-white/10">
+                {[
+                  { num: '1', text: `Ouvrez le message ${paymentMethod === 'orange_money' ? 'Orange Money' : 'MTN MoMo'} sur votre téléphone` },
+                  { num: '2', text: 'Entrez votre code PIN Mobile Money pour valider' },
+                  { num: '3', text: `Le montant de ${finalPrice?.toLocaleString()} FCFA sera débité et l'audio débloqué automatiquement` },
+                ].map(step => (
+                  <div key={step.num} className="flex items-start gap-3">
+                    <span className="w-6 h-6 rounded-full bg-purple-600 text-white text-xs font-bold flex-shrink-0 flex items-center justify-center mt-0.5">
+                      {step.num}
+                    </span>
+                    <p className="text-slate-300 text-sm">{step.text}</p>
+                  </div>
+                ))}
+              </div>
 
-        {/* ══════════════════════════════════════════════════════════════════
-            ÉTAPE 3 : TRAITEMENT SÉCURISÉ & DÉBIT
-            ══════════════════════════════════════════════════════════════════ */}
-        {step === 'processing' && (
-          <div className="text-center py-8 space-y-4">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-purple-600 to-pink-500 mx-auto flex items-center justify-center shadow-xl shadow-purple-500/40">
-              <Loader2 className="w-8 h-8 text-white animate-spin" />
-            </div>
-            <h3 className="text-lg font-bold text-white font-['Outfit']">
-              Validation du mot de passe & débit en cours...
-            </h3>
-            <p className="text-xs text-slate-300 max-w-xs mx-auto leading-relaxed">
-              Débit de <strong>{finalPrice} FCFA</strong> sur votre compte <strong>{methodDetails.title}</strong>.
-              Veuillez patienter un instant.
-            </p>
-            <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
-              <p className="text-[11px] text-emerald-400 flex items-center justify-center gap-1.5 font-semibold">
-                <ShieldCheck className="w-4 h-4" />
-                <span>Connexion sécurisée à la passerelle bancaire</span>
+              {/* Indicateur de polling */}
+              <div className="flex flex-col items-center gap-2">
+                <div className="flex items-center gap-2 text-slate-400 text-sm">
+                  <Wifi size={14} className="text-emerald-400 animate-pulse" />
+                  <span>En attente de confirmation...</span>
+                </div>
+                {/* Barre de progression du temps restant */}
+                <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-purple-500 to-fuchsia-500 rounded-full transition-all"
+                    style={{ width: `${(remainingSec / PAYMENT_TIMEOUT_S) * 100}%` }}
+                  />
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                  <Clock size={12} />
+                  <span>Expire dans {formatTime(remainingSec)}</span>
+                </div>
+              </div>
+
+              {/* Bouton annuler */}
+              <button
+                onClick={handleCancel}
+                className="w-full py-3 rounded-xl font-semibold text-slate-400 text-sm
+                  border border-white/10 hover:border-white/20 hover:text-white
+                  transition-all duration-200"
+              >
+                Annuler le paiement
+              </button>
+
+              {/* Référence transaction */}
+              <p className="text-xs text-slate-600 font-mono">
+                Réf : {transactionId}
               </p>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* ══════════════════════════════════════════════════════════════════
-            ÉTAPE 4 : DÉBIT RÉUSSI & LIVRE DÉBLOQUÉ
-            ══════════════════════════════════════════════════════════════════ */}
-        {step === 'success' && (
-          <div className="text-center py-4 space-y-4 animate-fadeIn">
-            <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/50 mx-auto flex items-center justify-center">
-              <CheckCircle2 className="w-10 h-10 text-emerald-400" />
-            </div>
-
-            <div>
-              <h3 className="text-xl font-extrabold text-white font-['Outfit']">
-                Paiement & Débit Confirmés !
-              </h3>
-              <p className="text-xs text-slate-300 mt-1">
-                Le livre <strong className="text-purple-300">{book.title}</strong> est désormais débloqué dans votre bibliothèque.
-              </p>
-            </div>
-
-            {/* Reçu de transaction */}
-            <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 text-xs space-y-1.5 text-left">
-              <div className="flex justify-between text-slate-400">
-                <span>Réf. Transaction :</span>
-                <span className="font-mono text-purple-300 font-bold">{transactionId}</span>
+          {/* ══════════════════════════════════════════════════════════════
+              ÉTAPE — SUCCÈS 🎉
+          ══════════════════════════════════════════════════════════════ */}
+          {step === 'success' && (
+            <div className="text-center space-y-6 py-4">
+              {/* Icône succès */}
+              <div className="mx-auto w-24 h-24 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-2xl shadow-emerald-500/30">
+                <CheckCircle2 size={44} className="text-white" />
               </div>
-              <div className="flex justify-between text-slate-400">
-                <span>Montant débité :</span>
-                <span className="text-emerald-400 font-bold">{finalPrice} FCFA</span>
+
+              <div>
+                <h2 className="text-2xl font-black text-white mb-2">Paiement Confirmé !</h2>
+                <p className="text-slate-400 text-sm">
+                  {finalPrice?.toLocaleString()} FCFA ont été débités de votre compte {paymentMethod === 'orange_money' ? 'Orange Money' : 'MTN MoMo'}.
+                </p>
               </div>
-              <div className="flex justify-between text-slate-400">
-                <span>Mode de débit :</span>
-                <span className="text-slate-200">{methodDetails.title}</span>
+
+              {/* Livre débloqué */}
+              <div className="flex items-center gap-4 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30">
+                <img
+                  src={book.cover_url}
+                  alt={book.title}
+                  className="w-14 h-14 rounded-xl object-cover flex-shrink-0 shadow-lg"
+                  onError={e => { e.target.src = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=200&q=80'; }}
+                />
+                <div className="text-left min-w-0">
+                  <p className="text-xs text-emerald-400 font-semibold uppercase tracking-wide mb-0.5">✅ Débloqué</p>
+                  <p className="font-bold text-white text-sm line-clamp-1">{book.title}</p>
+                  <p className="text-slate-400 text-xs">{book.author}</p>
+                </div>
               </div>
-              <div className="flex justify-between text-slate-400">
-                <span>Statut :</span>
-                <span className="text-emerald-400 font-bold">Validé & Débloqué</span>
+
+              <div className="space-y-3">
+                <button
+                  onClick={handleStartListening}
+                  className="w-full py-4 rounded-2xl font-bold text-white text-base
+                    bg-gradient-to-r from-emerald-600 to-teal-600
+                    hover:from-emerald-500 hover:to-teal-500
+                    shadow-lg shadow-emerald-500/30
+                    transition-all duration-200 active:scale-[0.98]"
+                >
+                  🎧 Écouter maintenant
+                </button>
+                <button
+                  onClick={onClose}
+                  className="w-full py-3 rounded-xl font-semibold text-slate-400 text-sm
+                    border border-white/10 hover:border-white/20 hover:text-white
+                    transition-all duration-200"
+                >
+                  Fermer
+                </button>
               </div>
             </div>
+          )}
 
-            <div className="flex flex-col gap-2.5 pt-2">
-              <button
-                onClick={handleStartListening}
-                className="w-full btn-gradient py-3.5 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 shadow-xl shadow-purple-600/30"
-              >
-                <Sparkles className="w-4 h-4" />
-                <span>Commencer l'Écoute Immédiate</span>
-              </button>
+          {/* ══════════════════════════════════════════════════════════════
+              ÉTAPE — ÉCHEC
+          ══════════════════════════════════════════════════════════════ */}
+          {step === 'failed' && (
+            <div className="text-center space-y-6 py-4">
+              <div className="mx-auto w-24 h-24 rounded-full bg-gradient-to-br from-red-600 to-rose-700 flex items-center justify-center shadow-2xl shadow-red-500/30">
+                <XCircle size={44} className="text-white" />
+              </div>
 
-              <button
-                onClick={onClose}
-                className="w-full py-2.5 rounded-2xl text-xs font-semibold text-slate-400 hover:text-white"
-              >
-                Fermer & Continuer la Navigation
-              </button>
+              <div>
+                <h2 className="text-2xl font-black text-white mb-2">Paiement Échoué</h2>
+                <p className="text-slate-400 text-sm">
+                  Le paiement n'a pas pu être validé. Vérifiez votre solde et réessayez.
+                </p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/30 text-left space-y-2 text-sm text-slate-300">
+                <p className="font-semibold text-red-300">Causes possibles :</p>
+                <ul className="list-disc list-inside space-y-1 text-slate-400 text-xs">
+                  <li>Solde insuffisant sur votre compte mobile money</li>
+                  <li>Code PIN incorrect ou annulation de votre part</li>
+                  <li>Délai dépassé pour la confirmation</li>
+                  <li>Numéro de téléphone incorrect</li>
+                </ul>
+              </div>
+
+              <div className="space-y-3">
+                <button
+                  onClick={handleRetry}
+                  className="w-full py-4 rounded-2xl font-bold text-white text-base
+                    bg-gradient-to-r from-purple-600 to-fuchsia-600
+                    hover:from-purple-500 hover:to-fuchsia-500
+                    flex items-center justify-center gap-2
+                    transition-all duration-200"
+                >
+                  <RefreshCw size={18} /> Réessayer
+                </button>
+                <button
+                  onClick={onClose}
+                  className="w-full py-3 rounded-xl font-semibold text-slate-400 text-sm
+                    border border-white/10 hover:text-white transition-all duration-200"
+                >
+                  Annuler
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
+          {/* ══════════════════════════════════════════════════════════════
+              ÉTAPE — TIMEOUT (3 minutes sans confirmation)
+          ══════════════════════════════════════════════════════════════ */}
+          {step === 'timeout' && (
+            <div className="text-center space-y-6 py-4">
+              <div className="mx-auto w-24 h-24 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-2xl shadow-amber-500/30">
+                <Clock size={44} className="text-white" />
+              </div>
+
+              <div>
+                <h2 className="text-2xl font-black text-white mb-2">Délai Expiré</h2>
+                <p className="text-slate-400 text-sm">
+                  La demande a expiré après 3 minutes sans confirmation.
+                  Aucun montant n'a été débité. Vous pouvez réessayer.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <button
+                  onClick={handleRetry}
+                  className="w-full py-4 rounded-2xl font-bold text-white text-base
+                    bg-gradient-to-r from-purple-600 to-fuchsia-600
+                    hover:from-purple-500 hover:to-fuchsia-500
+                    flex items-center justify-center gap-2
+                    transition-all duration-200"
+                >
+                  <RefreshCw size={18} /> Nouvelle tentative
+                </button>
+                <button
+                  onClick={onClose}
+                  className="w-full py-3 rounded-xl font-semibold text-slate-400 text-sm
+                    border border-white/10 hover:text-white transition-all duration-200"
+                >
+                  Fermer
+                </button>
+              </div>
+            </div>
+          )}
+
+        </div>
       </div>
     </div>
   );

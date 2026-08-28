@@ -242,52 +242,74 @@ export const apiClient = {
     } catch (e) {}
   },
 
-  // Achat via Mobile Money (Orange / MTN / Carte)
-  async checkout({ audiobook, payment_method, phone_number }) {
-    try {
-      const res = await fetch(`${API_BASE}/checkout`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-Id': CURRENT_USER_ID,
-        },
-        body: JSON.stringify({
-          audiobook_id: audiobook.id,
-          payment_method,
-          phone_number,
-          amount: audiobook.discount_price || audiobook.price,
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        this._addToLocalLibrary(audiobook);
-        return data;
-      }
-    } catch (e) {}
+  // ──────────────────────────────────────────────────────────────────────
+  // PAIEMENT MOBILE MONEY PRODUCTION — CamerPay
+  // ──────────────────────────────────────────────────────────────────────
 
-    this._addToLocalLibrary(audiobook);
-    return {
-      success: true,
-      transaction_id: `TX_${Date.now()}`,
-      message: 'Paiement validé avec succès ! Le livre a été débloqué dans votre bibliothèque.',
-    };
+  /**
+   * Étape 1 : Initier le paiement Mobile Money via CamerPay.
+   * Le backend crée la transaction en 'pending' et appelle CamerPay,
+   * qui envoie un push USSD/SMS sur le téléphone de l'acheteur.
+   * @returns {{ success, transaction_id, status:'pending', message }} ou { success:false, error }
+   */
+  async initiatePayment({ audiobook, payment_method, customer_phone }) {
+    const amount = audiobook.discount_price || audiobook.price;
+    const res = await fetch(`${API_BASE}/payment/initiate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-Id': CURRENT_USER_ID,
+      },
+      body: JSON.stringify({
+        audiobook_id: audiobook.id,
+        payment_method,   // 'orange_money' | 'mtn_momo'
+        customer_phone,   // Ex: '699123456'
+        amount,
+      }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || `Erreur CamerPay (HTTP ${res.status})`);
+    }
+    return data; // { success, transaction_id, status:'pending', message }
   },
 
+  /**
+   * Étape 2 : Interroger l'état du paiement (polling toutes les 3 secondes).
+   * Le backend lit le KV (ultra-rapide) puis D1 en fallback.
+   * @returns {{ status: 'pending'|'completed'|'failed', audiobook_id, transaction_id }}
+   */
+  async getPaymentStatus(transaction_id) {
+    const res = await fetch(`${API_BASE}/payment/status/${transaction_id}`, {
+      headers: { 'X-User-Id': CURRENT_USER_ID },
+    });
+    if (!res.ok) throw new Error(`Erreur statut paiement (HTTP ${res.status})`);
+    return res.json();
+  },
+
+  /**
+   * Appelé une fois le statut 'completed' reçu.
+   * Ajoute le livre à la bibliothèque locale pour un accès immédiat hors-ligne.
+   */
   _addToLocalLibrary(audiobook) {
-    const lib = JSON.parse(localStorage.getItem('rg_user_library') || '[]');
-    if (!lib.some(b => b.id === audiobook.id)) {
-      lib.unshift({
-        ...audiobook,
-        purchased_at: new Date().toISOString(),
-        position_seconds: 0,
-        completed_percentage: 0,
-        is_completed: false,
-        is_favorite: false,
-        current_chapter_id: audiobook.chapters?.[0]?.id,
-        current_chapter_title: audiobook.chapters?.[0]?.title || 'Introduction',
-      });
-      localStorage.setItem('rg_user_library', JSON.stringify(lib));
-    }
+    try {
+      const lib = JSON.parse(localStorage.getItem('rg_user_library') || '[]');
+      if (!lib.some(b => b.id === audiobook.id)) {
+        lib.unshift({
+          ...audiobook,
+          purchased_at: new Date().toISOString(),
+          position_seconds: 0,
+          completed_percentage: 0,
+          is_completed: false,
+          is_favorite: false,
+          current_chapter_id: audiobook.chapters?.[0]?.id,
+          current_chapter_title: audiobook.chapters?.[0]?.title || 'Introduction',
+        });
+        localStorage.setItem('rg_user_library', JSON.stringify(lib));
+        window.dispatchEvent(new CustomEvent('rg:library-updated'));
+      }
+    } catch (_) {}
   },
 
   // Statut système & liaisons BD / Cloudflare
