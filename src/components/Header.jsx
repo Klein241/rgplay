@@ -18,11 +18,12 @@ export const Header = ({
   activeTab,
   setActiveTab,
   onOpenInstallModal,
+  onOpenNotifications,
   isAdmin = false,
   onAdminLogout,
 }) => {
   const { theme, toggleTheme } = useTheme();
-  const { isSubscribed, requestPermission } = usePush();
+  const { isSubscribed, requestPermission, unreadCount } = usePush();
   const user = getUserProfile();
 
   const isAdminMode = activeTab === 'admin';
@@ -140,17 +141,18 @@ export const Header = ({
               </button>
             )}
 
-            {/* Notifications Push */}
+            {/* Notifications Push & Centre de Notifications */}
             <button
-              onClick={() => !isSubscribed && requestPermission()}
-              title={isSubscribed ? 'Notifications activées' : 'Activer les notifications'}
-              className={`p-2 rounded-xl border transition-all ${
-                isSubscribed
-                  ? 'bg-purple-500/15 border-purple-500/30 text-purple-300'
-                  : 'rg-btn-ghost rounded-xl'
-              }`}
+              onClick={onOpenNotifications || (() => requestPermission())}
+              title="Centre de notifications"
+              className="relative p-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-all active:scale-95"
             >
-              <Bell className={`w-4 h-4 ${isSubscribed ? 'fill-purple-400' : ''}`} />
+              <Bell className={`w-4 h-4 ${isSubscribed ? 'fill-purple-400 text-purple-300' : 'text-slate-300'}`} />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-pink-500 text-white text-[9px] font-black flex items-center justify-center shadow-md animate-pulse">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
             </button>
 
             {/* Toggle Thème */}

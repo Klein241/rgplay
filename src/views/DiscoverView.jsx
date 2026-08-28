@@ -1,33 +1,49 @@
 import React, { useState, useEffect } from 'react';
 import {
   Star, Play, Headphones, Clock,
-  ChevronRight, Flame, Compass, Search
+  ChevronRight, Flame, Compass, Search,
+  Radio, Music, GraduationCap, BookOpen, Sparkles
 } from 'lucide-react';
 import { apiClient } from '../services/api';
 import { AudiobookCard } from '../components/AudiobookCard';
 import { useAudio } from '../context/AudioContext';
 
+const CONTENT_TYPES = [
+  { id: 'all', label: 'Tous les Univers', icon: Sparkles, color: 'from-purple-600 to-pink-600' },
+  { id: 'audiobook', label: 'Livres Audio', icon: BookOpen, color: 'from-purple-600 to-indigo-600' },
+  { id: 'podcast', label: 'Podcasts', icon: Radio, color: 'from-amber-500 to-orange-600' },
+  { id: 'music', label: 'Musique & Lofi', icon: Music, color: 'from-emerald-500 to-teal-600' },
+  { id: 'masterclass', label: 'Masterclasses', icon: GraduationCap, color: 'from-cyan-500 to-blue-600' },
+];
+
 export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
+  const [selectedType, setSelectedType] = useState('all');
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [audiobooks, setAudiobooks] = useState([]);
   const [featuredBook, setFeaturedBook] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const { playPreview } = useAudio();
+  const { playPreview, playBook } = useAudio();
 
   const loadData = async () => {
     setIsLoading(true);
     try {
       const [cats, books] = await Promise.all([
         apiClient.getCategories(),
-        apiClient.getAudiobooks({ category: selectedCategory, search: searchQuery }),
+        apiClient.getAudiobooks({
+          category: selectedCategory,
+          search: searchQuery,
+          type: selectedType
+        }),
       ]);
       setCategories(cats);
       setAudiobooks(books);
       if (books.length > 0) {
         const featured = books.find(b => Boolean(b.is_featured)) || books[0];
         setFeaturedBook(featured);
+      } else {
+        setFeaturedBook(null);
       }
     } catch (e) {
       console.error('Erreur chargement données:', e);
@@ -50,14 +66,43 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
       window.removeEventListener('rg:book-deleted', handleRefresh);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [selectedCategory, searchQuery]);
+  }, [selectedType, selectedCategory, searchQuery]);
 
   const trendingBooks = audiobooks.slice(0, 6);
+  const podcasts = audiobooks.filter(b => b.content_type === 'podcast');
+  const musicTracks = audiobooks.filter(b => b.content_type === 'music');
+  const masterclasses = audiobooks.filter(b => b.content_type === 'masterclass');
 
   return (
     <div className="pb-28 md:pb-10 animate-fadeIn max-w-7xl mx-auto" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
 
-      {/* ── 1. Hero Featured ── */}
+      {/* ── 1. Sélecteur des 4 Types de Contenu (Tabs Principaux) ── */}
+      <section className="sticky top-16 z-20 -mx-4 px-4 sm:mx-0 sm:px-0 py-2 backdrop-blur-xl bg-slate-950/75 rounded-2xl border border-white/5 shadow-lg">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+          {CONTENT_TYPES.map((type) => {
+            const Icon = type.icon;
+            const isSelected = selectedType === type.id;
+            return (
+              <button
+                key={type.id}
+                onClick={() => {
+                  setSelectedType(type.id);
+                  setSelectedCategory('all');
+                }}
+                className={`flex-shrink-0 px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all duration-300
+                  ${isSelected
+                    ? `bg-gradient-to-r ${type.color} text-white shadow-lg shadow-purple-500/25 scale-[1.03] border border-white/20`
+                    : 'bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/5'}`}
+              >
+                <Icon size={16} />
+                <span>{type.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* ── 2. Hero Featured ── */}
       {!searchQuery && featuredBook && (
         <section>
           <div className="relative rounded-3xl overflow-hidden shadow-2xl" style={{
@@ -75,7 +120,10 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold"
                   style={{ background: 'rgba(247,37,133,0.15)', border: '1px solid rgba(247,37,133,0.28)', color: '#f984b4' }}>
                   <Flame className="w-3.5 h-3.5 fill-pink-400 text-pink-400" />
-                  Tendance du Moment
+                  {featuredBook.content_type === 'podcast' ? '🎙️ Podcast Tendance' :
+                   featuredBook.content_type === 'music' ? '🎵 Musique Tendance' :
+                   featuredBook.content_type === 'masterclass' ? '🎓 Masterclass du Moment' :
+                   'Tendance du Moment'}
                 </div>
 
                 <h1 className="text-2xl sm:text-4xl font-black leading-tight" style={{ color: 'var(--color-text-primary)' }}>
@@ -87,7 +135,11 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
                 </p>
 
                 <div className="flex flex-wrap items-center gap-4 text-xs">
-                  <span style={{ color: '#c77dff', fontWeight: 700 }}>Par {featuredBook.author}</span>
+                  <span style={{ color: '#c77dff', fontWeight: 700 }}>
+                    {featuredBook.content_type === 'podcast' ? 'Hôte : ' :
+                     featuredBook.content_type === 'music' ? 'Artiste : ' : 'Par '}
+                    {featuredBook.author}
+                  </span>
                   <span style={{ color: 'rgba(157,78,221,0.40)' }}>•</span>
                   <span className="flex items-center gap-1" style={{ color: '#ffbe0b', fontWeight: 700 }}>
                     <Star className="w-3.5 h-3.5 fill-amber-400" />
@@ -104,11 +156,11 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
                   <button onClick={() => playPreview(featuredBook)}
                     className="btn-gradient py-3 px-6 rounded-2xl text-sm font-bold flex items-center gap-2">
                     <Headphones className="w-4 h-4" />
-                    Écouter l'Extrait
+                    {featuredBook.content_type === 'music' ? 'Écouter la Piste' : 'Écouter l\'Extrait'}
                   </button>
                   <button onClick={() => onSelectBook(featuredBook)}
                     className="rg-btn-ghost py-3 px-5 rounded-2xl text-sm">
-                    Détails — {featuredBook.discount_price || featuredBook.price} FCFA
+                    {featuredBook.price === 0 || featuredBook.is_free_for_members ? 'Détails (Gratuit)' : `Détails — ${featuredBook.discount_price || featuredBook.price} FCFA`}
                   </button>
                 </div>
               </div>
@@ -117,14 +169,7 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
                 className="relative w-44 h-44 sm:w-56 sm:h-56 rounded-3xl overflow-hidden shadow-2xl flex-shrink-0 cursor-pointer group"
                 style={{ border: '2px solid rgba(255,255,255,0.14)' }}>
                 <img
-                  src={
-                    !featuredBook.cover_url ? 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80'
-                    : featuredBook.cover_url.includes('r2.cloudflarestorage.com') && featuredBook.cover_r2_key
-                      ? `/api/r2/download?key=${encodeURIComponent(featuredBook.cover_r2_key)}`
-                      : featuredBook.cover_url.includes('r2.cloudflarestorage.com')
-                        ? 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80'
-                        : featuredBook.cover_url
-                  }
+                  src={featuredBook.cover_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80'}
                   alt={featuredBook.title}
                   onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80'; }}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
@@ -142,12 +187,14 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
         </section>
       )}
 
-      {/* ── 2. Catégories (dans un conteneur distinct) ── */}
+      {/* ── 3. Catégories Thématiques ── */}
       <section>
         <div className="card-lg space-y-4">
           <div className="flex items-center gap-2">
             <Compass className="w-4 h-4 text-purple-400" />
-            <h2 className="text-base font-bold" style={{ color: 'var(--color-text-primary)' }}>Explorer par Catégorie</h2>
+            <h2 className="text-base font-bold" style={{ color: 'var(--color-text-primary)' }}>
+              Catégories & Thèmes
+            </h2>
           </div>
           <div className="flex items-center gap-2.5 overflow-x-auto pb-1 no-scrollbar">
             {categories.map((cat) => {
@@ -170,22 +217,22 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
         </div>
       </section>
 
-      {/* ── 3. Carrousel Tendances ── */}
+      {/* ── 4. Carrousel Pour Vous / Tendances ── */}
       {!searchQuery && selectedCategory === 'all' && trendingBooks.length > 0 && (
         <section>
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-black" style={{ color: 'var(--color-text-primary)' }}>Pour Vous</h2>
+                <h2 className="text-lg font-black" style={{ color: 'var(--color-text-primary)' }}>
+                  {selectedType === 'podcast' ? '🎙️ Podcasts Populaires' :
+                   selectedType === 'music' ? '🎵 Musiques & Ambiance' :
+                   selectedType === 'masterclass' ? '🎓 Masterclasses Recommandées' :
+                   'Pour Vous'}
+                </h2>
                 <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>
                   Sélectionnés selon vos préférences d'écoute
                 </p>
               </div>
-              <button onClick={() => setSelectedCategory('cat-1')}
-                className="text-xs font-bold flex items-center gap-1 transition-colors"
-                style={{ color: 'var(--color-rg-violet)' }}>
-                Voir tout <ChevronRight className="w-4 h-4" />
-              </button>
             </div>
             <div className="flex items-stretch gap-4 overflow-x-auto pb-3 no-scrollbar">
               {trendingBooks.map((book) => (
@@ -196,16 +243,21 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
         </section>
       )}
 
-      {/* ── 4. Grille Principale ── */}
+      {/* ── 5. Grille Principale ── */}
       <section>
         <div className="space-y-5">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-black" style={{ color: 'var(--color-text-primary)' }}>
-                {searchQuery ? `Résultats pour "${searchQuery}"` : 'Tous les Livres Audio'}
+                {searchQuery
+                  ? `Résultats pour "${searchQuery}"`
+                  : selectedType === 'podcast' ? 'Tous les Podcasts'
+                  : selectedType === 'music' ? 'Toutes les Pistes Musicales'
+                  : selectedType === 'masterclass' ? 'Toutes les Masterclasses'
+                  : 'Tous les Titres Audio'}
               </h2>
               <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>
-                {audiobooks.length} {audiobooks.length > 1 ? 'titres disponibles' : 'titre disponible'} en haute fidélité
+                {audiobooks.length} {audiobooks.length > 1 ? 'contenus disponibles' : 'contenu disponible'} en streaming HD
               </p>
             </div>
           </div>
@@ -219,11 +271,17 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
           ) : audiobooks.length === 0 ? (
             <div className="text-center py-16 card-lg space-y-4">
               <Search className="w-12 h-12 mx-auto opacity-35" style={{ color: 'var(--color-text-tertiary)' }} />
-              <h3 className="text-lg font-bold" style={{ color: 'var(--color-text-primary)' }}>Aucun livre trouvé</h3>
+              <h3 className="text-lg font-bold" style={{ color: 'var(--color-text-primary)' }}>Aucun contenu trouvé</h3>
               <p className="text-sm max-w-sm mx-auto" style={{ color: 'var(--color-text-tertiary)' }}>
-                Essayez une autre catégorie ou effectuez une nouvelle recherche.
+                Essayez un autre univers ou modifiez vos critères de recherche.
               </p>
-              <button onClick={() => setSelectedCategory('all')} className="rg-btn-primary px-5 py-2.5 rounded-full text-sm">
+              <button
+                onClick={() => {
+                  setSelectedType('all');
+                  setSelectedCategory('all');
+                }}
+                className="rg-btn-primary px-5 py-2.5 rounded-full text-sm"
+              >
                 Réinitialiser les filtres
               </button>
             </div>

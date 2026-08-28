@@ -7,6 +7,8 @@ import { FullScreenPlayer } from './components/FullScreenPlayer';
 import { AudiobookDetailModal } from './components/AudiobookDetailModal';
 import { CheckoutModal } from './components/CheckoutModal';
 import { InstallAppModal } from './components/InstallAppModal';
+import { PushPermissionBanner } from './components/PushPermissionBanner';
+import { NotificationCenterModal } from './components/NotificationCenterModal';
 import { DiscoverView } from './views/DiscoverView';
 import { LibraryView } from './views/LibraryView';
 import { AdminStudioView } from './views/AdminStudioView';
@@ -21,6 +23,7 @@ export function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
+  const [isNotifCenterOpen, setIsNotifCenterOpen] = useState(false);
 
   const [selectedBookForDetail, setSelectedBookForDetail] = useState(null);
   const [selectedBookForCheckout, setSelectedBookForCheckout] = useState(null);
@@ -139,6 +142,22 @@ export function App() {
     setActiveTab('discover');
   };
 
+  const handleNavigateContent = (url) => {
+    if (!url) return;
+    if (url.includes('?type=')) {
+      handleTabChange('discover');
+    } else if (url.includes('?book=')) {
+      const match = url.match(/[?&]book=([^&]+)/);
+      if (match && match[1]) {
+        import('./services/api').then(({ apiClient }) => {
+          apiClient.getAudiobookById(match[1]).then(book => {
+            if (book) setSelectedBookForDetail(book);
+          });
+        });
+      }
+    }
+  };
+
   const isAdminMode = activeTab === 'admin';
 
   // ════════════════════════════════════════════════
@@ -160,6 +179,7 @@ export function App() {
                 searchQuery=""
                 onSearch={() => {}}
                 onOpenInstallModal={() => setIsInstallModalOpen(true)}
+                onOpenNotifications={() => setIsNotifCenterOpen(true)}
                 isAdmin={isAdminAuthenticated}
                 onAdminLogout={handleAdminLogout}
               />
@@ -204,6 +224,7 @@ export function App() {
               searchQuery={searchQuery}
               onSearch={setSearchQuery}
               onOpenInstallModal={() => setIsInstallModalOpen(true)}
+              onOpenNotifications={() => setIsNotifCenterOpen(true)}
               isAdmin={false}
               onAdminLogout={null}
             />
@@ -240,7 +261,7 @@ export function App() {
               </main>
             </div>
 
-            {/* Lecteurs */}
+            {/* Lecteurs Audio */}
             <MiniPlayer />
             <FullScreenPlayer />
 
@@ -251,7 +272,16 @@ export function App() {
               onOpenInstallModal={() => setIsInstallModalOpen(true)}
             />
 
-            {/* Modals */}
+            {/* Bandeau d'activation Push Notification Persistant */}
+            <PushPermissionBanner />
+
+            {/* Modales */}
+            <NotificationCenterModal
+              isOpen={isNotifCenterOpen}
+              onClose={() => setIsNotifCenterOpen(false)}
+              onNavigateContent={handleNavigateContent}
+            />
+
             <AudiobookDetailModal
               book={selectedBookForDetail}
               isOpen={!!selectedBookForDetail}
@@ -259,6 +289,7 @@ export function App() {
               onBuy={(book) => { setSelectedBookForDetail(null); setSelectedBookForCheckout(book); }}
               isPurchased={selectedBookForDetail ? purchasedIds.has(selectedBookForDetail.id) : false}
             />
+
             <CheckoutModal
               book={selectedBookForCheckout}
               isOpen={!!selectedBookForCheckout}
@@ -268,6 +299,7 @@ export function App() {
                 window.dispatchEvent(new Event('rg:library-updated'));
               }}
             />
+
             <InstallAppModal
               isOpen={isInstallModalOpen}
               onClose={() => setIsInstallModalOpen(false)}

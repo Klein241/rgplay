@@ -317,6 +317,7 @@ export const AdminStudioView = ({ onBookCreated }) => {
   const [publishedBook, setPublishedBook] = useState(null);
   const [publishResult, setPublishResult] = useState(null);
 
+  const [contentType, setContentType] = useState('audiobook');
   const [title, setTitle] = useState('');
   const [author, setAuthor] = useState('');
   const [narrator, setNarrator] = useState('');
@@ -419,6 +420,7 @@ export const AdminStudioView = ({ onBookCreated }) => {
   // Éditer un livre : pré-remplir le formulaire de publication
   const handleEditBook = (book) => {
     setEditingBook(book);
+    setContentType(book.content_type || 'audiobook');
     setTitle(book.title || '');
     setAuthor(book.author || '');
     setNarrator(book.narrator || '');
@@ -490,6 +492,7 @@ export const AdminStudioView = ({ onBookCreated }) => {
     const newBook = {
       id: bookId,
       title, author, narrator,
+      content_type: contentType,
       category_id: categoryId,
       category_name: categories.find(c => c.id === categoryId)?.name || 'Business & Finance',
       price: Number(price),
@@ -531,7 +534,7 @@ export const AdminStudioView = ({ onBookCreated }) => {
   };
 
   const resetPublishForm = () => {
-    setStep(1); setTitle(''); setAuthor(''); setNarrator('');
+    setStep(1); setContentType('audiobook'); setTitle(''); setAuthor(''); setNarrator('');
     setPrice('3500'); setDiscountPrice('2900'); setDescription(''); setSynopsis('');
     setCoverData(null); setPreviewData(null);
     setChapters([{ title: 'Chapitre 1 : Introduction', duration_seconds: 1800, uploadData: null }]);
@@ -1286,14 +1289,51 @@ export const AdminStudioView = ({ onBookCreated }) => {
             {/* ÉTAPE 1 : Informations */}
             {step === 1 && (
               <div className="card-lg space-y-5">
+                {/* Sélecteur Type de Contenu */}
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-2">Type de Contenu *</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    {[
+                      { id: 'audiobook', label: 'Livre Audio', icon: '📚', color: 'border-purple-500 bg-purple-500/10 text-purple-300' },
+                      { id: 'podcast', label: 'Podcast', icon: '🎙️', color: 'border-amber-500 bg-amber-500/10 text-amber-300' },
+                      { id: 'music', label: 'Musique & Lofi', icon: '🎵', color: 'border-emerald-500 bg-emerald-500/10 text-emerald-300' },
+                      { id: 'masterclass', label: 'Masterclass', icon: '🎓', color: 'border-cyan-500 bg-cyan-500/10 text-cyan-300' },
+                    ].map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setContentType(t.id)}
+                        className={`p-3 rounded-2xl border text-xs font-bold flex flex-col items-center gap-1.5 transition-all ${
+                          contentType === t.id
+                            ? `${t.color} border-2 shadow-lg`
+                            : 'border-white/10 bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
+                        }`}
+                      >
+                        <span className="text-lg">{t.icon}</span>
+                        <span>{t.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="sm:col-span-2">
-                    <label className="text-xs font-bold text-slate-300 block mb-1.5">Titre de l'œuvre *</label>
+                    <label className="text-xs font-bold text-slate-300 block mb-1.5">
+                      {contentType === 'podcast' ? 'Titre de l\'Épisode / Émission *' :
+                       contentType === 'music' ? 'Titre de la Piste / Album *' :
+                       contentType === 'masterclass' ? 'Titre de la Masterclass *' :
+                       'Titre de l\'œuvre *'}
+                    </label>
                     <input
                       type="text"
                       value={title}
                       onChange={e => setTitle(e.target.value)}
-                      placeholder="Ex : L'Art de la Stratégie Gagnante"
+                      placeholder={
+                        contentType === 'podcast' ? 'Ex : Tech Pulse Afrique #12' :
+                        contentType === 'music' ? 'Ex : Lofi Midnight Focus' :
+                        contentType === 'masterclass' ? 'Ex : Masterclass IA Générative' :
+                        'Ex : L\'Art de la Stratégie Gagnante'
+                      }
                       className="rg-input"
                     />
                   </div>

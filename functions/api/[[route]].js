@@ -105,10 +105,11 @@ export async function onRequest(context) {
       const category = url.searchParams.get('category');
       const search = url.searchParams.get('search');
       const featured = url.searchParams.get('featured');
+      const type = url.searchParams.get('type'); // 'audiobook' | 'podcast' | 'music' | 'masterclass'
 
       // Cache KV si pas de filtres dynamiques
       if (!search && env.KV_BINDING) {
-        const cacheKey = `books_${category || 'all'}_${featured || 'false'}`;
+        const cacheKey = `books_${category || 'all'}_${type || 'all'}_${featured || 'false'}`;
         const cached = await env.KV_BINDING.get(cacheKey, { type: 'json' });
         if (cached && Array.isArray(cached)) {
           const sanitized = cached.map(b => {
@@ -137,6 +138,10 @@ export async function onRequest(context) {
         `;
         const queryParams = [];
 
+        if (type && type !== 'all') {
+          query += ' AND a.content_type = ?';
+          queryParams.push(type);
+        }
         if (category && category !== 'all') {
           query += ' AND (a.category_id = ? OR c.slug = ?)';
           queryParams.push(category, category);
@@ -200,6 +205,7 @@ export async function onRequest(context) {
 
           return {
             ...book,
+            content_type: book.content_type || 'audiobook',
             cover_url: coverUrl,
             preview_url: previewUrl,
             chapters: bookChapters,
@@ -208,13 +214,13 @@ export async function onRequest(context) {
 
         // Cache KV si pas de recherche textuelle
         if (!search && env.KV_BINDING) {
-          const cacheKey = `books_${category || 'all'}_${featured || 'false'}`;
+          const cacheKey = `books_${category || 'all'}_${type || 'all'}_${featured || 'false'}`;
           await env.KV_BINDING.put(cacheKey, JSON.stringify(enriched), { expirationTtl: 300 });
         }
 
         return jsonResponse(enriched, corsHeaders);
       }
-      return jsonResponse(getFallbackAudiobooks(category, search, featured), corsHeaders);
+      return jsonResponse(getFallbackAudiobooks(category, search, featured, type), corsHeaders);
     }
 
     // ─── GET /api/audiobooks/:id ──────────────────────────────────
@@ -1055,19 +1061,20 @@ export async function onRequest(context) {
     if (path === '/admin/books' && method === 'POST') {
       const body = await request.json();
       const bookId = body.id || `book-${Date.now()}`;
+      const contentType = body.content_type || 'audiobook';
 
       if (env.DB) {
         try {
           await env.DB.prepare(`
             INSERT OR REPLACE INTO audiobooks (
               id, title, author, narrator, description, synopsis,
-              price, discount_price, category_id, cover_url, cover_r2_key,
+              price, discount_price, category_id, content_type, cover_url, cover_r2_key,
               preview_url, preview_r2_key, duration_seconds, rating, rating_count, 
               is_featured, is_bestseller, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 5.0, 1, 1, 0, CURRENT_TIMESTAMP)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 5.0, 1, 1, 0, CURRENT_TIMESTAMP)
           `).bind(
             bookId, body.title, body.author, body.narrator, body.description, body.synopsis || '',
-            body.price, body.discount_price || null, body.category_id,
+            body.price, body.discount_price || null, body.category_id, contentType,
             body.cover_url, body.cover_r2_key || null,
             body.preview_url, body.preview_r2_key || null,
             body.duration_seconds || 0
@@ -1354,20 +1361,243 @@ function getFallbackCategories() {
   ];
 }
 
-function getFallbackAudiobooks(category, search, featured) {
-  const books = [
-    { id: 'book-1', title: 'La Psychologie de l\'Argent', author: 'Morgan Housel', narrator: 'Alexandre D.', description: 'Quelques leçons intemporelles sur la richesse, la cupidité et le bonheur.', cover_url: 'https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?w=800&q=80', preview_url: 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3', category_id: 'cat-1', category_name: 'Business & Finance', price: 3500, discount_price: 2900, duration_seconds: 21600, rating: 4.9, rating_count: 1420, is_featured: 1, is_bestseller: 1, is_free_for_members: 0, chapters: [{ id: 'chap-1-1', chapter_number: 1, title: 'Introduction : Le plus grand spectacle sur Terre', duration_seconds: 1800, audio_url: 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3', audio_stream_url: '/api/chapters/chap-1-1/stream' }, { id: 'chap-1-2', chapter_number: 2, title: 'Personne n\'est fou', duration_seconds: 2400, audio_url: 'https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=ambient-piano-amp-strings-10711.mp3', audio_stream_url: '/api/chapters/chap-1-2/stream' }, { id: 'chap-1-3', chapter_number: 3, title: 'Chance & Risque : Deux faces d\'une même pièce', duration_seconds: 2100, audio_url: 'https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8bbf7341e.mp3?filename=cinematic-epic-10903.mp3', audio_stream_url: '/api/chapters/chap-1-3/stream' }] },
-    { id: 'book-4', title: 'Révolution IA : Comprendre et Dompter le Futur', author: 'Dr. Sophie Laurent', narrator: 'Claire V.', description: 'Une plongée captivante dans le fonctionnement des LLMs, agents autonomes et leur impact sur le travail.', cover_url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80', preview_url: 'https://cdn.pixabay.com/download/audio/2022/10/14/audio_9939f792cb.mp3?filename=electronic-future-beats-117997.mp3', category_id: 'cat-3', category_name: 'Intelligence Artificielle & Tech', price: 5000, discount_price: 3900, duration_seconds: 25200, rating: 4.95, rating_count: 2150, is_featured: 1, is_bestseller: 1, is_free_for_members: 0, chapters: [{ id: 'chap-4-1', chapter_number: 1, title: 'Genèse des Modèles Géants : De Turing aux Transformers', duration_seconds: 2400, audio_url: 'https://cdn.pixabay.com/download/audio/2022/10/14/audio_9939f792cb.mp3?filename=electronic-future-beats-117997.mp3', audio_stream_url: '/api/chapters/chap-4-1/stream' }, { id: 'chap-4-2', chapter_number: 2, title: 'L\'art du Prompting et les Agents Autonomes', duration_seconds: 3000, audio_url: 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3', audio_stream_url: '/api/chapters/chap-4-2/stream' }] },
-    { id: 'book-2', title: 'L\'Effet Cumulé : Décuplez votre réussite', author: 'Darren Hardy', narrator: 'Nathalie Dupont', description: 'Le principe fondamental pour transformer de petites actions quotidiennes en succès gigantesques.', cover_url: 'https://images.unsplash.com/photo-1553729459-efe14ef6055d?w=800&q=80', preview_url: 'https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=ambient-piano-amp-strings-10711.mp3', category_id: 'cat-2', category_name: 'Développement Personnel', price: 4000, discount_price: null, duration_seconds: 18000, rating: 4.85, rating_count: 980, is_featured: 1, is_bestseller: 1, is_free_for_members: 0, chapters: [{ id: 'chap-2-1', chapter_number: 1, title: 'L\'effet cumulé en action', duration_seconds: 3600, audio_url: 'https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=ambient-piano-amp-strings-10711.mp3', audio_stream_url: '/api/chapters/chap-2-1/stream' }] },
-    { id: 'book-3', title: 'L\'Art de la Guerre & Stratégie', author: 'Sun Tzu (Adapté)', narrator: 'Jean-Pierre M.', description: 'Le traité stratégique le plus influent au monde, appliqué au leadership moderne.', cover_url: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=800&q=80', preview_url: 'https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8bbf7341e.mp3?filename=cinematic-epic-10903.mp3', category_id: 'cat-5', category_name: 'Histoire & Stratégie', price: 2500, discount_price: 1900, duration_seconds: 10800, rating: 4.7, rating_count: 640, is_featured: 0, is_bestseller: 0, is_free_for_members: 1, chapters: [{ id: 'chap-3-1', chapter_number: 1, title: 'Évaluation et plans initiaux', duration_seconds: 2700, audio_url: 'https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8bbf7341e.mp3?filename=cinematic-epic-10903.mp3', audio_stream_url: '/api/chapters/chap-3-1/stream' }] },
-    { id: 'book-5', title: 'Le Pouvoir du Moment Présent', author: 'Eckhart Tolle', narrator: 'Marc Bellemare', description: 'Guide d\'éveil spirituel pour calmer le bavardage mental et vivre avec sérénité.', cover_url: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=800&q=80', preview_url: 'https://cdn.pixabay.com/download/audio/2021/08/04/audio_bb630cc098.mp3?filename=meditation-peace-6644.mp3', category_id: 'cat-4', category_name: 'Psychologie & Mental', price: 3800, discount_price: null, duration_seconds: 28800, rating: 4.88, rating_count: 3120, is_featured: 0, is_bestseller: 1, is_free_for_members: 0, chapters: [{ id: 'chap-5-1', chapter_number: 1, title: 'Vous n\'êtes pas votre mental', duration_seconds: 3600, audio_url: 'https://cdn.pixabay.com/download/audio/2021/08/04/audio_bb630cc098.mp3?filename=meditation-peace-6644.mp3', audio_stream_url: '/api/chapters/chap-5-1/stream' }] },
-    { id: 'book-6', title: 'L\'Alchimiste & Secrets du Désert', author: 'Paulo Coelho', narrator: 'Michel A.', description: 'L\'histoire intemporelle de Santiago, un berger andalou parti à la recherche de sa Légende Personnelle.', cover_url: 'https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?w=800&q=80', preview_url: 'https://cdn.pixabay.com/download/audio/2022/05/16/audio_c1c1f7a0dc.mp3?filename=oriental-strings-111162.mp3', category_id: 'cat-6', category_name: 'Romans & Fiction', price: 3000, discount_price: null, duration_seconds: 14400, rating: 4.92, rating_count: 4800, is_featured: 0, is_bestseller: 1, is_free_for_members: 1, chapters: [{ id: 'chap-6-1', chapter_number: 1, title: 'Première Partie : Les rêves de Tarifa', duration_seconds: 3200, audio_url: 'https://cdn.pixabay.com/download/audio/2022/05/16/audio_c1c1f7a0dc.mp3?filename=oriental-strings-111162.mp3', audio_stream_url: '/api/chapters/chap-6-1/stream' }] },
+function getFallbackAudiobooks(category, search, featured, type) {
+  const items = [
+    // 📚 1. LIVRES AUDIO (Audiobooks)
+    {
+      id: 'book-1',
+      title: 'La Psychologie de l\'Argent',
+      author: 'Morgan Housel',
+      narrator: 'Alexandre D.',
+      content_type: 'audiobook',
+      description: 'Quelques leçons intemporelles sur la richesse, la cupidité et le bonheur.',
+      cover_url: 'https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?w=800&q=80',
+      preview_url: 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3',
+      category_id: 'cat-1',
+      category_name: 'Business & Finance',
+      price: 3500,
+      discount_price: 2900,
+      duration_seconds: 21600,
+      rating: 4.9,
+      rating_count: 1420,
+      is_featured: 1,
+      is_bestseller: 1,
+      is_free_for_members: 0,
+      chapters: [
+        { id: 'chap-1-1', chapter_number: 1, title: 'Introduction : Le plus grand spectacle sur Terre', duration_seconds: 1800, audio_url: 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3', audio_stream_url: '/api/chapters/chap-1-1/stream' },
+        { id: 'chap-1-2', chapter_number: 2, title: 'Personne n\'est fou', duration_seconds: 2400, audio_url: 'https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=ambient-piano-amp-strings-10711.mp3', audio_stream_url: '/api/chapters/chap-1-2/stream' }
+      ]
+    },
+    {
+      id: 'book-2',
+      title: 'L\'Effet Cumulé : Décuplez votre réussite',
+      author: 'Darren Hardy',
+      narrator: 'Nathalie Dupont',
+      content_type: 'audiobook',
+      description: 'Le principe fondamental pour transformer de petites actions quotidiennes en succès gigantesques.',
+      cover_url: 'https://images.unsplash.com/photo-1553729459-efe14ef6055d?w=800&q=80',
+      preview_url: 'https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=ambient-piano-amp-strings-10711.mp3',
+      category_id: 'cat-2',
+      category_name: 'Développement Personnel',
+      price: 4000,
+      discount_price: null,
+      duration_seconds: 18000,
+      rating: 4.85,
+      rating_count: 980,
+      is_featured: 1,
+      is_bestseller: 1,
+      is_free_for_members: 0,
+      chapters: [
+        { id: 'chap-2-1', chapter_number: 1, title: 'L\'effet cumulé en action', duration_seconds: 3600, audio_url: 'https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=ambient-piano-amp-strings-10711.mp3', audio_stream_url: '/api/chapters/chap-2-1/stream' }
+      ]
+    },
+    {
+      id: 'book-6',
+      title: 'L\'Alchimiste & Secrets du Désert',
+      author: 'Paulo Coelho',
+      narrator: 'Michel A.',
+      content_type: 'audiobook',
+      description: 'L\'histoire intemporelle de Santiago, un berger andalou parti à la recherche de sa Légende Personnelle.',
+      cover_url: 'https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?w=800&q=80',
+      preview_url: 'https://cdn.pixabay.com/download/audio/2022/05/16/audio_c1c1f7a0dc.mp3?filename=oriental-strings-111162.mp3',
+      category_id: 'cat-6',
+      category_name: 'Romans & Fiction',
+      price: 3000,
+      discount_price: null,
+      duration_seconds: 14400,
+      rating: 4.92,
+      rating_count: 4800,
+      is_featured: 0,
+      is_bestseller: 1,
+      is_free_for_members: 1,
+      chapters: [
+        { id: 'chap-6-1', chapter_number: 1, title: 'Première Partie : Les rêves de Tarifa', duration_seconds: 3200, audio_url: 'https://cdn.pixabay.com/download/audio/2022/05/16/audio_c1c1f7a0dc.mp3?filename=oriental-strings-111162.mp3', audio_stream_url: '/api/chapters/chap-6-1/stream' }
+      ]
+    },
+
+    // 🎙️ 2. PODCASTS
+    {
+      id: 'pod-1',
+      title: 'Tech Pulse Afrique : L\'Ère de l\'IA & Startups',
+      author: 'Marc & Sandra (Tech Talk)',
+      narrator: 'Marc K.',
+      content_type: 'podcast',
+      description: 'Chaque semaine, décryptage des innovations technologiques, levées de fonds et opportunités en Afrique.',
+      cover_url: 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=800&q=80',
+      preview_url: 'https://cdn.pixabay.com/download/audio/2022/10/14/audio_9939f792cb.mp3?filename=electronic-future-beats-117997.mp3',
+      category_id: 'cat-3',
+      category_name: 'Intelligence Artificielle & Tech',
+      price: 0,
+      discount_price: null,
+      duration_seconds: 3600,
+      rating: 4.96,
+      rating_count: 850,
+      is_featured: 1,
+      is_bestseller: 0,
+      is_free_for_members: 1,
+      chapters: [
+        { id: 'pod-1-1', chapter_number: 1, title: 'Épisode 1 : Les champions tech d\'Afrique Centrale', duration_seconds: 1800, audio_url: 'https://cdn.pixabay.com/download/audio/2022/10/14/audio_9939f792cb.mp3?filename=electronic-future-beats-117997.mp3', audio_stream_url: '/api/chapters/pod-1-1/stream' },
+        { id: 'pod-1-2', chapter_number: 2, title: 'Épisode 2 : L\'IA générative appliquée aux PME', duration_seconds: 1800, audio_url: 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3', audio_stream_url: '/api/chapters/pod-1-2/stream' }
+      ]
+    },
+    {
+      id: 'pod-2',
+      title: 'Mindset & Leadership Africain',
+      author: 'Dr. Christian E.',
+      narrator: 'Dr. Christian E.',
+      content_type: 'podcast',
+      description: 'Conversations profondes avec les leaders, entrepreneurs et créateurs qui façonnent le continent.',
+      cover_url: 'https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=800&q=80',
+      preview_url: 'https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=ambient-piano-amp-strings-10711.mp3',
+      category_id: 'cat-2',
+      category_name: 'Développement Personnel',
+      price: 0,
+      discount_price: null,
+      duration_seconds: 4200,
+      rating: 4.89,
+      rating_count: 610,
+      is_featured: 1,
+      is_bestseller: 0,
+      is_free_for_members: 1,
+      chapters: [
+        { id: 'pod-2-1', chapter_number: 1, title: 'Épisode 1 : Résilience et gestion du doute', duration_seconds: 2100, audio_url: 'https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=ambient-piano-amp-strings-10711.mp3', audio_stream_url: '/api/chapters/pod-2-1/stream' }
+      ]
+    },
+
+    // 🎵 3. MUSIQUE & LOFI (Music)
+    {
+      id: 'mus-1',
+      title: 'Deep Focus & Lofi Study Session',
+      author: 'RG Studio Beats',
+      narrator: 'Instrumental',
+      content_type: 'music',
+      description: 'Pistes relaxantes lofi spécialement calibrées pour la concentration, la lecture et la productivité.',
+      cover_url: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&q=80',
+      preview_url: 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3',
+      category_id: 'cat-4',
+      category_name: 'Psychologie & Mental',
+      price: 0,
+      discount_price: null,
+      duration_seconds: 7200,
+      rating: 4.98,
+      rating_count: 3400,
+      is_featured: 1,
+      is_bestseller: 1,
+      is_free_for_members: 1,
+      chapters: [
+        { id: 'mus-1-1', chapter_number: 1, title: 'Piste 1 : Midnight Coffee Lofi', duration_seconds: 2400, audio_url: 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3', audio_stream_url: '/api/chapters/mus-1-1/stream' },
+        { id: 'mus-1-2', chapter_number: 2, title: 'Piste 2 : Rainy Afternoon Chill', duration_seconds: 2400, audio_url: 'https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=ambient-piano-amp-strings-10711.mp3', audio_stream_url: '/api/chapters/mus-1-2/stream' },
+        { id: 'mus-1-3', chapter_number: 3, title: 'Piste 3 : Sunset Walk in Douala', duration_seconds: 2400, audio_url: 'https://cdn.pixabay.com/download/audio/2022/05/16/audio_c1c1f7a0dc.mp3?filename=oriental-strings-111162.mp3', audio_stream_url: '/api/chapters/mus-1-3/stream' }
+      ]
+    },
+    {
+      id: 'mus-2',
+      title: 'Méditation Zen & Fréquences 432Hz',
+      author: 'Aura Soundscapes',
+      narrator: 'Sons Thérapeutiques',
+      content_type: 'music',
+      description: 'Sons d\'ambiance binauraux et fréquences relaxantes pour la méditation et le sommeil profond.',
+      cover_url: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=800&q=80',
+      preview_url: 'https://cdn.pixabay.com/download/audio/2021/08/04/audio_bb630cc098.mp3?filename=meditation-peace-6644.mp3',
+      category_id: 'cat-4',
+      category_name: 'Psychologie & Mental',
+      price: 1500,
+      discount_price: 1000,
+      duration_seconds: 5400,
+      rating: 4.91,
+      rating_count: 1200,
+      is_featured: 0,
+      is_bestseller: 0,
+      is_free_for_members: 1,
+      chapters: [
+        { id: 'mus-2-1', chapter_number: 1, title: 'Harmonie & Sérénité 432Hz', duration_seconds: 2700, audio_url: 'https://cdn.pixabay.com/download/audio/2021/08/04/audio_bb630cc098.mp3?filename=meditation-peace-6644.mp3', audio_stream_url: '/api/chapters/mus-2-1/stream' }
+      ]
+    },
+
+    // 🎓 4. MASTERCLASSES & FORMATIONS (Masterclasses)
+    {
+      id: 'mc-1',
+      title: 'Masterclass : Révolution IA & Prompting Pro',
+      author: 'Dr. Sophie Laurent',
+      narrator: 'Claire V.',
+      content_type: 'masterclass',
+      description: 'Formation audio complète pour maîtriser l\'ingénierie de prompt, ChatGPT, Claude et les agents autonomes.',
+      cover_url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80',
+      preview_url: 'https://cdn.pixabay.com/download/audio/2022/10/14/audio_9939f792cb.mp3?filename=electronic-future-beats-117997.mp3',
+      category_id: 'cat-3',
+      category_name: 'Intelligence Artificielle & Tech',
+      price: 5000,
+      discount_price: 3900,
+      duration_seconds: 25200,
+      rating: 4.97,
+      rating_count: 2150,
+      is_featured: 1,
+      is_bestseller: 1,
+      is_free_for_members: 0,
+      chapters: [
+        { id: 'chap-mc-1', chapter_number: 1, title: 'Leçon 1 : Fondations des LLMs et Architecture Transformer', duration_seconds: 3600, audio_url: 'https://cdn.pixabay.com/download/audio/2022/10/14/audio_9939f792cb.mp3?filename=electronic-future-beats-117997.mp3', audio_stream_url: '/api/chapters/chap-mc-1/stream' },
+        { id: 'chap-mc-2', chapter_number: 2, title: 'Leçon 2 : Techniques de Prompt Avancées & Few-Shot', duration_seconds: 4200, audio_url: 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3', audio_stream_url: '/api/chapters/chap-mc-2/stream' }
+      ]
+    },
+    {
+      id: 'mc-2',
+      title: 'Masterclass : L\'Art de la Négociation Gagnante',
+      author: 'Sun Tzu & Experts Modernes',
+      narrator: 'Jean-Pierre M.',
+      content_type: 'masterclass',
+      description: 'Stratégies audio intensives pour négocier des contrats, des partenariats et convaincre avec impact.',
+      cover_url: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=800&q=80',
+      preview_url: 'https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8bbf7341e.mp3?filename=cinematic-epic-10903.mp3',
+      category_id: 'cat-5',
+      category_name: 'Histoire & Stratégie',
+      price: 2500,
+      discount_price: 1900,
+      duration_seconds: 10800,
+      rating: 4.82,
+      rating_count: 740,
+      is_featured: 0,
+      is_bestseller: 0,
+      is_free_for_members: 0,
+      chapters: [
+        { id: 'chap-mc-2-1', chapter_number: 1, title: 'Module 1 : Psychologie de l\'interlocuteur et cadrage', duration_seconds: 2700, audio_url: 'https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8bbf7341e.mp3?filename=cinematic-epic-10903.mp3', audio_stream_url: '/api/chapters/chap-mc-2-1/stream' }
+      ]
+    }
   ];
 
-  let filtered = books;
-  if (category && category !== 'all') filtered = filtered.filter(b => b.category_id === category);
-  if (search) { const q = search.toLowerCase(); filtered = filtered.filter(b => b.title.toLowerCase().includes(q) || b.author.toLowerCase().includes(q)); }
-  if (featured === 'true') filtered = filtered.filter(b => b.is_featured === 1);
+  let filtered = items;
+  if (type && type !== 'all') {
+    filtered = filtered.filter(b => (b.content_type || 'audiobook') === type);
+  }
+  if (category && category !== 'all') {
+    filtered = filtered.filter(b => b.category_id === category);
+  }
+  if (search) {
+    const q = search.toLowerCase();
+    filtered = filtered.filter(b => b.title.toLowerCase().includes(q) || b.author.toLowerCase().includes(q));
+  }
+  if (featured === 'true') {
+    filtered = filtered.filter(b => b.is_featured === 1);
+  }
   return filtered;
 }
 
@@ -1379,7 +1609,8 @@ function getFallbackLibrary() {
   const books = getFallbackAudiobooks();
   return [
     { ...books[0], purchased_at: new Date().toISOString(), position_seconds: 450, completed_percentage: 25, is_completed: 0, is_favorite: 1, current_chapter_title: 'Personne n\'est fou' },
-    { ...books[1], purchased_at: new Date().toISOString(), position_seconds: 1200, completed_percentage: 50, is_completed: 0, is_favorite: 1, current_chapter_title: 'L\'art du Prompting' },
+    { ...books[3], purchased_at: new Date().toISOString(), position_seconds: 600, completed_percentage: 15, is_completed: 0, is_favorite: 1, current_chapter_title: 'Épisode 1 : Les champions tech' },
+    { ...books[5], purchased_at: new Date().toISOString(), position_seconds: 1200, completed_percentage: 50, is_completed: 0, is_favorite: 1, current_chapter_title: 'Midnight Coffee Lofi' },
   ];
 }
 
@@ -1400,11 +1631,11 @@ async function ensureD1Seeded(db) {
       for (const b of books) {
         await db.prepare(`
           INSERT OR IGNORE INTO audiobooks (
-            id, title, author, narrator, description, price, discount_price, category_id, cover_url, preview_url, duration_seconds, rating, rating_count, is_featured, is_bestseller
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            id, title, author, narrator, description, price, discount_price, category_id, content_type, cover_url, preview_url, duration_seconds, rating, rating_count, is_featured, is_bestseller
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
           b.id, b.title, b.author, b.narrator, b.description,
-          b.price, b.discount_price || null, b.category_id,
+          b.price, b.discount_price || null, b.category_id, b.content_type || 'audiobook',
           b.cover_url, b.preview_url, b.duration_seconds || 18000,
           b.rating || 5.0, b.rating_count || 100, b.is_featured ? 1 : 0, b.is_bestseller ? 1 : 0
         ).run();

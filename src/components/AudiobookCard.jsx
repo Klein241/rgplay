@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Star, Play, Clock, Headphones, Sparkles, CheckCircle2, Share2 } from 'lucide-react';
 import { useAudio } from '../context/AudioContext';
+import { shareAudioWithCover } from '../utils/shareUtils';
 
 const DEFAULT_COVER = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80';
 
@@ -21,17 +22,8 @@ export const AudiobookCard = ({ book, onSelect, isPurchased = false, layout = 'g
 
   const handleShare = async (e) => {
     e.stopPropagation();
-    const url = `${window.location.origin}/?book=${book.id}`;
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: book.title,
-          text: `Écoutez "${book.title}" par ${book.author} sur RG Play`,
-          url,
-        });
-      } catch (_) {}
-    } else {
-      navigator.clipboard.writeText(url);
+    const res = await shareAudioWithCover(book);
+    if (res.method === 'clipboard') {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
@@ -88,6 +80,15 @@ export const AudiobookCard = ({ book, onSelect, isPurchased = false, layout = 'g
 
             {/* Badges sécurisés */}
             <div className="absolute top-2.5 left-2.5 flex flex-col gap-1.5 pointer-events-none">
+              {book.content_type && book.content_type !== 'audiobook' && (
+                <span className={`text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full shadow-md text-slate-950 flex items-center gap-1 ${
+                  book.content_type === 'podcast' ? 'bg-amber-400' :
+                  book.content_type === 'music' ? 'bg-emerald-400' : 'bg-cyan-400'
+                }`}>
+                  {book.content_type === 'podcast' ? '🎙️ Podcast' :
+                   book.content_type === 'music' ? '🎵 Musique' : '🎓 Masterclass'}
+                </span>
+              )}
               {Boolean(book.is_bestseller) && (
                 <span className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-400 text-slate-950 shadow-md">
                   Bestseller
@@ -110,13 +111,18 @@ export const AudiobookCard = ({ book, onSelect, isPurchased = false, layout = 'g
           {/* Détails du livre */}
           <div className="space-y-1.5">
             <span className="text-[11px] font-bold text-purple-400 uppercase tracking-wider block">
-              {book.category_name || 'Livre Audio'}
+              {book.content_type === 'podcast' ? '🎙️ Podcast' :
+               book.content_type === 'music' ? '🎵 Musique & Ambiance' :
+               book.content_type === 'masterclass' ? '🎓 Masterclass' :
+               (book.category_name || 'Livre Audio')}
             </span>
             <h4 className="text-sm sm:text-base font-bold text-white line-clamp-1 group-hover:text-purple-300 transition-colors leading-snug">
               {book.title}
             </h4>
             <p className="text-xs text-slate-400 truncate">
-              Par <span className="text-slate-300 font-medium">{book.author}</span>
+              {book.content_type === 'podcast' ? 'Hôte : ' :
+               book.content_type === 'music' ? 'Artiste : ' : 'Par '}
+              <span className="text-slate-300 font-medium">{book.author}</span>
             </p>
           </div>
         </div>
@@ -128,7 +134,9 @@ export const AudiobookCard = ({ book, onSelect, isPurchased = false, layout = 'g
             <span>{book.rating || 5.0}</span>
           </div>
           <div className="font-extrabold text-purple-300">
-            {book.discount_price ? (
+            {book.price === 0 || book.is_free_for_members ? (
+              <span className="text-emerald-400 font-black px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30">Gratuit</span>
+            ) : book.discount_price ? (
               <div className="flex items-center gap-1.5">
                 <span className="text-[10px] text-slate-500 line-through">{book.price} F</span>
                 <span className="text-emerald-400 font-black">{book.discount_price} FCFA</span>
@@ -160,6 +168,15 @@ export const AudiobookCard = ({ book, onSelect, isPurchased = false, layout = 'g
 
           {/* Badges superposés */}
           <div className="absolute top-3 left-3 flex flex-wrap gap-1.5 pointer-events-none">
+            {book.content_type && book.content_type !== 'audiobook' && (
+              <span className={`text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full shadow-md text-slate-950 flex items-center gap-1 ${
+                book.content_type === 'podcast' ? 'bg-amber-400' :
+                book.content_type === 'music' ? 'bg-emerald-400' : 'bg-cyan-400'
+              }`}>
+                {book.content_type === 'podcast' ? '🎙️ Podcast' :
+                 book.content_type === 'music' ? '🎵 Musique' : '🎓 Masterclass'}
+              </span>
+            )}
             {Boolean(book.is_bestseller) && (
               <span className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-400 text-slate-950 shadow-md">
                 Bestseller

@@ -48,7 +48,7 @@ export const apiClient = {
   },
 
   // Liste des livres audio (Source de vérité = Serveur / Base de données)
-  async getAudiobooks({ category = 'all', search = '', featured = false } = {}) {
+  async getAudiobooks({ category = 'all', search = '', featured = false, type = 'all' } = {}) {
     let books = null;
 
     try {
@@ -56,6 +56,7 @@ export const apiClient = {
       if (category && category !== 'all') params.append('category', category);
       if (search) params.append('search', search);
       if (featured) params.append('featured', 'true');
+      if (type && type !== 'all') params.append('type', type);
 
       const res = await fetch(`${API_BASE}/audiobooks?${params.toString()}`);
       if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
@@ -64,7 +65,7 @@ export const apiClient = {
           books = data;
           // Mettre en cache local pour mode hors-ligne
           try {
-            if (!category || category === 'all' && !search && !featured) {
+            if ((!category || category === 'all') && !search && !featured && (!type || type === 'all')) {
               localStorage.setItem('rg_cached_books', JSON.stringify(data));
             }
           } catch (_) {}
@@ -87,6 +88,9 @@ export const apiClient = {
       }
 
       // Filtrer les résultats fallback
+      if (type && type !== 'all') {
+        books = books.filter(b => (b.content_type || 'audiobook') === type);
+      }
       if (category && category !== 'all') {
         books = books.filter(b => 
           b.category_id === category || 

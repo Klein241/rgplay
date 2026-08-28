@@ -51,8 +51,10 @@ export const LibraryView = ({ onSelectBook, onGoToDiscover }) => {
   const minutesListened = Math.floor((totalSecondsListened % 3600) / 60);
 
   const filteredBooks = libraryBooks.filter((book) => {
-    if (filter === 'in_progress') return (book.completed_percentage || 0) < 95;
-    if (filter === 'completed') return (book.completed_percentage || 0) >= 95 || book.is_completed;
+    if (filter === 'audiobook') return !book.content_type || book.content_type === 'audiobook';
+    if (filter === 'podcast') return book.content_type === 'podcast';
+    if (filter === 'music') return book.content_type === 'music';
+    if (filter === 'masterclass') return book.content_type === 'masterclass';
     if (filter === 'favorites') return Boolean(book.is_favorite);
     return true;
   });
@@ -76,7 +78,7 @@ export const LibraryView = ({ onSelectBook, onGoToDiscover }) => {
         {/* Badges de stats rapides réelles */}
         <div className="flex items-center gap-3">
           <div className="px-4 py-2 rounded-2xl bg-white/5 border border-white/10 text-center">
-            <span className="text-xs text-slate-400 block">Livres Achetés</span>
+            <span className="text-xs text-slate-400 block">Titres Possédés</span>
             <span className="text-sm font-extrabold text-white">{libraryBooks.length}</span>
           </div>
           <div className="px-4 py-2 rounded-2xl bg-white/5 border border-white/10 text-center">
@@ -88,18 +90,20 @@ export const LibraryView = ({ onSelectBook, onGoToDiscover }) => {
         </div>
       </div>
 
-      {/* Onglets de filtrage */}
+      {/* Onglets de filtrage par types de contenu */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
         {[
-          { id: 'all', label: 'Tous les livres', count: libraryBooks.length },
-          { id: 'in_progress', label: 'En cours d\'écoute', count: libraryBooks.filter(b => (b.completed_percentage || 0) < 95).length },
-          { id: 'completed', label: 'Terminés', count: libraryBooks.filter(b => (b.completed_percentage || 0) >= 95 || b.is_completed).length },
-          { id: 'favorites', label: 'Favoris ❤️', count: libraryBooks.filter(b => Boolean(b.is_favorite)).length },
+          { id: 'all', label: '✨ Tout', count: libraryBooks.length },
+          { id: 'audiobook', label: '📚 Livres Audio', count: libraryBooks.filter(b => !b.content_type || b.content_type === 'audiobook').length },
+          { id: 'podcast', label: '🎙️ Podcasts', count: libraryBooks.filter(b => b.content_type === 'podcast').length },
+          { id: 'music', label: '🎵 Musique & Lofi', count: libraryBooks.filter(b => b.content_type === 'music').length },
+          { id: 'masterclass', label: '🎓 Masterclasses', count: libraryBooks.filter(b => b.content_type === 'masterclass').length },
+          { id: 'favorites', label: '❤️ Favoris', count: libraryBooks.filter(b => Boolean(b.is_favorite)).length },
         ].map((tab) => (
           <button
             key={tab.id}
             onClick={() => setFilter(tab.id)}
-            className={`px-4 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${
+            className={`px-4 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
               filter === tab.id
                 ? 'bg-gradient-to-r from-purple-600 to-pink-500 text-white shadow-md shadow-purple-600/30'
                 : 'bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10'
