@@ -164,6 +164,32 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
     }, 1000);
   };
 
+  const [isConfirming, setIsConfirming] = useState(false);
+
+  // ── Confirmation Manuelle Instantanée ─────────────────────────────────────
+  const handleConfirmManual = async () => {
+    setIsConfirming(true);
+    try {
+      await apiClient.confirmManualPayment({
+        transaction_id: transactionId,
+        audiobook: book,
+      });
+      clearAllIntervals();
+      setStep('success');
+      confetti({
+        particleCount: 120,
+        spread: 90,
+        origin: { y: 0.5 },
+        colors: ['#9d4edd', '#c77dff', '#f72585', '#06d6a0', '#ffbe0b'],
+      });
+      if (onSuccess) onSuccess(book);
+    } catch (err) {
+      console.warn('Erreur confirmation manuelle:', err);
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+
   // ── Annuler / Réessayer ───────────────────────────────────────────────────
   const handleCancel = () => {
     clearAllIntervals();
@@ -433,6 +459,36 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                   <Clock size={12} />
                   <span>Expire dans {formatTime(remainingSec)}</span>
                 </div>
+              </div>
+
+              {/* Bouton de confirmation manuelle immédiate */}
+              <div className="space-y-2 pt-2">
+                <button
+                  type="button"
+                  onClick={handleConfirmManual}
+                  disabled={isConfirming}
+                  className="w-full py-4 rounded-2xl font-bold text-white text-base
+                    bg-gradient-to-r from-emerald-600 to-teal-600
+                    hover:from-emerald-500 hover:to-teal-500
+                    shadow-lg shadow-emerald-500/30
+                    flex items-center justify-center gap-2.5
+                    transition-all duration-200 active:scale-[0.98]"
+                >
+                  {isConfirming ? (
+                    <>
+                      <Loader2 size={20} className="animate-spin" />
+                      Déblocage en cours...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 size={20} />
+                      J'ai validé mon code PIN (Débloquer)
+                    </>
+                  )}
+                </button>
+                <p className="text-[11px] text-slate-400">
+                  Cliquez dès que vous avez approuvé la transaction sur votre téléphone
+                </p>
               </div>
 
               {/* Bouton annuler */}

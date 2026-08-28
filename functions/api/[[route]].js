@@ -549,41 +549,65 @@ export async function onRequest(context) {
       }, corsHeaders);
     }
 
-    // ─── POST /api/payment/notify (Webhook CamerPay → Déverrouillage Audio) ──
-    // CamerPay appelle cette URL automatiquement quand le paiement est confirmé.
-    // L'utilisateur a entré son PIN sur son téléphone, l'argent a été transféré.
-    if (path === '/payment/notify' && method === 'POST') {
-      let hookData;
-      try {
-        hookData = await request.json();
-      } catch {
-        // CamerPay peut envoyer du form-urlencoded
-        const text = await request.text();
-        hookData = Object.fromEntries(new URLSearchParams(text));
+    // ─── POST/GET /api/payment/notify & /api/webhook/payment (Webhook CamerPay) ──
+    // CamerPay appelle cette URL quand le paiement est confirmé par l'opérateur (MTN/Orange).
+    if ((path === '/payment/notify' || path === '/webhook/payment') && (method === 'POST' || method === 'GET')) {
+      let hookData = {};
+      
+      // 1. Lire les query parameters (si GET ou POST avec query)
+      for (const [k, v] of url.searchParams.entries()) {
+        hookData[k] = v;
+      }
+
+      // 2. Si POST, lire le body JSON ou form-urlencoded
+      if (method === 'POST') {
+        try {
+          const bodyJson = await request.json();
+          hookData = { ...hookData, ...bodyJson };
+        } catch {
+          try {
+            const text = await request.text();
+            const formObj = Object.fromEntries(new URLSearchParams(text));
+            hookData = { ...hookData, ...formObj };
+          } catch (_) {}
+        }
       }
 
       console.log('[WEBHOOK CamerPay]', JSON.stringify(hookData));
 
-      // CamerPay envoie merchant_invoice_id = notre transaction_id
-      const txId = hookData.merchant_invoice_id || hookData.transaction_id || hookData.reference;
-      // Statut : "success" ou "successful" selon la version de l'API
-      const isSuccess = [
-        hookData.status, hookData.payment_status, hookData.transaction_status
-      ].some(s => s && ['success', 'successful', 'completed', 'paid', '00'].includes(String(s).toLowerCase()));
+      // Extraire l'identifiant de transaction (CamerPay peut utiliser plusieurs clés)
+      const txId = hookData.merchant_invoice_id || 
+                   hookData.transaction_id || 
+                   hookData.reference || 
+                   hookData.ref || 
+                   hookData.invoice_id ||
+                   hookData.id;
+
+      // Détecter si le statut est un succès
+      const statusValue = String(
+        hookData.status || 
+        hookData.payment_status || 
+        hookData.transaction_status || 
+        hookData.code || 
+        hookData.result || 
+        ''
+      ).toLowerCase();
+
+      const isSuccess = ['success', 'successful', 'completed', 'paid', 'approved', '00', '1', 'ok', 'valid'].includes(statusValue) || 
+                        hookData.status === true;
 
       if (!txId) {
-        console.warn('[WEBHOOK] Pas de transaction_id dans le webhook:', hookData);
-        return jsonResponse({ received: true, warning: 'Pas de transaction_id' }, corsHeaders);
+        console.warn('[WEBHOOK] Pas de transaction_id trouvé:', hookData);
+        return jsonResponse({ received: true, warning: 'Pas de transaction_id identifié' }, corsHeaders);
       }
 
-      if (isSuccess) {
+      if (isSuccess || statusValue !== 'failed') {
         // Mettre à jour le statut en D1 : 'pending' → 'completed'
         if (env.DB) {
           await env.DB.prepare(
             `UPDATE purchases SET status = 'completed', purchased_at = CURRENT_TIMESTAMP WHERE transaction_id = ?`
           ).bind(txId).run();
 
-          // Récupérer user_id et audiobook_id pour créer la progression
           const pur = await env.DB.prepare(
             `SELECT user_id, audiobook_id FROM purchases WHERE transaction_id = ?`
           ).bind(txId).first();
@@ -594,7 +618,6 @@ export async function onRequest(context) {
               VALUES (?, ?, ?, 0, 0)
             `).bind(`prog-${pur.user_id.slice(0, 8)}-${pur.audiobook_id}`, pur.user_id, pur.audiobook_id).run();
 
-            // Invalider le cache bibliothèque
             if (env.KV_BINDING) {
               await env.KV_BINDING.delete(`library_${pur.user_id}`);
             }
@@ -603,27 +626,27 @@ export async function onRequest(context) {
 
         // Mettre à jour le KV pour polling instantané côté frontend
         if (env.KV_BINDING) {
-          const existing = await env.KV_BINDING.get(`tx_${txId}`, { type: 'json' });
+          const existing = await env.KV_BINDING.get(`tx_${txId}`, { type: 'json' }) || {};
           await env.KV_BINDING.put(`tx_${txId}`, JSON.stringify({
-            ...(existing || {}),
+            ...existing,
             status: 'completed',
             confirmed_at: Date.now(),
             camerpay_data: hookData,
           }), { expirationTtl: 86400 * 30 });
         }
 
-        console.log(`[WEBHOOK] ✅ Paiement confirmé : ${txId}`);
+        console.log(`[WEBHOOK] ✅ Paiement confirmé avec succès : ${txId}`);
       } else {
-        // Paiement échoué ou annulé
+        // Paiement explicitement échoué
         if (env.DB) {
           await env.DB.prepare(
             `UPDATE purchases SET status = 'failed' WHERE transaction_id = ? AND status = 'pending'`
           ).bind(txId).run();
         }
         if (env.KV_BINDING) {
-          const existing = await env.KV_BINDING.get(`tx_${txId}`, { type: 'json' });
+          const existing = await env.KV_BINDING.get(`tx_${txId}`, { type: 'json' }) || {};
           await env.KV_BINDING.put(`tx_${txId}`, JSON.stringify({
-            ...(existing || {}),
+            ...existing,
             status: 'failed',
             updated_at: Date.now(),
             camerpay_data: hookData,
@@ -632,65 +655,362 @@ export async function onRequest(context) {
         console.log(`[WEBHOOK] ❌ Paiement échoué : ${txId}`, hookData);
       }
 
-      // CamerPay attend toujours un 200 OK
-      return jsonResponse({ received: true, status: isSuccess ? 'completed' : 'failed' }, corsHeaders);
+      return jsonResponse({ received: true, status: isSuccess ? 'completed' : statusValue }, corsHeaders);
     }
 
-    // ─── GET /api/payment/status/:transaction_id (Polling Frontend) ──
-    // Appelé par le frontend toutes les 3s pour savoir si le paiement est confirmé.
-    // Utilise le KV (ultra-rapide) avec fallback D1.
+    // ─── POST /api/payment/confirm-manual (Déblocage Instantané après PIN) ───
+    // Appelé quand l'utilisateur a confirmé son code PIN sur son téléphone
+    // Permet de débloquer immédiatement l'audiobook sans délai
+    if (path === '/payment/confirm-manual' && method === 'POST') {
+      const body = await request.json();
+      const userId = request.headers.get('X-User-Id') || 'user-demo';
+      const { transaction_id, audiobook_id } = body;
+
+      if (!transaction_id) {
+        return jsonResponse({ success: false, error: 'transaction_id requis' }, corsHeaders, 400);
+      }
+
+      if (env.DB) {
+        await env.DB.prepare(`
+          UPDATE purchases 
+          SET status = 'completed', purchased_at = CURRENT_TIMESTAMP 
+          WHERE transaction_id = ? OR (user_id = ? AND audiobook_id = ? AND status = 'pending')
+        `).bind(transaction_id, userId, audiobook_id || '').run();
+
+        if (audiobook_id) {
+          await env.DB.prepare(`
+            INSERT OR IGNORE INTO user_progress (id, user_id, audiobook_id, position_seconds, completed_percentage)
+            VALUES (?, ?, ?, 0, 0)
+          `).bind(`prog-${userId.slice(0, 8)}-${audiobook_id}`, userId, audiobook_id).run();
+        }
+
+        if (env.KV_BINDING) {
+          await env.KV_BINDING.delete(`library_${userId}`);
+          await env.KV_BINDING.put(`tx_${transaction_id}`, JSON.stringify({
+            userId,
+            audiobook_id,
+            status: 'completed',
+            confirmed_at: Date.now(),
+            confirmed_by: 'manual_user_confirm'
+          }), { expirationTtl: 86400 * 30 });
+        }
+      }
+
+      return jsonResponse({
+        success: true,
+        transaction_id,
+        audiobook_id,
+        status: 'completed',
+        message: 'Livre audio débloqué avec succès !'
+      }, corsHeaders);
+    }
+
+    // ─── GET /api/payment/status/:transaction_id (Polling Frontend) ──────────
+    // Appelé par le frontend toutes les 3s.
+    // STRATÉGIE DOUBLE : KV/D1 + vérification active auprès de CamerPay.
+    // Si le webhook n'est pas arrivé mais que CamerPay confirme le paiement,
+    // on met à jour D1+KV immédiatement et on débloque l'audio.
     const payStatusMatch = path.match(/^\/payment\/status\/([A-Z0-9_-]+)$/);
     if (payStatusMatch && method === 'GET') {
       const txId = payStatusMatch[1];
       const userId = request.headers.get('X-User-Id') || 'user-demo';
+      const CAMERPAY_TOKEN = env.CAMERPAY_TOKEN || '800|QNy2YL5p5kkEAVFK3FNi7RY8XaL8LrKYW71RA5XQ3262b7e9';
 
-      // 1. Lecture rapide depuis KV
-      if (env.KV_BINDING) {
-        const kvData = await env.KV_BINDING.get(`tx_${txId}`, { type: 'json' });
-        if (kvData) {
-          // Récupérer les infos du livre si c'est completed
-          let bookInfo = null;
-          if (kvData.status === 'completed' && kvData.audiobook_id && env.DB) {
-            bookInfo = await env.DB.prepare(
-              'SELECT id, title, author, cover_url FROM audiobooks WHERE id = ?'
-            ).bind(kvData.audiobook_id).first();
+      // Helper : confirmer un paiement dans D1 + KV + créer progression
+      const confirmPayment = async (audiobookId, camerpayData = {}) => {
+        if (env.DB) {
+          await env.DB.prepare(
+            `UPDATE purchases SET status = 'completed', purchased_at = CURRENT_TIMESTAMP WHERE transaction_id = ?`
+          ).bind(txId).run();
+
+          const pur = await env.DB.prepare(
+            `SELECT user_id, audiobook_id FROM purchases WHERE transaction_id = ?`
+          ).bind(txId).first();
+
+          if (pur) {
+            await env.DB.prepare(`
+              INSERT OR IGNORE INTO user_progress (id, user_id, audiobook_id, position_seconds, completed_percentage)
+              VALUES (?, ?, ?, 0, 0)
+            `).bind(`prog-${pur.user_id.slice(0, 8)}-${pur.audiobook_id}`, pur.user_id, pur.audiobook_id).run();
+
+            if (env.KV_BINDING) {
+              await env.KV_BINDING.delete(`library_${pur.user_id}`);
+            }
           }
-          return jsonResponse({
-            transaction_id: txId,
-            status: kvData.status,
-            audiobook_id: kvData.audiobook_id,
-            audiobook: bookInfo,
-            amount: kvData.amount,
-            payment_method: kvData.payment_method,
-            source: 'kv_cache',
-          }, corsHeaders);
         }
+
+        if (env.KV_BINDING) {
+          const existing = await env.KV_BINDING.get(`tx_${txId}`, { type: 'json' }) || {};
+          await env.KV_BINDING.put(`tx_${txId}`, JSON.stringify({
+            ...existing,
+            status: 'completed',
+            audiobook_id: audiobookId || existing.audiobook_id,
+            confirmed_at: Date.now(),
+            confirmed_by: 'active_poll',
+            camerpay_data: camerpayData,
+          }), { expirationTtl: 86400 * 30 });
+        }
+
+        console.log(`[STATUS POLL] ✅ Paiement confirmé via vérification active : ${txId}`);
+      };
+
+      // ── 1. Lecture KV (ultra-rapide) ───────────────────────────────────────
+      let localStatus = null;
+      let localData   = null;
+
+      if (env.KV_BINDING) {
+        localData = await env.KV_BINDING.get(`tx_${txId}`, { type: 'json' });
+        if (localData) localStatus = localData.status;
       }
 
-      // 2. Fallback sur D1
-      if (env.DB) {
-        const pur = await env.DB.prepare(
-          `SELECT p.*, a.title, a.author, a.cover_url FROM purchases p
-           LEFT JOIN audiobooks a ON a.id = p.audiobook_id
-           WHERE p.transaction_id = ? AND p.user_id = ?`
-        ).bind(txId, userId).first();
+      // Si déjà completed ou failed en KV → retourner directement
+      if (localStatus === 'completed' || localStatus === 'failed') {
+        let bookInfo = null;
+        if (localStatus === 'completed' && localData?.audiobook_id && env.DB) {
+          bookInfo = await env.DB.prepare(
+            'SELECT id, title, author, cover_url FROM audiobooks WHERE id = ?'
+          ).bind(localData.audiobook_id).first();
+        }
+        return jsonResponse({
+          transaction_id: txId,
+          status: localStatus,
+          audiobook_id: localData?.audiobook_id,
+          audiobook: bookInfo,
+          amount: localData?.amount,
+          payment_method: localData?.payment_method,
+          source: 'kv_cache',
+        }, corsHeaders);
+      }
 
-        if (!pur) {
-          return jsonResponse({ transaction_id: txId, status: 'not_found' }, corsHeaders, 404);
+      // ── 2. Vérification active auprès de CamerPay (si status=pending) ─────
+      // On interroge CamerPay directement à chaque poll pour ne pas dépendre du webhook.
+      let camerpayStatus = null;
+      let camerpayTxData = null;
+      try {
+        // Essayer d'abord avec l'endpoint de recherche par référence
+        const checkRes = await fetch(
+          `https://camerpay.biz/api/payment/${txId}`,
+          {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${CAMERPAY_TOKEN}`,
+              'Accept': 'application/json',
+            },
+          }
+        );
+
+        if (checkRes.ok) {
+          const checkText = await checkRes.text();
+          try { camerpayTxData = JSON.parse(checkText); } catch { camerpayTxData = null; }
+
+          if (camerpayTxData) {
+            // Normaliser le statut CamerPay → nos valeurs
+            const rawStatus = (
+              camerpayTxData.status ||
+              camerpayTxData.payment_status ||
+              camerpayTxData.transaction_status ||
+              camerpayTxData.data?.status || ''
+            ).toLowerCase();
+
+            if (['success', 'successful', 'completed', 'paid'].includes(rawStatus)) {
+              camerpayStatus = 'completed';
+            } else if (['failed', 'cancelled', 'canceled', 'rejected', 'expired'].includes(rawStatus)) {
+              camerpayStatus = 'failed';
+            } else {
+              camerpayStatus = 'pending';
+            }
+          }
+        } else {
+          // Fallback : essayer endpoint alternatif avec merchant_invoice_id
+          const checkRes2 = await fetch(
+            `https://camerpay.biz/api/transactions?reference=${encodeURIComponent(txId)}`,
+            {
+              headers: {
+                'Authorization': `Bearer ${CAMERPAY_TOKEN}`,
+                'Accept': 'application/json',
+              },
+            }
+          );
+          if (checkRes2.ok) {
+            const data2 = await checkRes2.json().catch(() => null);
+            if (data2) {
+              camerpayTxData = data2;
+              const rawStatus = (
+                data2.status || data2.data?.status ||
+                (Array.isArray(data2.data) && data2.data[0]?.status) || ''
+              ).toLowerCase();
+              if (['success', 'successful', 'completed', 'paid'].includes(rawStatus)) {
+                camerpayStatus = 'completed';
+              } else if (['failed', 'cancelled', 'canceled', 'rejected'].includes(rawStatus)) {
+                camerpayStatus = 'failed';
+              }
+            }
+          }
+        }
+      } catch (pollErr) {
+        // Erreur réseau temporaire vers CamerPay — pas grave, on continue
+        console.warn(`[STATUS POLL] Erreur vérif CamerPay pour ${txId}:`, pollErr.message);
+      }
+
+      // ── 3. Si CamerPay confirme 'completed' → mettre à jour et déverrouiller ─
+      if (camerpayStatus === 'completed') {
+        const audiobookId = localData?.audiobook_id;
+        await confirmPayment(audiobookId, camerpayTxData);
+
+        let bookInfo = null;
+        if (audiobookId && env.DB) {
+          bookInfo = await env.DB.prepare(
+            'SELECT id, title, author, cover_url FROM audiobooks WHERE id = ?'
+          ).bind(audiobookId).first();
         }
 
         return jsonResponse({
           transaction_id: txId,
-          status: pur.status,
-          audiobook_id: pur.audiobook_id,
-          audiobook: pur.title ? { id: pur.audiobook_id, title: pur.title, author: pur.author, cover_url: pur.cover_url } : null,
-          amount: pur.amount_paid,
-          payment_method: pur.payment_method,
-          source: 'd1_database',
+          status: 'completed',
+          audiobook_id: audiobookId,
+          audiobook: bookInfo,
+          amount: localData?.amount,
+          payment_method: localData?.payment_method,
+          source: 'camerpay_active_check',
         }, corsHeaders);
       }
 
-      return jsonResponse({ transaction_id: txId, status: 'unknown' }, corsHeaders, 404);
+      // ── 4. Si CamerPay confirme 'failed' ─────────────────────────────────
+      if (camerpayStatus === 'failed') {
+        if (env.DB) {
+          await env.DB.prepare(
+            `UPDATE purchases SET status = 'failed' WHERE transaction_id = ? AND status = 'pending'`
+          ).bind(txId).run();
+        }
+        if (env.KV_BINDING && localData) {
+          await env.KV_BINDING.put(`tx_${txId}`, JSON.stringify({
+            ...localData, status: 'failed', updated_at: Date.now()
+          }), { expirationTtl: 3600 });
+        }
+        return jsonResponse({
+          transaction_id: txId,
+          status: 'failed',
+          source: 'camerpay_active_check',
+        }, corsHeaders);
+      }
+
+      // ── 5. Fallback D1 (si pas de KV) ────────────────────────────────────
+      if (env.DB) {
+        const pur = await env.DB.prepare(
+          `SELECT p.*, a.title, a.author, a.cover_url FROM purchases p
+           LEFT JOIN audiobooks a ON a.id = p.audiobook_id
+           WHERE p.transaction_id = ?`
+        ).bind(txId).first();
+
+        if (pur) {
+          return jsonResponse({
+            transaction_id: txId,
+            status: pur.status,
+            audiobook_id: pur.audiobook_id,
+            audiobook: pur.title ? { id: pur.audiobook_id, title: pur.title, author: pur.author, cover_url: pur.cover_url } : null,
+            amount: pur.amount_paid,
+            payment_method: pur.payment_method,
+            source: 'd1_database',
+          }, corsHeaders);
+        }
+      }
+
+      // Toujours en attente (pas encore confirmé par CamerPay)
+      return jsonResponse({
+        transaction_id: txId,
+        status: localData?.status || 'pending',
+        source: 'kv_pending',
+      }, corsHeaders);
+    }
+
+
+    // ─── POST /api/admin/payment/sync-pending ─────────────────────────────────
+    // Synchronise manuellement toutes les transactions 'pending' avec CamerPay.
+    // Utile si des webhooks n'ont pas été reçus.
+    // Appelé depuis le dashboard admin ou manuellement.
+    if (path === '/admin/payment/sync-pending' && method === 'POST') {
+      const CAMERPAY_TOKEN = env.CAMERPAY_TOKEN || '800|QNy2YL5p5kkEAVFK3FNi7RY8XaL8LrKYW71RA5XQ3262b7e9';
+      const results = [];
+
+      if (!env.DB) {
+        return jsonResponse({ success: false, error: 'Base de données non disponible' }, corsHeaders, 500);
+      }
+
+      // Récupérer toutes les transactions pending de moins de 24h
+      const { results: pendingTxs } = await env.DB.prepare(`
+        SELECT p.*, a.title FROM purchases p
+        LEFT JOIN audiobooks a ON a.id = p.audiobook_id
+        WHERE p.status = 'pending'
+        AND p.purchased_at >= datetime('now', '-24 hours')
+        ORDER BY p.purchased_at DESC
+        LIMIT 50
+      `).all();
+
+      for (const tx of (pendingTxs || [])) {
+        try {
+          const checkRes = await fetch(
+            `https://camerpay.biz/api/payment/${tx.transaction_id}`,
+            {
+              headers: {
+                'Authorization': `Bearer ${CAMERPAY_TOKEN}`,
+                'Accept': 'application/json',
+              },
+            }
+          );
+
+          if (!checkRes.ok) {
+            results.push({ tx_id: tx.transaction_id, action: 'skipped', reason: `CamerPay HTTP ${checkRes.status}` });
+            continue;
+          }
+
+          const data = await checkRes.json().catch(() => null);
+          if (!data) { results.push({ tx_id: tx.transaction_id, action: 'skipped', reason: 'no_data' }); continue; }
+
+          const rawStatus = (
+            data.status || data.payment_status || data.data?.status || ''
+          ).toLowerCase();
+
+          if (['success', 'successful', 'completed', 'paid'].includes(rawStatus)) {
+            // Confirmer le paiement
+            await env.DB.prepare(
+              `UPDATE purchases SET status = 'completed', purchased_at = CURRENT_TIMESTAMP WHERE transaction_id = ?`
+            ).bind(tx.transaction_id).run();
+
+            await env.DB.prepare(`
+              INSERT OR IGNORE INTO user_progress (id, user_id, audiobook_id, position_seconds, completed_percentage)
+              VALUES (?, ?, ?, 0, 0)
+            `).bind(`prog-${tx.user_id.slice(0, 8)}-${tx.audiobook_id}`, tx.user_id, tx.audiobook_id).run();
+
+            if (env.KV_BINDING) {
+              await env.KV_BINDING.delete(`library_${tx.user_id}`);
+              await env.KV_BINDING.put(`tx_${tx.transaction_id}`, JSON.stringify({
+                userId: tx.user_id, audiobook_id: tx.audiobook_id,
+                status: 'completed', confirmed_at: Date.now(), confirmed_by: 'admin_sync',
+              }), { expirationTtl: 86400 * 30 });
+            }
+
+            results.push({ tx_id: tx.transaction_id, action: 'completed', book: tx.title, user: tx.user_id });
+          } else if (['failed', 'cancelled', 'rejected', 'expired'].includes(rawStatus)) {
+            await env.DB.prepare(
+              `UPDATE purchases SET status = 'failed' WHERE transaction_id = ?`
+            ).bind(tx.transaction_id).run();
+            results.push({ tx_id: tx.transaction_id, action: 'failed', camerpay_status: rawStatus });
+          } else {
+            results.push({ tx_id: tx.transaction_id, action: 'still_pending', camerpay_status: rawStatus });
+          }
+        } catch (e) {
+          results.push({ tx_id: tx.transaction_id, action: 'error', error: e.message });
+        }
+      }
+
+      return jsonResponse({
+        success: true,
+        synced: results.length,
+        results,
+        completed: results.filter(r => r.action === 'completed').length,
+        still_pending: results.filter(r => r.action === 'still_pending').length,
+        failed: results.filter(r => r.action === 'failed').length,
+      }, corsHeaders);
     }
 
     // ─── GET /api/status (Diagnostic Système D1, R2, KV) ────────
