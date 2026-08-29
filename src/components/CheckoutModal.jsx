@@ -138,6 +138,19 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
 
       if (!isMountedRef.current) return;
 
+      if (result.already_owned) {
+        apiClient._addToLocalLibrary(book);
+        setStep('success');
+        confetti({
+          particleCount: 100,
+          spread: 80,
+          origin: { y: 0.5 },
+          colors: ['#9d4edd', '#c77dff', '#06d6a0', '#ffbe0b'],
+        });
+        if (onSuccess) onSuccess(book);
+        return;
+      }
+
       if (result.success && result.transaction_id) {
         setTransactionId(result.transaction_id);
         setElapsedSec(0);

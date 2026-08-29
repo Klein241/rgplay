@@ -105,24 +105,30 @@ export function PushProvider({ children }) {
     // Si permission accordée, afficher notification native système
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
       try {
-        if (swRegistration && 'showNotification' in swRegistration) {
-          await swRegistration.showNotification(title, {
-            body,
-            icon: icon || '/icon.svg',
-            badge: '/icon.svg',
-            vibrate: [200, 100, 200],
-            tag: `rg-${Date.now()}`,
-            renotify: true,
-            data: { url: url || '/', bookId },
-          });
-        } else {
+        if ('serviceWorker' in navigator) {
+          const reg = swRegistration || await navigator.serviceWorker.ready.catch(() => null);
+          if (reg && typeof reg.showNotification === 'function') {
+            await reg.showNotification(title, {
+              body,
+              icon: icon || '/icon.svg',
+              badge: '/icon.svg',
+              vibrate: [200, 100, 200],
+              tag: `rg-${Date.now()}`,
+              renotify: true,
+              data: { url: url || '/', bookId },
+            });
+            return;
+          }
+        }
+
+        try {
           new Notification(title, {
             body,
             icon: icon || '/icon.svg',
           });
-        }
+        } catch (_) {}
       } catch (err) {
-        console.warn('[Push] Erreur affichage notification:', err);
+        console.warn('[Push] Notification système ignorée:', err);
       }
     }
   }, [swRegistration]);

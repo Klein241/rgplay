@@ -467,8 +467,11 @@ export async function onRequest(context) {
           ).bind(userId, audiobook_id).first();
           if (existing) {
             return jsonResponse({
-              success: false, error: 'Vous possédez déjà ce livre dans votre bibliothèque.', already_owned: true,
-            }, corsHeaders, 409);
+              success: true,
+              already_owned: true,
+              message: 'Vous possédez déjà ce livre audio dans votre bibliothèque !',
+              audiobook_id,
+            }, corsHeaders);
           }
         } catch (_) {}
       }
