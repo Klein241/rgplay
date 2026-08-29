@@ -437,9 +437,12 @@ export function viteApiPlugin() {
             const prefix = (app_prefix || 'RGP').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
             const txId = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
             const purchaseId = `pur-${Date.now()}`;
-            const CAMERPAY_TOKEN = process.env.CAMERPAY_TOKEN || '800|QNy2YL5p5kkEAVFK3FNi7RY8XaL8LrKYW71RA5XQ3262b7e9';
+            const CAMERPAY_TOKEN = process.env.CAMERPAY_TOKEN || process.env.PAYMENT_API_TOKEN || '800|QNy2YL5p5kkEAVFK3FNi7RY8XaL8LrKYW71RA5XQ3262b7e9';
+            const cleanPhone = (customer_phone || '').replace(/\D/g, '');
+            const isCardPayment = ['card', 'visa', 'mastercard'].includes(payment_method);
 
             if (!db.purchases) db.purchases = [];
+            db.purchases = db.purchases.filter(p => !(p.user_id === userId && p.audiobook_id === audiobook_id && ['pending', 'failed'].includes(p.status)));
             db.purchases.push({
               id: purchaseId,
               user_id: userId,
@@ -447,7 +450,7 @@ export function viteApiPlugin() {
               amount_paid: Number(amount),
               currency: 'XAF',
               payment_method,
-              customer_phone,
+              customer_phone: cleanPhone || null,
               transaction_id: txId,
               status: 'pending',
               purchased_at: new Date().toISOString(),
@@ -457,8 +460,26 @@ export function viteApiPlugin() {
             // Appel CamerPay avec retry
             let camerpayData = null;
             let camerpayError = null;
+            let lastStatus = 0;
+            const camerpayMethod = isCardPayment ? 'card' : payment_method;
+
             for (let attempt = 1; attempt <= 3; attempt++) {
               try {
+                const cpBody = {
+                  payment_method: camerpayMethod,
+                  amount: Number(amount),
+                  currency: 'XAF',
+                  merchant_invoice_id: txId,
+                  merchant_callback_url: 'https://rg-play.pages.dev/api/payment/notify',
+                  merchant_return_url: `https://rg-play.pages.dev?tx=${txId}`,
+                  description: `Achat livre audio ${audiobook_id}`,
+                  source: 'api',
+                };
+                if (!isCardPayment && cleanPhone) {
+                  cpBody.customer_phone = cleanPhone;
+                  cpBody.phone = cleanPhone;
+                }
+
                 const cpRes = await fetch('https://camerpay.biz/api/payment/initiate', {
                   method: 'POST',
                   headers: {
@@ -467,18 +488,10 @@ export function viteApiPlugin() {
                     'Accept': 'application/json',
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 CamerPay-Client/2.0',
                   },
-                  body: JSON.stringify({
-                    payment_method,
-                    amount: Number(amount),
-                    currency: 'XAF',
-                    customer_phone,
-                    merchant_invoice_id: txId,
-                    merchant_callback_url: 'https://rg-play.pages.dev/api/payment/notify',
-                    merchant_return_url: 'https://rg-play.pages.dev',
-                    source: 'api',
-                  }),
+                  body: JSON.stringify(cpBody),
                 });
 
+                lastStatus = cpRes.status;
                 const text = await cpRes.text();
                 try { camerpayData = JSON.parse(text); } catch { camerpayData = { raw: text }; }
 
@@ -492,7 +505,7 @@ export function viteApiPlugin() {
                   continue;
                 }
 
-                camerpayError = camerpayData?.message || `CamerPay HTTP ${cpRes.status}`;
+                camerpayError = camerpayData?.message || camerpayData?.error || `CamerPay HTTP ${cpRes.status}`;
                 break;
               } catch (e) {
                 if (attempt < 3) {
@@ -513,9 +526,11 @@ export function viteApiPlugin() {
                 success: false,
                 transaction_id: txId,
                 status: 'failed',
-                error: camerpayError.includes('520')
+                error: lastStatus >= 500
                   ? 'Le réseau de l\'opérateur mobile (Orange / MTN) est temporairement saturé. Veuillez réessayer.'
                   : camerpayError,
+                camerpay_raw: camerpayData,
+                http_status: lastStatus,
               }));
               return;
             }

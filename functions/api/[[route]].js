@@ -479,9 +479,12 @@ export async function onRequest(context) {
       const prefix = (app_prefix || 'RGP').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
       const txId = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
       const purchaseId = `pur-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
-      const CAMERPAY_TOKEN = env.CAMERPAY_TOKEN || '800|QNy2YL5p5kkEAVFK3FNi7RY8XaL8LrKYW71RA5XQ3262b7e9';
+      const CAMERPAY_TOKEN = env.CAMERPAY_TOKEN || env.PAYMENT_API_TOKEN || '800|QNy2YL5p5kkEAVFK3FNi7RY8XaL8LrKYW71RA5XQ3262b7e9';
       const WEBHOOK_URL = 'https://rg-play.pages.dev/api/payment/notify';
       const RETURN_URL  = 'https://rg-play.pages.dev';
+
+      // Normalisation du téléphone (chiffres uniquement)
+      const cleanPhone = (customer_phone || '').replace(/\D/g, '');
 
       // ── 1. Enregistrer la transaction en état PENDING dans D1
       // On supprime d'abord les éventuelles transactions pending/failed précédentes
@@ -507,7 +510,7 @@ export async function onRequest(context) {
       if (env.KV_BINDING) {
         await env.KV_BINDING.put(`tx_${txId}`, JSON.stringify({
           userId, audiobook_id, amount: Number(amount), payment_method,
-          customer_phone: customer_phone || null, app_prefix: prefix,
+          customer_phone: cleanPhone || null, app_prefix: prefix,
           status: 'pending', is_card: isCardPayment, created_at: Date.now()
         }), { expirationTtl: 3600 });
       }
@@ -528,9 +531,13 @@ export async function onRequest(context) {
             merchant_invoice_id: txId,
             merchant_callback_url: WEBHOOK_URL,
             merchant_return_url: `${RETURN_URL}?tx=${txId}`,
+            description: `Achat livre audio ${audiobook_id}`,
             source: 'api',
           };
-          if (!isCardPayment) cpBody.customer_phone = customer_phone;
+          if (!isCardPayment && cleanPhone) {
+            cpBody.customer_phone = cleanPhone;
+            cpBody.phone = cleanPhone;
+          }
 
           const cpRes = await fetch('https://camerpay.biz/api/payment/initiate', {
             method: 'POST',
@@ -554,7 +561,7 @@ export async function onRequest(context) {
             await new Promise(r => setTimeout(r, 700 * attempt));
             continue;
           }
-          camerpayError = camerpayData?.message || `CamerPay HTTP ${cpRes.status}`;
+          camerpayError = camerpayData?.message || camerpayData?.error || `CamerPay HTTP ${cpRes.status}`;
           break;
         } catch (fetchErr) {
           console.warn(`[PAYMENT] Réseau - tentative ${attempt}:`, fetchErr.message);
@@ -570,8 +577,18 @@ export async function onRequest(context) {
           userId, audiobook_id, status: 'failed', error: camerpayError, updated_at: Date.now()
         }), { expirationTtl: 3600 });
 
-        const msg = lastStatus >= 500 ? 'Le réseau de paiement est temporairement saturé. Attendez 30s et réessayez.' : camerpayError;
-        return jsonResponse({ success: false, transaction_id: txId, status: 'failed', error: msg }, corsHeaders, 402);
+        const msg = lastStatus >= 500
+          ? 'Le réseau de paiement CamerPay / Opérateur a rencontré une indisponibilité temporaire (5xx). Veuillez réessayer ou utiliser une autre méthode (Carte / MTN / Orange).'
+          : camerpayError;
+
+        return jsonResponse({
+          success: false,
+          transaction_id: txId,
+          status: 'failed',
+          error: msg,
+          camerpay_raw: camerpayData,
+          http_status: lastStatus,
+        }, corsHeaders, 402);
       }
 
       // ── 3. Succès
