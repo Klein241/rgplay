@@ -77,9 +77,19 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
   return (
     <div className="pb-28 md:pb-10 animate-fadeIn max-w-7xl mx-auto" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
 
-      {/* ── 1. Sélecteur des 4 Types de Contenu (Tabs Principaux) ── */}
-      <section className="sticky top-16 z-20 -mx-4 px-4 sm:mx-0 sm:px-0 py-2 backdrop-blur-xl bg-slate-950/75 rounded-2xl border border-white/5 shadow-lg">
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+      {/* ── 1. Sélecteur des Types de Contenu ── */}
+      <section className="sticky top-16 z-20 -mx-4 px-4 sm:mx-0 sm:px-0 py-3">
+        <div
+          className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 px-1"
+          style={{
+            background: 'rgba(5, 3, 17, 0.80)',
+            backdropFilter: 'blur(28px) saturate(200%)',
+            WebkitBackdropFilter: 'blur(28px) saturate(200%)',
+            border: '1px solid rgba(168, 85, 247, 0.12)',
+            borderRadius: '1.5rem',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.40), 0 1px 0 rgba(255,255,255,0.04) inset',
+          }}
+        >
           {CONTENT_TYPES.map((type) => {
             const Icon = type.icon;
             const isSelected = selectedType === type.id;
@@ -90,12 +100,23 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
                   setSelectedType(type.id);
                   setSelectedCategory('all');
                 }}
-                className={`flex-shrink-0 px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all duration-300
-                  ${isSelected
-                    ? `bg-gradient-to-r ${type.color} text-white shadow-lg shadow-purple-500/25 scale-[1.03] border border-white/20`
-                    : 'bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/5'}`}
+                className="flex-shrink-0 flex items-center gap-2 font-bold transition-all duration-300"
+                style={{
+                  padding: '0.65rem 1.1rem',
+                  borderRadius: '1.25rem',
+                  fontSize: '0.8125rem',
+                  background: isSelected
+                    ? `linear-gradient(135deg, ${type.color.includes('purple') ? '#6d28d9, #9333ea' : type.color.includes('amber') ? '#b45309, #d97706' : type.color.includes('emerald') ? '#065f46, #059669' : '#0e7490, #0284c7'})`
+                    : 'rgba(255,255,255,0.04)',
+                  border: `1px solid ${isSelected ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.06)'}`,
+                  color: isSelected ? '#ffffff' : 'rgba(139,135,168,0.9)',
+                  boxShadow: isSelected
+                    ? '0 4px 20px rgba(0,0,0,0.40), 0 1px 0 rgba(255,255,255,0.10) inset'
+                    : 'none',
+                  transform: isSelected ? 'scale(1.04)' : 'scale(1)',
+                }}
               >
-                <Icon size={16} />
+                <Icon size={15} style={{ strokeWidth: isSelected ? 2.2 : 1.8 }} />
                 <span>{type.label}</span>
               </button>
             );
@@ -103,83 +124,126 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
         </div>
       </section>
 
-      {/* ── 2. Hero Featured ── */}
+      {/* ── 2. Hero Featured PREMIUM ── */}
       {!searchQuery && featuredBook && (
         <section>
-          <div className="relative rounded-3xl overflow-hidden shadow-2xl" style={{
-            border: '1px solid rgba(157,78,221,0.28)',
-            background: 'rgba(22,17,46,0.82)',
-            padding: 'clamp(1.5rem, 4vw, 2.5rem)',
-          }}>
-            <div className="absolute inset-0 bg-cover bg-center blur-3xl opacity-15 scale-110 pointer-events-none"
-              style={{ backgroundImage: `url(${featuredBook.cover_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80'})` }} />
-            <div className="absolute inset-0 pointer-events-none"
-              style={{ background: 'linear-gradient(110deg, rgba(7,4,26,0.98) 40%, rgba(7,4,26,0.55) 100%)' }} />
+          <div
+            className="relative rounded-3xl overflow-hidden"
+            style={{
+              border: '1px solid rgba(168, 85, 247, 0.30)',
+              padding: 'clamp(1.75rem, 5vw, 3rem)',
+              boxShadow: '0 32px 80px rgba(0,0,0,0.60), 0 0 0 1px rgba(168,85,247,0.10)',
+            }}
+          >
+            {/* Cover blur background — 35% opacity */}
+            <div
+              className="absolute inset-0 scale-110 pointer-events-none"
+              style={{
+                backgroundImage: `url(${featuredBook.cover_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80'})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                filter: 'blur(40px) saturate(130%)',
+                opacity: 0.35,
+              }}
+            />
+            {/* Gradient directionnel fort */}
+            <div
+              className="absolute inset-0 pointer-events-none"
+              style={{ background: 'linear-gradient(115deg, rgba(5,3,17,0.98) 35%, rgba(5,3,17,0.72) 65%, rgba(5,3,17,0.45) 100%)' }}
+            />
+            {/* Orb accent */}
+            <div
+              className="absolute -top-20 -right-20 w-72 h-72 rounded-full pointer-events-none"
+              style={{ background: 'radial-gradient(circle, rgba(168,85,247,0.22) 0%, transparent 70%)', filter: 'blur(30px)' }}
+            />
 
-            <div className="relative flex flex-col-reverse lg:flex-row items-center gap-8">
-              <div className="flex-1 space-y-4">
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold"
-                  style={{ background: 'rgba(247,37,133,0.15)', border: '1px solid rgba(247,37,133,0.28)', color: '#f984b4' }}>
+            <div className="relative flex flex-col-reverse lg:flex-row items-center gap-8 lg:gap-12">
+              <div className="flex-1 space-y-5">
+                <div
+                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold"
+                  style={{ background: 'rgba(244,63,139,0.14)', border: '1px solid rgba(244,63,139,0.30)', color: '#fb7db8', boxShadow: '0 0 16px rgba(244,63,139,0.18)' }}
+                >
                   <Flame className="w-3.5 h-3.5 fill-pink-400 text-pink-400" />
                   {featuredBook.content_type === 'podcast' ? '🎙️ Podcast Tendance' :
                    featuredBook.content_type === 'music' ? '🎵 Musique Tendance' :
                    featuredBook.content_type === 'masterclass' ? '🎓 Masterclass du Moment' :
-                   'Tendance du Moment'}
+                   '🔥 Tendance du Moment'}
                 </div>
 
-                <h1 className="text-2xl sm:text-4xl font-black leading-tight" style={{ color: 'var(--color-text-primary)' }}>
+                <h1
+                  className="text-2xl sm:text-4xl lg:text-5xl font-black leading-tight"
+                  style={{
+                    background: 'linear-gradient(135deg, #F5F3FF 0%, #E9D5FF 50%, #D08FFF 100%)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text',
+                  }}
+                >
                   {featuredBook.title}
                 </h1>
 
-                <p className="text-sm leading-relaxed max-w-2xl line-clamp-2" style={{ color: 'var(--color-text-secondary)' }}>
+                <p className="text-sm sm:text-base leading-relaxed max-w-2xl line-clamp-2" style={{ color: 'rgba(196,191,224,0.90)' }}>
                   {featuredBook.description}
                 </p>
 
-                <div className="flex flex-wrap items-center gap-4 text-xs">
-                  <span style={{ color: '#c77dff', fontWeight: 700 }}>
+                <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm">
+                  <span style={{ color: '#d08fff', fontWeight: 700 }}>
                     {featuredBook.content_type === 'podcast' ? 'Hôte : ' :
                      featuredBook.content_type === 'music' ? 'Artiste : ' : 'Par '}
                     {featuredBook.author}
                   </span>
-                  <span style={{ color: 'rgba(157,78,221,0.40)' }}>•</span>
-                  <span className="flex items-center gap-1" style={{ color: '#ffbe0b', fontWeight: 700 }}>
+                  <span style={{ color: 'rgba(168,85,247,0.35)' }}>•</span>
+                  <span className="flex items-center gap-1" style={{ color: '#fbbf24', fontWeight: 700 }}>
                     <Star className="w-3.5 h-3.5 fill-amber-400" />
                     {featuredBook.rating} ({(featuredBook.rating_count || 100).toLocaleString('fr-FR')} avis)
                   </span>
-                  <span style={{ color: 'rgba(157,78,221,0.40)' }}>•</span>
-                  <span className="flex items-center gap-1" style={{ color: 'var(--color-text-tertiary)' }}>
+                  <span style={{ color: 'rgba(168,85,247,0.35)' }}>•</span>
+                  <span className="flex items-center gap-1" style={{ color: 'rgba(139,135,168,0.9)' }}>
                     <Clock className="w-3.5 h-3.5" />
                     {Math.floor((featuredBook.duration_seconds || 3600) / 3600)}h d'écoute
                   </span>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3 pt-1">
-                  <button onClick={() => playPreview(featuredBook)}
-                    className="btn-gradient py-3 px-6 rounded-2xl text-sm font-bold flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-3 pt-2">
+                  <button onClick={() => playPreview(featuredBook)} className="btn-gradient py-3.5 px-7 rounded-2xl text-sm font-bold flex items-center gap-2.5">
                     <Headphones className="w-4 h-4" />
                     {featuredBook.content_type === 'music' ? 'Écouter la Piste' : 'Écouter l\'Extrait'}
                   </button>
-                  <button onClick={() => onSelectBook(featuredBook)}
-                    className="rg-btn-ghost py-3 px-5 rounded-2xl text-sm">
-                    {featuredBook.price === 0 || featuredBook.is_free_for_members ? 'Détails (Gratuit)' : `Détails — ${featuredBook.discount_price || featuredBook.price} FCFA`}
+                  <button onClick={() => onSelectBook(featuredBook)} className="rg-btn-ghost py-3.5 px-6 rounded-2xl text-sm">
+                    {featuredBook.price === 0 || featuredBook.is_free_for_members
+                      ? 'Détails (Gratuit)'
+                      : `Détails — ${(featuredBook.discount_price || featuredBook.price)?.toLocaleString()} FCFA`}
                   </button>
                 </div>
               </div>
 
-              <div onClick={() => onSelectBook(featuredBook)}
-                className="relative w-44 h-44 sm:w-56 sm:h-56 rounded-3xl overflow-hidden shadow-2xl flex-shrink-0 cursor-pointer group"
-                style={{ border: '2px solid rgba(255,255,255,0.14)' }}>
-                <img
-                  src={featuredBook.cover_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80'}
-                  alt={featuredBook.title}
-                  onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80'; }}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              {/* Cover premium avec halo */}
+              <div
+                onClick={() => onSelectBook(featuredBook)}
+                className="relative flex-shrink-0 cursor-pointer group"
+                style={{ width: 'clamp(160px, 22vw, 240px)', aspectRatio: '1' }}
+              >
+                <div
+                  className="absolute -inset-4 rounded-3xl pointer-events-none"
+                  style={{ background: 'radial-gradient(circle, rgba(168,85,247,0.38) 0%, transparent 70%)', filter: 'blur(22px)' }}
                 />
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                  style={{ background: 'rgba(0,0,0,0.50)' }}>
-                  <div className="w-14 h-14 rounded-full flex items-center justify-center"
-                    style={{ background: 'linear-gradient(135deg, #9d4edd, #f72585)' }}>
-                    <Play className="w-6 h-6 fill-white ml-0.5 text-white" />
+                <div
+                  className="relative w-full h-full rounded-3xl overflow-hidden"
+                  style={{ border: '2px solid rgba(255,255,255,0.18)', boxShadow: '0 24px 60px rgba(0,0,0,0.70), 0 8px 24px rgba(168,85,247,0.28)' }}
+                >
+                  <img
+                    src={featuredBook.cover_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80'}
+                    alt={featuredBook.title}
+                    onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80'; }}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    style={{ filter: 'brightness(0.95) saturate(1.1)' }}
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                    style={{ background: 'rgba(5,3,17,0.55)' }}>
+                    <div className="w-16 h-16 rounded-full flex items-center justify-center"
+                      style={{ background: 'linear-gradient(135deg,#7c3aed,#a855f7,#db2777)', boxShadow: '0 0 30px rgba(168,85,247,0.70)', border: '2px solid rgba(255,255,255,0.20)' }}>
+                      <Play className="w-7 h-7 fill-white ml-1 text-white" />
+                    </div>
                   </div>
                 </div>
               </div>

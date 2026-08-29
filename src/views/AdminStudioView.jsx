@@ -183,20 +183,20 @@ const DropZone = ({ label, accept, type, icon: Icon, value, onUploaded, onDurati
   };
 
   const borderColor = isDragging
-    ? 'border-purple-400 bg-purple-500/10'
+    ? 'border-purple-400 bg-purple-500/15 shadow-xl shadow-purple-500/20'
     : status === 'done'
-    ? 'border-emerald-500/60 bg-emerald-500/5'
+    ? 'border-emerald-500/60 bg-emerald-500/10 shadow-lg shadow-emerald-500/15'
     : status === 'compressing'
-    ? 'border-cyan-500/60 bg-cyan-500/5'
+    ? 'border-cyan-500/60 bg-cyan-500/10 shadow-lg shadow-cyan-500/15'
     : status === 'error'
-    ? 'border-rose-500/60 bg-rose-500/5'
-    : 'border-white/10 hover:border-purple-500/40 bg-white/3';
+    ? 'border-rose-500/60 bg-rose-500/10 shadow-lg shadow-rose-500/15'
+    : 'border-white/12 hover:border-purple-400/40 bg-white/4 hover:bg-white/6';
 
   return (
-    <div>
-      <label className="text-xs font-bold text-slate-300 block mb-2">{label}</label>
+    <div className="space-y-2">
+      <label className="text-xs font-black text-slate-300 uppercase tracking-wider block font-['Outfit']">{label}</label>
       <div
-        className={`relative rounded-2xl border-2 border-dashed transition-all cursor-pointer overflow-hidden ${borderColor}`}
+        className={`relative rounded-3xl border-2 border-dashed transition-all duration-300 cursor-pointer overflow-hidden backdrop-blur-md ${borderColor}`}
         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={(e) => { e.preventDefault(); setIsDragging(false); processFile(e.dataTransfer.files[0]); }}
@@ -211,85 +211,98 @@ const DropZone = ({ label, accept, type, icon: Icon, value, onUploaded, onDurati
         />
 
         {status === 'uploading' && (
-          <div className="absolute top-0 left-0 h-1 bg-gradient-to-r from-purple-500 to-pink-500 transition-all"
-            style={{ width: `${progress}%` }} />
+          <div
+            className="absolute top-0 left-0 h-1.5 bg-gradient-to-r from-purple-500 via-fuchsia-500 to-pink-500 transition-all duration-200"
+            style={{ width: `${progress}%`, boxShadow: '0 0 12px rgba(168, 85, 247, 0.80)' }}
+          />
         )}
 
-        <div className="p-5 flex flex-col items-center gap-3">
+        <div className="p-6 flex flex-col items-center gap-3.5">
           {type === 'cover' && preview && status !== 'idle' && status !== 'compressing' ? (
-            <div className="relative">
-              <img src={preview} alt="aperçu" className="w-28 h-28 rounded-xl object-cover shadow-lg border border-white/10" />
+            <div className="relative group/preview">
+              <img src={preview} alt="aperçu" className="w-32 h-32 rounded-2xl object-cover shadow-2xl border-2 border-white/20" />
               {status === 'done' && (
-                <button onClick={reset} className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-rose-500 text-white flex items-center justify-center hover:scale-110 transition-transform shadow-lg">
-                  <X className="w-3.5 h-3.5" />
+                <button
+                  onClick={reset}
+                  className="absolute -top-2.5 -right-2.5 w-7 h-7 rounded-full bg-rose-500 text-white flex items-center justify-center hover:scale-110 active:scale-95 transition-transform shadow-xl border-2 border-slate-900"
+                >
+                  <X className="w-4 h-4" />
                 </button>
               )}
             </div>
           ) : status === 'idle' ? (
-            <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center">
-              <Icon className="w-6 h-6 text-purple-400" />
+            <div className="w-14 h-14 rounded-2xl bg-white/6 border border-white/10 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
+              <Icon className="w-7 h-7 text-purple-400" />
             </div>
           ) : status === 'compressing' ? (
-            <div className="w-12 h-12 rounded-2xl bg-cyan-500/20 flex items-center justify-center animate-pulse">
-              <Zap className="w-6 h-6 text-cyan-300" />
+            <div className="w-14 h-14 rounded-2xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center animate-pulse shadow-lg shadow-cyan-500/20">
+              <Zap className="w-7 h-7 text-cyan-300" />
             </div>
           ) : status === 'uploading' ? (
-            <Loader2 className="w-10 h-10 text-purple-400 animate-spin" />
+            <div className="w-14 h-14 rounded-2xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center shadow-lg">
+              <Loader2 className="w-7 h-7 text-purple-400 animate-spin" />
+            </div>
           ) : status === 'done' ? (
-            <CheckCircle2 className="w-10 h-10 text-emerald-400" />
+            <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+              <CheckCircle2 className="w-7 h-7 text-emerald-400" />
+            </div>
           ) : (
-            <AlertCircle className="w-10 h-10 text-rose-400" />
+            <div className="w-14 h-14 rounded-2xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center shadow-lg">
+              <AlertCircle className="w-7 h-7 text-rose-400" />
+            </div>
           )}
 
           {status === 'idle' && (
             <>
               <div className="text-center">
-                <p className="text-sm font-bold text-slate-200">Glisser-déposer le fichier ici</p>
-                <p className="text-xs text-slate-400 mt-0.5">ou cliquez pour parcourir votre appareil</p>
+                <p className="text-sm font-extrabold text-white font-['Outfit']">Glisser-déposer le fichier ici</p>
+                <p className="text-xs text-slate-400 mt-1 font-medium">ou cliquez pour parcourir votre appareil</p>
               </div>
-              <div className="flex flex-wrap justify-center gap-1.5">
-                {accept.split(',').map(a => (
-                  <span key={a} className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/8 text-slate-300">
-                    {a.trim().replace('audio/', '').replace('image/', '')}
-                  </span>
-                ))}
+              <div className="flex flex-wrap justify-center gap-2 mt-1">
+                <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-white/5 border border-white/10 text-slate-300">
+                  {accept.split(',').join(' • ')}
+                </span>
               </div>
             </>
           )}
 
           {status === 'compressing' && (
-            <div className="text-center">
-              <p className="text-xs font-bold text-cyan-300 flex items-center justify-center gap-1.5">
-                <Zap className="w-3.5 h-3.5 animate-bounce" />
-                <span>Compression & Optimisation sans perte en cours...</span>
-              </p>
-              <p className="text-[11px] text-slate-400 mt-1">Préserve la dynamique audio et la fidélité visuelle</p>
-            </div>
-          )}
-
-          {status === 'uploading' && fileInfo && (
-            <div className="text-center w-full">
-              <p className="text-xs font-bold text-purple-300 truncate px-2">{fileInfo.name}</p>
-              <p className="text-[11px] text-slate-400 mt-1">{formatSize(fileInfo.originalSize)}</p>
+            <div className="text-center w-full space-y-1">
+              <p className="text-xs font-black text-cyan-300 uppercase tracking-wider">Compression & Optimisation DSP...</p>
+              <p className="text-[11px] text-slate-400 font-medium">{fileInfo?.name}</p>
               <div className="mt-3 flex items-center justify-center gap-2">
-                <div className="w-32 h-1.5 rounded-full bg-white/10 overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all" style={{ width: `${progress}%` }} />
+                <div className="w-36 h-2 rounded-full bg-white/10 overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-cyan-500 to-purple-500 rounded-full transition-all" style={{ width: `${progress}%` }} />
                 </div>
-                <span className="text-xs font-bold text-purple-300">{progress}%</span>
+                <span className="text-xs font-bold text-cyan-300 font-mono">{progress}%</span>
               </div>
             </div>
           )}
 
-          {status === 'done' && fileInfo && (
-            <div className="text-center">
-              <p className="text-xs font-bold text-emerald-300">✓ {fileInfo.name}</p>
+          {status === 'uploading' && (
+            <div className="text-center w-full space-y-1">
+              <p className="text-xs font-black text-purple-300 uppercase tracking-wider">Envoi Cloud Audio...</p>
+              <p className="text-[11px] text-slate-400 font-medium">{fileInfo?.name}</p>
+              <div className="mt-3 flex items-center justify-center gap-2">
+                <div className="w-36 h-2 rounded-full bg-white/10 overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all" style={{ width: `${progress}%` }} />
+                </div>
+                <span className="text-xs font-bold text-purple-300 font-mono">{progress}%</span>
+              </div>
+            </div>
+          )}
+
+          {status === 'done' && (
+            <div className="text-center space-y-1">
+              <p className="text-xs font-black text-emerald-300 uppercase tracking-wider">✓ Fichier Prêt</p>
+              <p className="text-xs text-slate-200 font-bold truncate max-w-[260px]">{fileInfo?.name || value}</p>
               {compressionInfo ? (
-                <p className="text-[11px] text-cyan-300 font-semibold mt-1 bg-cyan-500/10 px-2.5 py-1 rounded-lg border border-cyan-500/20">{compressionInfo}</p>
+                <p className="text-[11px] text-cyan-300 font-semibold mt-1 bg-cyan-500/10 px-3 py-1 rounded-full border border-cyan-500/20 inline-block">{compressionInfo}</p>
               ) : (
-                <p className="text-[11px] text-slate-400 mt-0.5">{formatSize(fileInfo.originalSize)} · Prêt</p>
+                <p className="text-[11px] text-slate-400">{fileInfo?.originalSize ? formatSize(fileInfo.originalSize) : ''}</p>
               )}
               {type !== 'cover' && (
-                <button onClick={reset} className="text-xs text-slate-400 hover:text-rose-400 mt-1.5 underline">
+                <button onClick={reset} className="text-xs text-purple-300 hover:text-rose-400 font-bold mt-1.5 underline block mx-auto">
                   Remplacer
                 </button>
               )}
@@ -297,10 +310,10 @@ const DropZone = ({ label, accept, type, icon: Icon, value, onUploaded, onDurati
           )}
 
           {status === 'error' && (
-            <div className="text-center">
-              <p className="text-xs font-bold text-rose-300">Échec de l'upload</p>
-              <p className="text-xs text-rose-400 mt-0.5 max-w-[220px]">{error}</p>
-              <button onClick={(e) => { e.stopPropagation(); setStatus('idle'); setError(''); }} className="text-xs text-purple-300 underline mt-1.5">
+            <div className="text-center space-y-1">
+              <p className="text-xs font-black text-rose-300 uppercase tracking-wider">Échec de l'upload</p>
+              <p className="text-xs text-rose-400 max-w-[240px]">{error}</p>
+              <button onClick={(e) => { e.stopPropagation(); setStatus('idle'); setError(''); }} className="text-xs text-purple-300 hover:text-white font-bold underline mt-1 block mx-auto">
                 Réessayer
               </button>
             </div>
@@ -1055,15 +1068,22 @@ export const AdminStudioView = ({ onBookCreated }) => {
 
       {/* ── Sidebar de Navigation Admin ── */}
       <aside className="w-full lg:w-72 flex-shrink-0">
-        <div className="card-lg space-y-2 sticky top-24">
-          <div className="px-3 py-2 mb-2">
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-400">
+        <div
+          className="rounded-3xl p-4 sm:p-5 space-y-3 sticky top-24 backdrop-blur-2xl"
+          style={{
+            background: 'linear-gradient(160deg, rgba(14, 10, 34, 0.94) 0%, rgba(8, 5, 22, 0.98) 100%)',
+            border: '1px solid rgba(16, 185, 129, 0.22)',
+            boxShadow: '0 20px 50px rgba(0, 0, 0, 0.60), 0 1px 0 rgba(255, 255, 255, 0.08) inset',
+          }}
+        >
+          <div className="px-2 py-1 mb-1">
+            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 font-['Outfit'] block">
               Console d'Administration
             </span>
-            <h2 className="text-lg font-black text-white font-['Outfit']">Back-Office Pro</h2>
+            <h2 className="text-xl font-black text-white font-['Outfit'] tracking-tight">RG Studio Pro</h2>
           </div>
 
-          <nav className="space-y-1">
+          <nav className="space-y-1.5">
             {RUBRICS.map((rub) => {
               const Icon = rub.icon;
               const isActive = activeRubric === rub.id;
@@ -1071,20 +1091,36 @@ export const AdminStudioView = ({ onBookCreated }) => {
                 <button
                   key={rub.id}
                   onClick={() => setActiveRubric(rub.id)}
-                  className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs font-bold transition-all ${
+                  className={`w-full flex items-center justify-between px-4 py-3.5 rounded-2xl text-xs font-black transition-all duration-300 font-['Outfit'] tracking-wide cursor-pointer ${
                     isActive
-                      ? 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-lg shadow-emerald-500/25 scale-[1.02]'
-                      : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                      ? 'text-white shadow-xl shadow-emerald-500/25 scale-[1.02]'
+                      : 'text-slate-300 hover:bg-white/6 hover:text-white'
                   }`}
+                  style={
+                    isActive
+                      ? {
+                          background: 'linear-gradient(135deg, #059669 0%, #10b981 50%, #0d9488 100%)',
+                          border: '1px solid rgba(255, 255, 255, 0.20)',
+                          boxShadow: '0 8px 24px rgba(16, 185, 129, 0.35), 0 1px 0 rgba(255,255,255,0.15) inset',
+                        }
+                      : { border: '1px solid transparent' }
+                  }
                 >
                   <div className="flex items-center gap-3">
-                    <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-400'}`} />
-                    <span className="text-left">{rub.label}</span>
+                    <Icon
+                      className={`w-4.5 h-4.5 ${isActive ? 'text-white' : 'text-slate-400'}`}
+                      style={{ filter: isActive ? 'drop-shadow(0 0 6px rgba(255,255,255,0.6))' : 'none' }}
+                    />
+                    <span className="text-left font-bold">{rub.label}</span>
                   </div>
                   {rub.badge && (
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold ${
-                      isActive ? 'bg-white/20 text-white' : 'bg-emerald-500/20 text-emerald-300'
-                    }`}>
+                    <span
+                      className={`text-[10px] px-2.5 py-0.5 rounded-full font-black ${
+                        isActive
+                          ? 'bg-white/25 text-white'
+                          : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                      }`}
+                    >
                       {rub.badge}
                     </span>
                   )}
@@ -1094,26 +1130,30 @@ export const AdminStudioView = ({ onBookCreated }) => {
           </nav>
 
           {/* Statut Base de données & Stockage */}
-          <div className="pt-4 mt-4 border-t border-white/10 px-3 space-y-2">
+          <div className="pt-4 mt-4 border-t border-white/8 px-2 space-y-2.5">
             <div className="flex items-center justify-between text-[11px]">
-              <span className="text-slate-400 flex items-center gap-1.5">
+              <span className="text-slate-400 flex items-center gap-1.5 font-medium">
                 <Database className="w-3.5 h-3.5 text-emerald-400" /> Base de Données
               </span>
-              <span className="text-emerald-400 font-bold flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span className="text-emerald-300 font-bold flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#10b981]"></span>
                 {systemStatus?.mode === 'vite_shared_dev_server' ? 'Serveur Local' : (systemStatus?.bindings?.d1?.connected ? 'Cloudflare D1' : 'Connectée')}
               </span>
             </div>
             <div className="flex items-center justify-between text-[11px]">
-              <span className="text-slate-400 flex items-center gap-1.5">
+              <span className="text-slate-400 flex items-center gap-1.5 font-medium">
                 <HardDrive className="w-3.5 h-3.5 text-cyan-400" /> Stockage Audio
               </span>
-              <span className="text-cyan-400 font-bold">R2 / Actif</span>
+              <span className="text-cyan-300 font-bold">R2 / Actif</span>
             </div>
             <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1">
-              <span>{books.length} livres en base</span>
-              <button onClick={checkStatus} title="Rafraîchir statut BD" className="hover:text-emerald-400 transition-colors">
-                <RefreshCw className={`w-3 h-3 ${checkingStatus ? 'animate-spin text-emerald-400' : ''}`} />
+              <span>{books.length} titres au catalogue</span>
+              <button
+                onClick={checkStatus}
+                title="Rafraîchir statut BD"
+                className="p-1 hover:text-emerald-400 transition-colors"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${checkingStatus ? 'animate-spin text-emerald-400' : ''}`} />
               </button>
             </div>
           </div>
@@ -1131,43 +1171,45 @@ export const AdminStudioView = ({ onBookCreated }) => {
             {/* Header de la rubrique */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h1 className="text-2xl sm:text-3xl font-black text-white font-['Outfit']">Catalogue des Livres Audio</h1>
-                <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-                  {books.length} livres audio enregistrés et disponibles sur la boutique
+                <h1 className="text-2xl sm:text-4xl font-black text-white font-['Outfit'] tracking-tight">
+                  Catalogue & Audios
+                </h1>
+                <p className="text-xs sm:text-sm text-slate-400 mt-1 font-medium">
+                  {books.length} contenu{books.length > 1 ? 's' : ''} en ligne • Synchronisé avec Cloudflare D1
                 </p>
               </div>
               <button
                 onClick={() => { resetPublishForm(); setActiveRubric('publish'); }}
-                className="btn-gradient px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-lg"
+                className="btn-gradient px-6 py-3.5 rounded-2xl text-xs sm:text-sm font-black flex items-center gap-2 shadow-2xl active:scale-95 transition-all"
               >
-                <Plus className="w-4 h-4" />
-                <span>Publier un Nouveau Livre</span>
+                <Plus className="w-4.5 h-4.5" />
+                <span>Publier un Nouveau Titre</span>
               </button>
             </div>
 
             {/* Barre de Recherche & Filtres */}
             <div className="card-lg space-y-4">
               <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-400" />
                 <input
                   type="text"
                   value={catalogSearch}
                   onChange={e => setCatalogSearch(e.target.value)}
                   placeholder="Rechercher par titre ou auteur dans le catalogue..."
-                  className="rg-input pl-11 pr-4 py-3 rounded-2xl text-sm"
+                  className="rg-input pl-12 pr-4 py-3.5 rounded-2xl text-sm"
                 />
               </div>
 
               {/* Table / Grille des Livres */}
               {loadingBooks ? (
                 <div className="space-y-3">
-                  {[1, 2, 3].map(n => <div key={n} className="skeleton h-20 rounded-2xl" />)}
+                  {[1, 2, 3].map(n => <div key={n} className="skeleton h-24 rounded-2xl" />)}
                 </div>
               ) : filteredBooks.length === 0 ? (
-                <div className="text-center py-12 space-y-3">
-                  <BookOpen className="w-12 h-12 mx-auto text-slate-500" />
-                  <p className="text-sm text-slate-300 font-bold">Aucun livre trouvé</p>
-                  <button onClick={() => setCatalogSearch('')} className="rg-btn-ghost text-xs">
+                <div className="text-center py-16 space-y-3">
+                  <BookOpen className="w-14 h-14 mx-auto text-slate-600 opacity-60" />
+                  <p className="text-base text-slate-300 font-bold font-['Outfit']">Aucun contenu trouvé</p>
+                  <button onClick={() => setCatalogSearch('')} className="rg-btn-ghost text-xs px-4 py-2 rounded-xl">
                     Effacer la recherche
                   </button>
                 </div>
@@ -1178,34 +1220,60 @@ export const AdminStudioView = ({ onBookCreated }) => {
                     return (
                       <div
                         key={book.id}
-                        className="p-4 rounded-2xl bg-white/4 hover:bg-white/7 border border-white/8 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                        className="p-4 sm:p-5 rounded-2xl transition-all duration-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group"
+                        style={{
+                          background: isPreviewing
+                            ? 'linear-gradient(135deg, rgba(124, 58, 237, 0.18), rgba(168, 85, 247, 0.12))'
+                            : 'rgba(255, 255, 255, 0.035)',
+                          border: isPreviewing
+                            ? '1px solid rgba(168, 85, 247, 0.50)'
+                            : '1px solid rgba(255, 255, 255, 0.08)',
+                          boxShadow: isPreviewing ? '0 8px 30px rgba(168, 85, 247, 0.20)' : 'none',
+                        }}
                       >
                         <div className="flex items-center gap-4 min-w-0">
-                          <img
-                            src={book.cover_url}
-                            alt={book.title}
-                            onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?w=400&q=80'; }}
-                            className="w-14 h-14 rounded-xl object-cover shadow-md border border-white/10 flex-shrink-0"
-                          />
-                          <div className="min-w-0">
+                          <div className="relative flex-shrink-0">
+                            <img
+                              src={book.cover_url}
+                              alt={book.title}
+                              onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?w=400&q=80'; }}
+                              className="w-16 h-16 rounded-2xl object-cover shadow-lg border border-white/10 group-hover:scale-105 transition-transform duration-300"
+                            />
+                            {isPreviewing && (
+                              <div className="absolute inset-0 bg-black/50 rounded-2xl flex items-center justify-center">
+                                <span className="w-2.5 h-2.5 bg-purple-400 rounded-full animate-ping" />
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="min-w-0 space-y-1">
                             <div className="flex items-center gap-2 flex-wrap">
                               {Boolean(book.is_pinned) && (
-                                <span className="rg-badge bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1 font-bold animate-pulse">
+                                <span className="rg-badge bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-black shadow-md border border-amber-300/40">
                                   📌 Épinglé en tête
                                 </span>
                               )}
-                              <span className="rg-badge rg-badge--purple">{book.category_name || 'Livre Audio'}</span>
+                              <span className="rg-badge rg-badge--purple">
+                                {book.content_type === 'podcast' ? '🎙️ Podcast' :
+                                 book.content_type === 'music' ? '🎵 Musique' :
+                                 book.content_type === 'masterclass' ? '🎓 Masterclass' :
+                                 (book.category_name || 'Livre Audio')}
+                              </span>
                               {Boolean(book.is_featured) && <span className="rg-badge rg-badge--pink">À la une</span>}
                               {Boolean(book.is_bestseller) && <span className="rg-badge rg-badge--amber">Bestseller</span>}
                             </div>
-                            <h3 className="text-sm sm:text-base font-bold text-white truncate mt-1">{book.title}</h3>
-                            <p className="text-xs text-slate-400 truncate">Par <span className="text-slate-200">{book.author}</span> • {book.chapters?.length || 1} chapitre(s) • {book.discount_price || book.price} FCFA</p>
+                            <h3 className="text-base sm:text-lg font-extrabold text-white truncate font-['Outfit'] group-hover:text-purple-300 transition-colors">
+                              {book.title}
+                            </h3>
+                            <p className="text-xs text-slate-400 truncate">
+                              Par <span className="text-slate-200 font-semibold">{book.author}</span> • {book.chapters?.length || 1} chapitre(s) • <span className="text-emerald-400 font-bold">{book.discount_price || book.price} FCFA</span>
+                            </p>
                           </div>
                         </div>
 
-                        {/* Prix & Actions */}
+                        {/* Actions boutons avec espacements confortables */}
                         <div className="flex items-center gap-2 self-end sm:self-center flex-shrink-0">
-                          {/* Bouton Épingler / Désépingler */}
+                          {/* Bouton Épingler */}
                           <button
                             onClick={async (e) => {
                               e.stopPropagation();
@@ -1213,15 +1281,15 @@ export const AdminStudioView = ({ onBookCreated }) => {
                               await apiClient.togglePinAudiobook(book.id, newPinned);
                               setBooks(prev => prev.map(b => b.id === book.id ? { ...b, is_pinned: newPinned ? 1 : 0 } : b));
                             }}
-                            className={`p-2.5 rounded-xl border transition-all flex items-center gap-1.5 ${
+                            className={`px-3 py-2.5 rounded-xl border font-black text-xs transition-all duration-200 flex items-center gap-1.5 active:scale-95 ${
                               book.is_pinned
                                 ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 shadow-lg shadow-amber-500/20'
                                 : 'bg-white/5 hover:bg-amber-500/15 text-slate-400 hover:text-amber-300 border-white/10'
                             }`}
-                            title={book.is_pinned ? 'Désépingler cet audio du haut du catalogue' : 'Épingler cet audio en tête du catalogue'}
+                            title={book.is_pinned ? 'Désépingler cet audio' : 'Épingler cet audio en haut du catalogue'}
                           >
                             <span className="text-sm">📌</span>
-                            <span className="text-[11px] font-bold hidden sm:inline">
+                            <span className="hidden sm:inline">
                               {book.is_pinned ? 'Épinglé' : 'Épingler'}
                             </span>
                           </button>
@@ -1240,32 +1308,32 @@ export const AdminStudioView = ({ onBookCreated }) => {
                                 }
                               }
                             }}
-                            className={`p-2.5 rounded-xl border transition-all ${
+                            className={`p-2.5 rounded-xl border transition-all duration-200 active:scale-95 ${
                               isPreviewing
                                 ? 'bg-purple-600 text-white border-purple-500 shadow-lg shadow-purple-500/30'
-                                : 'bg-white/5 hover:bg-white/10 text-slate-300 border-white/10'
+                                : 'bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border-white/10'
                             }`}
                             title="Écouter l'extrait"
                           >
-                            {isPreviewing ? <Pause className="w-4 h-4 fill-white" /> : <Play className="w-4 h-4 fill-white ml-0.5" />}
+                            {isPreviewing ? <Pause className="w-4.5 h-4.5 fill-white" /> : <Play className="w-4.5 h-4.5 fill-white ml-0.5" />}
                           </button>
 
                           {/* Bouton Éditer */}
                           <button
                             onClick={() => handleEditBook(book)}
-                            className="p-2.5 rounded-xl border bg-white/5 hover:bg-blue-500/20 text-slate-300 hover:text-blue-300 border-white/10 hover:border-blue-500/40 transition-all"
+                            className="p-2.5 rounded-xl border bg-white/5 hover:bg-cyan-500/20 text-slate-300 hover:text-cyan-300 border-white/10 hover:border-cyan-500/40 transition-all duration-200 active:scale-95"
                             title="Modifier ce livre"
                           >
-                            <Edit3 className="w-4 h-4" />
+                            <Edit3 className="w-4.5 h-4.5" />
                           </button>
 
                           {/* Bouton Supprimer */}
                           <button
                             onClick={() => handleDeleteBook(book.id, book.title)}
-                            className="p-2.5 rounded-xl border bg-white/5 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 border-white/10 hover:border-rose-500/40 transition-all"
+                            className="p-2.5 rounded-xl border bg-white/5 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 border-white/10 hover:border-rose-500/40 transition-all duration-200 active:scale-95"
                             title="Supprimer ce livre"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-4.5 h-4.5" />
                           </button>
                         </div>
                       </div>
@@ -1303,8 +1371,15 @@ export const AdminStudioView = ({ onBookCreated }) => {
               )}
             </div>
 
-            {/* Stepper Propre */}
-            <div className="card-md flex items-center justify-between gap-2 p-3">
+            {/* Stepper Propre et Stylisé */}
+            <div
+              className="p-2 sm:p-3 rounded-3xl flex items-center justify-between gap-2 backdrop-blur-xl"
+              style={{
+                background: 'rgba(14, 10, 34, 0.85)',
+                border: '1px solid rgba(168, 85, 247, 0.18)',
+                boxShadow: '0 8px 30px rgba(0,0,0,0.40)',
+              }}
+            >
               {[
                 { n: 1, label: '1. Informations & Prix' },
                 { n: 2, label: '2. Pochette & Extrait' },
@@ -1314,15 +1389,25 @@ export const AdminStudioView = ({ onBookCreated }) => {
                 <button
                   key={s.n}
                   onClick={() => step > s.n && setStep(s.n)}
-                  className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all text-center ${
+                  className={`flex-1 py-3 px-2 sm:px-4 rounded-2xl text-xs font-black transition-all duration-300 text-center font-['Outfit'] tracking-wide cursor-pointer ${
                     step === s.n
-                      ? 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-md'
+                      ? 'text-white shadow-xl shadow-emerald-500/25 scale-[1.02]'
                       : step > s.n
-                      ? 'text-emerald-400 bg-white/5 cursor-pointer'
-                      : 'text-slate-500 bg-transparent'
+                      ? 'text-emerald-400 bg-white/6 hover:bg-emerald-500/10'
+                      : 'text-slate-500 bg-transparent opacity-60'
                   }`}
+                  style={
+                    step === s.n
+                      ? {
+                          background: 'linear-gradient(135deg, #059669 0%, #10b981 50%, #0d9488 100%)',
+                          border: '1px solid rgba(255, 255, 255, 0.25)',
+                          boxShadow: '0 8px 24px rgba(16, 185, 129, 0.35)',
+                        }
+                      : { border: '1px solid transparent' }
+                  }
                 >
-                  {s.label}
+                  <span className="hidden sm:inline">{s.label}</span>
+                  <span className="sm:hidden font-black">Étape {s.n}</span>
                 </button>
               ))}
             </div>

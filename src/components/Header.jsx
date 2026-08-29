@@ -29,7 +29,16 @@ export const Header = ({
   const isAdminMode = activeTab === 'admin';
 
   return (
-    <header className="sticky top-0 z-40 w-full glass-panel border-b border-white/8 transition-all">
+    <header
+      className="sticky top-0 z-40 w-full transition-all"
+      style={{
+        background: 'rgba(5, 3, 17, 0.90)',
+        backdropFilter: 'blur(32px) saturate(200%)',
+        WebkitBackdropFilter: 'blur(32px) saturate(200%)',
+        borderBottom: '1px solid rgba(168, 85, 247, 0.14)',
+        boxShadow: '0 1px 0 rgba(255,255,255,0.05) inset, 0 4px 24px rgba(0,0,0,0.40)',
+      }}
+    >
       <div className="max-w-screen-2xl mx-auto px-4 lg:px-8 py-3.5 flex items-center gap-4 justify-between">
 
         {/* ── Logo & Brand ── */}

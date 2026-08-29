@@ -3,22 +3,29 @@ import { Compass, BookMarked, User, Smartphone } from 'lucide-react';
 
 export const BottomNav = ({ activeTab, setActiveTab, onOpenInstallModal }) => {
   const items = [
-    { id: 'discover', icon: Compass,    label: 'Boutique'  },
-    { id: 'library',  icon: BookMarked, label: 'Bibliothèque' },
-    { id: 'profile',  icon: User,       label: 'Compte'    },
-    { id: 'install',  icon: Smartphone, label: 'Installer', action: onOpenInstallModal },
+    { id: 'discover', icon: Compass,    label: 'Boutique',      emoji: '🎧' },
+    { id: 'library',  icon: BookMarked, label: 'Bibliothèque',  emoji: '📚' },
+    { id: 'profile',  icon: User,       label: 'Compte',        emoji: '👤' },
+    { id: 'install',  icon: Smartphone, label: 'Installer',     emoji: '📲', action: onOpenInstallModal },
   ];
 
   return (
-    <nav className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 md:hidden">
-      <div className="flex items-center gap-1 px-3 py-2.5 rounded-full shadow-2xl"
+    <nav className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 md:hidden">
+      <div
+        className="flex items-center gap-1 px-2.5 py-2.5 rounded-[2rem]"
         style={{
-          background: 'rgba(15, 11, 38, 0.95)',
-          backdropFilter: 'blur(24px)',
-          WebkitBackdropFilter: 'blur(24px)',
-          border: '1px solid rgba(157, 78, 221, 0.25)',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.55), 0 0 0 1px rgba(157,78,221,0.15)',
-        }}>
+          background: 'rgba(8, 5, 22, 0.92)',
+          backdropFilter: 'blur(32px) saturate(200%)',
+          WebkitBackdropFilter: 'blur(32px) saturate(200%)',
+          border: '1px solid rgba(168, 85, 247, 0.22)',
+          boxShadow: `
+            0 24px 64px rgba(0,0,0,0.65),
+            0 8px 24px rgba(0,0,0,0.45),
+            0 0 0 1px rgba(168, 85, 247, 0.10),
+            0 1px 0 rgba(255,255,255,0.06) inset
+          `,
+        }}
+      >
         {items.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -26,24 +33,51 @@ export const BottomNav = ({ activeTab, setActiveTab, onOpenInstallModal }) => {
             <button
               key={item.id}
               onClick={() => item.action ? item.action() : setActiveTab(item.id)}
-              className="relative flex flex-col items-center gap-1 px-4 py-1.5 rounded-full transition-all"
+              className="relative flex flex-col items-center gap-1.5 transition-all duration-300"
               style={{
+                padding: isActive ? '0.6rem 1.3rem' : '0.6rem 1rem',
+                borderRadius: '1.5rem',
                 background: isActive
-                  ? 'linear-gradient(135deg, rgba(157,78,221,0.30), rgba(247,37,133,0.25))'
+                  ? 'linear-gradient(135deg, rgba(124, 58, 237, 0.55), rgba(168, 85, 247, 0.40), rgba(192, 38, 211, 0.35))'
                   : 'transparent',
-                border: isActive ? '1px solid rgba(157,78,221,0.40)' : '1px solid transparent',
+                border: isActive
+                  ? '1px solid rgba(168, 85, 247, 0.45)'
+                  : '1px solid transparent',
+                boxShadow: isActive
+                  ? '0 4px 20px rgba(168, 85, 247, 0.35), 0 0 32px rgba(168, 85, 247, 0.12), 0 1px 0 rgba(255,255,255,0.08) inset'
+                  : 'none',
               }}
             >
-              <Icon className={`w-5 h-5 transition-colors ${
-                isActive ? 'text-purple-300' : 'text-[color:var(--color-text-tertiary)]'
-              }`} />
-              <span className={`text-[10px] font-semibold transition-colors ${
-                isActive ? 'text-purple-200' : 'text-[color:var(--color-text-disabled)]'
-              }`}>
+              <Icon
+                className="transition-all duration-300"
+                style={{
+                  width: isActive ? '22px' : '20px',
+                  height: isActive ? '22px' : '20px',
+                  color: isActive ? '#d08fff' : 'rgba(139,135,168,0.9)',
+                  filter: isActive ? 'drop-shadow(0 0 6px rgba(208,143,255,0.60))' : 'none',
+                  strokeWidth: isActive ? 2.2 : 1.8,
+                }}
+              />
+              <span
+                className="font-bold transition-all duration-300"
+                style={{
+                  fontSize: isActive ? '10px' : '9.5px',
+                  color: isActive ? '#e9d5ff' : 'rgba(100,96,128,0.9)',
+                  letterSpacing: isActive ? '0.01em' : '0em',
+                }}
+              >
                 {item.label}
               </span>
+
+              {/* Dot indicateur actif */}
               {isActive && (
-                <span className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-purple-400" />
+                <span
+                  className="absolute -top-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full animate-pulse"
+                  style={{
+                    background: 'linear-gradient(135deg, #d08fff, #f43f8b)',
+                    boxShadow: '0 0 8px rgba(208, 143, 255, 0.80)',
+                  }}
+                />
               )}
             </button>
           );
