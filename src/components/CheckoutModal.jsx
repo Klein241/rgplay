@@ -9,7 +9,7 @@ import { apiClient } from '../services/api';
 import { useAudio } from '../context/AudioContext';
 
 // ─── Constantes ────────────────────────────────────────────────────────────
-const POLL_INTERVAL_MS  = 3000;  // Polling toutes les 3 secondes
+const POLL_INTERVAL_MS = 3000;  // Polling toutes les 3 secondes
 const PAYMENT_TIMEOUT_S = 300;   // 5 minutes avant expiration
 
 // ─── Méthodes de paiement disponibles ─────────────────────────────────────
@@ -54,26 +54,26 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
 
   // ── Formulaire ──────────────────────────────────────────────────────────
   const [paymentMethod, setPaymentMethod] = useState('orange_money');
-  const [phoneNumber, setPhoneNumber]     = useState('');
-  const [phoneError, setPhoneError]       = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [phoneError, setPhoneError] = useState('');
 
   // ── Flux de paiement ─────────────────────────────────────────────────────
   // 'form' → 'initiating' → 'waiting_phone' | 'waiting_card' → 'success' | 'failed' | 'timeout'
-  const [step, setStep]               = useState('form');
-  const [initError, setInitError]     = useState('');
+  const [step, setStep] = useState('form');
+  const [initError, setInitError] = useState('');
   const [transactionId, setTransactionId] = useState('');
-  const [payUrl, setPayUrl]           = useState('');
-  const [elapsedSec, setElapsedSec]   = useState(0);
+  const [payUrl, setPayUrl] = useState('');
+  const [elapsedSec, setElapsedSec] = useState(0);
   const [isConfirming, setIsConfirming] = useState(false);
 
   // ── Refs pour le nettoyage ────────────────────────────────────────────────
-  const pollIntervalRef  = useRef(null);
+  const pollIntervalRef = useRef(null);
   const timerIntervalRef = useRef(null);
-  const isMountedRef     = useRef(true);
+  const isMountedRef = useRef(true);
 
-  const finalPrice  = book?.discount_price || book?.price;
-  const methodInfo  = METHODS.find(m => m.id === paymentMethod) || METHODS[0];
-  const isCard      = paymentMethod === 'card';
+  const finalPrice = book?.discount_price || book?.price;
+  const methodInfo = METHODS.find(m => m.id === paymentMethod) || METHODS[0];
+  const isCard = paymentMethod === 'card';
 
   // ── Nettoyage à la fermeture ─────────────────────────────────────────────
   useEffect(() => {
@@ -99,16 +99,16 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
   }, [isOpen]);
 
   const clearAllIntervals = () => {
-    if (pollIntervalRef.current)  clearInterval(pollIntervalRef.current);
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-    pollIntervalRef.current  = null;
+    pollIntervalRef.current = null;
     timerIntervalRef.current = null;
   };
 
   // ── Validation du numéro ────────────────────────────────────────────────
   const validatePhone = (num) => {
     const digits = num.replace(/\D/g, '');
-    if (digits.length < 8)  return 'Numéro trop court (minimum 8 chiffres)';
+    if (digits.length < 8) return 'Numéro trop court (minimum 8 chiffres)';
     if (digits.length > 12) return 'Numéro trop long (maximum 12 chiffres)';
     return '';
   };
@@ -137,19 +137,6 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
       });
 
       if (!isMountedRef.current) return;
-
-      if (result.already_owned) {
-        apiClient._addToLocalLibrary(book);
-        setStep('success');
-        confetti({
-          particleCount: 100,
-          spread: 80,
-          origin: { y: 0.5 },
-          colors: ['#9d4edd', '#c77dff', '#06d6a0', '#ffbe0b'],
-        });
-        if (onSuccess) onSuccess(book);
-        return;
-      }
 
       if (result.success && result.transaction_id) {
         setTransactionId(result.transaction_id);

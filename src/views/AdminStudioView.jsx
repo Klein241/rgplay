@@ -35,9 +35,9 @@ const formatDuration = (seconds) => {
 const uploadToR2 = (file, r2Key, type, onProgress) =>
   new Promise((resolve, reject) => {
     const formData = new FormData();
-    formData.append('file',   file);
+    formData.append('file', file);
     formData.append('r2_key', r2Key);
-    formData.append('type',   type);
+    formData.append('type', type);
 
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/r2/upload');
@@ -60,8 +60,8 @@ const uploadToR2 = (file, r2Key, type, onProgress) =>
       }
     });
 
-    xhr.addEventListener('error',  () => reject(new Error('Erreur réseau')));
-    xhr.addEventListener('abort',  () => reject(new Error('Upload annulé')));
+    xhr.addEventListener('error', () => reject(new Error('Erreur réseau')));
+    xhr.addEventListener('abort', () => reject(new Error('Upload annulé')));
     xhr.send(formData);
   });
 
@@ -144,7 +144,7 @@ const DropZone = ({ label, accept, type, icon: Icon, value, onUploaded, onDurati
           tempAudio.onerror = () => resolve();
           setTimeout(resolve, 1500);
         });
-      } catch (_) {}
+      } catch (_) { }
     }
 
     // 3. Upload du fichier compressé/optimisé vers R2 / Serveur
@@ -186,12 +186,12 @@ const DropZone = ({ label, accept, type, icon: Icon, value, onUploaded, onDurati
   const borderColor = isDragging
     ? 'border-purple-400 bg-purple-500/15 shadow-xl shadow-purple-500/20'
     : status === 'done'
-    ? 'border-emerald-500/60 bg-emerald-500/10 shadow-lg shadow-emerald-500/15'
-    : status === 'compressing'
-    ? 'border-cyan-500/60 bg-cyan-500/10 shadow-lg shadow-cyan-500/15'
-    : status === 'error'
-    ? 'border-rose-500/60 bg-rose-500/10 shadow-lg shadow-rose-500/15'
-    : 'border-white/12 hover:border-purple-400/40 bg-white/4 hover:bg-white/6';
+      ? 'border-emerald-500/60 bg-emerald-500/10 shadow-lg shadow-emerald-500/15'
+      : status === 'compressing'
+        ? 'border-cyan-500/60 bg-cyan-500/10 shadow-lg shadow-cyan-500/15'
+        : status === 'error'
+          ? 'border-rose-500/60 bg-rose-500/10 shadow-lg shadow-rose-500/15'
+          : 'border-white/12 hover:border-purple-400/40 bg-white/4 hover:bg-white/6';
 
   return (
     <div className="space-y-2">
@@ -416,7 +416,7 @@ export const AdminStudioView = ({ onBookCreated }) => {
     try {
       const st = await apiClient.getSystemStatus();
       setSystemStatus(st);
-    } catch (_) {}
+    } catch (_) { }
     finally {
       setCheckingStatus(false);
     }
@@ -463,10 +463,10 @@ export const AdminStudioView = ({ onBookCreated }) => {
     setPreviewData(book.preview_url ? { public_url: book.preview_url, r2_key: book.preview_r2_key || '' } : null);
     setChapters((book.chapters && book.chapters.length > 0)
       ? book.chapters.map(c => ({
-          title: c.title,
-          duration_seconds: c.duration_seconds || 1800,
-          uploadData: c.audio_url ? { public_url: c.audio_url, r2_key: c.audio_r2_key || '', file_name: c.title } : null
-        }))
+        title: c.title,
+        duration_seconds: c.duration_seconds || 1800,
+        uploadData: c.audio_url ? { public_url: c.audio_url, r2_key: c.audio_r2_key || '', file_name: c.title } : null
+      }))
       : [{ title: 'Chapitre 1 : Introduction', duration_seconds: 1800, uploadData: null }]
     );
     setStep(1);
@@ -552,7 +552,7 @@ export const AdminStudioView = ({ onBookCreated }) => {
     let result = null;
     try {
       result = await apiClient.createAudiobook(newBook);
-    } catch (_) {}
+    } catch (_) { }
 
     setPublishedBook(newBook);
     setPublishResult(result?.serverResult || null);
@@ -560,10 +560,10 @@ export const AdminStudioView = ({ onBookCreated }) => {
     setStep(4);
     await loadBooks();
     await checkStatus();
-    
+
     // Déclencher la notification push réelle pour les utilisateurs
     window.dispatchEvent(new CustomEvent('rg_new_content_published', { detail: newBook }));
-    
+
     if (onBookCreated) onBookCreated(newBook);
   };
 
@@ -621,7 +621,7 @@ export const AdminStudioView = ({ onBookCreated }) => {
         setIsTtsGenerating(false);
         return;
       }
-    } catch (_) {}
+    } catch (_) { }
 
     // 2. Moteur Vocal Haute-Fidélité Web Audio
     try {
@@ -1054,14 +1054,14 @@ export const AdminStudioView = ({ onBookCreated }) => {
 
   // ── Navigation Tabs ──
   const RUBRICS = [
-    { id: 'catalog',    label: 'Catalogue & Livres',      icon: BookOpen,   badge: books.length },
-    { id: 'categories', label: 'Catalogues & Catégories', icon: Grid,       badge: categories.length },
-    { id: 'publish',    label: 'Publier un Livre',        icon: UploadCloud },
-    { id: 'ai-tts',     label: 'Studio IA (Texte ➔ Voix)', icon: Wand2,      badge: 'Pro' },
-    { id: 'audacity',   label: 'Studio Audacity DSP',     icon: Sliders,    badge: 'DSP' },
-    { id: 'analytics',  label: 'Statistiques & Ventes',   icon: BarChart3 },
-    { id: 'push',       label: 'Notifications Push',      icon: Bell },
-    { id: 'settings',   label: 'Paramètres & Système',    icon: Settings },
+    { id: 'catalog', label: 'Catalogue & Livres', icon: BookOpen, badge: books.length },
+    { id: 'categories', label: 'Catalogues & Catégories', icon: Grid, badge: categories.length },
+    { id: 'publish', label: 'Publier un Livre', icon: UploadCloud },
+    { id: 'ai-tts', label: 'Studio IA (Texte ➔ Voix)', icon: Wand2, badge: 'Pro' },
+    { id: 'audacity', label: 'Studio Audacity DSP', icon: Sliders, badge: 'DSP' },
+    { id: 'analytics', label: 'Statistiques & Ventes', icon: BarChart3 },
+    { id: 'push', label: 'Notifications Push', icon: Bell },
+    { id: 'settings', label: 'Paramètres & Système', icon: Settings },
   ];
 
   const filteredBooks = books.filter(b =>
@@ -1097,18 +1097,17 @@ export const AdminStudioView = ({ onBookCreated }) => {
                 <button
                   key={rub.id}
                   onClick={() => setActiveRubric(rub.id)}
-                  className={`w-full flex items-center justify-between px-4 py-3.5 rounded-2xl text-xs font-black transition-all duration-300 font-['Outfit'] tracking-wide cursor-pointer ${
-                    isActive
+                  className={`w-full flex items-center justify-between px-4 py-3.5 rounded-2xl text-xs font-black transition-all duration-300 font-['Outfit'] tracking-wide cursor-pointer ${isActive
                       ? 'text-white shadow-xl shadow-emerald-500/25 scale-[1.02]'
                       : 'text-slate-300 hover:bg-white/6 hover:text-white'
-                  }`}
+                    }`}
                   style={
                     isActive
                       ? {
-                          background: 'linear-gradient(135deg, #059669 0%, #10b981 50%, #0d9488 100%)',
-                          border: '1px solid rgba(255, 255, 255, 0.20)',
-                          boxShadow: '0 8px 24px rgba(16, 185, 129, 0.35), 0 1px 0 rgba(255,255,255,0.15) inset',
-                        }
+                        background: 'linear-gradient(135deg, #059669 0%, #10b981 50%, #0d9488 100%)',
+                        border: '1px solid rgba(255, 255, 255, 0.20)',
+                        boxShadow: '0 8px 24px rgba(16, 185, 129, 0.35), 0 1px 0 rgba(255,255,255,0.15) inset',
+                      }
                       : { border: '1px solid transparent' }
                   }
                 >
@@ -1121,11 +1120,10 @@ export const AdminStudioView = ({ onBookCreated }) => {
                   </div>
                   {rub.badge && (
                     <span
-                      className={`text-[10px] px-2.5 py-0.5 rounded-full font-black ${
-                        isActive
+                      className={`text-[10px] px-2.5 py-0.5 rounded-full font-black ${isActive
                           ? 'bg-white/25 text-white'
                           : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
-                      }`}
+                        }`}
                     >
                       {rub.badge}
                     </span>
@@ -1206,16 +1204,15 @@ export const AdminStudioView = ({ onBookCreated }) => {
                     className="rg-input pl-12 pr-4 py-3.5 rounded-2xl text-sm w-full"
                   />
                 </div>
-                
+
                 {/* Switcher Mode Vue : Cartes vs Liste */}
                 <div className="flex items-center gap-1 bg-white/5 p-1.5 rounded-2xl border border-white/10 self-end sm:self-auto">
                   <button
                     onClick={() => setCatalogViewMode('grid')}
-                    className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                      catalogViewMode === 'grid'
+                    className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${catalogViewMode === 'grid'
                         ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
                         : 'text-slate-400 hover:text-white hover:bg-white/5'
-                    }`}
+                      }`}
                     title="Affichage en petites cartes"
                   >
                     <LayoutGrid className="w-4 h-4" />
@@ -1223,11 +1220,10 @@ export const AdminStudioView = ({ onBookCreated }) => {
                   </button>
                   <button
                     onClick={() => setCatalogViewMode('list')}
-                    className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                      catalogViewMode === 'list'
+                    className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${catalogViewMode === 'list'
                         ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
                         : 'text-slate-400 hover:text-white hover:bg-white/5'
-                    }`}
+                      }`}
                     title="Affichage en liste détaillée"
                   >
                     <List className="w-4 h-4" />
@@ -1303,11 +1299,10 @@ export const AdminStudioView = ({ onBookCreated }) => {
                                 }
                               }
                             }}
-                            className={`absolute bottom-2 right-2 p-2 rounded-xl border backdrop-blur-md transition-all duration-200 active:scale-90 ${
-                              isPreviewing
+                            className={`absolute bottom-2 right-2 p-2 rounded-xl border backdrop-blur-md transition-all duration-200 active:scale-90 ${isPreviewing
                                 ? 'bg-purple-600 text-white border-purple-400 shadow-lg shadow-purple-500/40'
                                 : 'bg-black/60 hover:bg-black/80 text-white border-white/20 opacity-90 group-hover:opacity-100'
-                            }`}
+                              }`}
                             title="Écouter l'extrait"
                           >
                             {isPreviewing ? <Pause className="w-3.5 h-3.5 fill-white" /> : <Play className="w-3.5 h-3.5 fill-white ml-0.5" />}
@@ -1320,9 +1315,9 @@ export const AdminStudioView = ({ onBookCreated }) => {
                             <div className="flex items-center gap-1 mb-1">
                               <span className="text-[10px] text-purple-300 font-bold uppercase tracking-wider truncate">
                                 {book.content_type === 'podcast' ? '🎙️ Podcast' :
-                                 book.content_type === 'music' ? '🎵 Musique' :
-                                 book.content_type === 'masterclass' ? '🎓 Masterclass' :
-                                 (book.category_name || 'Livre Audio')}
+                                  book.content_type === 'music' ? '🎵 Musique' :
+                                    book.content_type === 'masterclass' ? '🎓 Masterclass' :
+                                      (book.category_name || 'Livre Audio')}
                               </span>
                             </div>
                             <h3 className="text-xs sm:text-sm font-extrabold text-white truncate font-['Outfit'] group-hover:text-purple-300 transition-colors" title={book.title}>
@@ -1353,11 +1348,10 @@ export const AdminStudioView = ({ onBookCreated }) => {
                                   setBooks(prev => prev.map(b => b.id === book.id ? { ...b, is_pinned: newPinned ? 1 : 0 } : b));
                                   await apiClient.togglePinAudiobook(book.id, newPinned);
                                 }}
-                                className={`p-1.5 rounded-lg border text-center font-bold text-xs transition-all active:scale-95 flex items-center justify-center ${
-                                  book.is_pinned
+                                className={`p-1.5 rounded-lg border text-center font-bold text-xs transition-all active:scale-95 flex items-center justify-center ${book.is_pinned
                                     ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
                                     : 'bg-white/5 hover:bg-amber-500/15 text-slate-400 hover:text-amber-300 border-white/10'
-                                }`}
+                                  }`}
                                 title={book.is_pinned ? 'Désépingler cet audio' : 'Épingler cet audio en tête'}
                               >
                                 <span>📌</span>
@@ -1430,9 +1424,9 @@ export const AdminStudioView = ({ onBookCreated }) => {
                               )}
                               <span className="rg-badge rg-badge--purple">
                                 {book.content_type === 'podcast' ? '🎙️ Podcast' :
-                                 book.content_type === 'music' ? '🎵 Musique' :
-                                 book.content_type === 'masterclass' ? '🎓 Masterclass' :
-                                 (book.category_name || 'Livre Audio')}
+                                  book.content_type === 'music' ? '🎵 Musique' :
+                                    book.content_type === 'masterclass' ? '🎓 Masterclass' :
+                                      (book.category_name || 'Livre Audio')}
                               </span>
                               {Boolean(book.is_featured) && <span className="rg-badge rg-badge--pink">À la une</span>}
                               {Boolean(book.is_bestseller) && <span className="rg-badge rg-badge--amber">Bestseller</span>}
@@ -1456,11 +1450,10 @@ export const AdminStudioView = ({ onBookCreated }) => {
                               setBooks(prev => prev.map(b => b.id === book.id ? { ...b, is_pinned: newPinned ? 1 : 0 } : b));
                               await apiClient.togglePinAudiobook(book.id, newPinned);
                             }}
-                            className={`px-3 py-2.5 rounded-xl border font-black text-xs transition-all duration-200 flex items-center gap-1.5 active:scale-95 ${
-                              book.is_pinned
+                            className={`px-3 py-2.5 rounded-xl border font-black text-xs transition-all duration-200 flex items-center gap-1.5 active:scale-95 ${book.is_pinned
                                 ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 shadow-lg shadow-amber-500/20'
                                 : 'bg-white/5 hover:bg-amber-500/15 text-slate-400 hover:text-amber-300 border-white/10'
-                            }`}
+                              }`}
                             title={book.is_pinned ? 'Désépingler cet audio' : 'Épingler cet audio en haut du catalogue'}
                           >
                             <span className="text-sm">📌</span>
@@ -1483,11 +1476,10 @@ export const AdminStudioView = ({ onBookCreated }) => {
                                 }
                               }
                             }}
-                            className={`p-2.5 rounded-xl border transition-all duration-200 active:scale-95 ${
-                              isPreviewing
+                            className={`p-2.5 rounded-xl border transition-all duration-200 active:scale-95 ${isPreviewing
                                 ? 'bg-purple-600 text-white border-purple-500 shadow-lg shadow-purple-500/30'
                                 : 'bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border-white/10'
-                            }`}
+                              }`}
                             title="Écouter l'extrait"
                           >
                             {isPreviewing ? <Pause className="w-4.5 h-4.5 fill-white" /> : <Play className="w-4.5 h-4.5 fill-white ml-0.5" />}
@@ -1564,20 +1556,19 @@ export const AdminStudioView = ({ onBookCreated }) => {
                 <button
                   key={s.n}
                   onClick={() => step > s.n && setStep(s.n)}
-                  className={`flex-1 py-3 px-2 sm:px-4 rounded-2xl text-xs font-black transition-all duration-300 text-center font-['Outfit'] tracking-wide cursor-pointer ${
-                    step === s.n
+                  className={`flex-1 py-3 px-2 sm:px-4 rounded-2xl text-xs font-black transition-all duration-300 text-center font-['Outfit'] tracking-wide cursor-pointer ${step === s.n
                       ? 'text-white shadow-xl shadow-emerald-500/25 scale-[1.02]'
                       : step > s.n
-                      ? 'text-emerald-400 bg-white/6 hover:bg-emerald-500/10'
-                      : 'text-slate-500 bg-transparent opacity-60'
-                  }`}
+                        ? 'text-emerald-400 bg-white/6 hover:bg-emerald-500/10'
+                        : 'text-slate-500 bg-transparent opacity-60'
+                    }`}
                   style={
                     step === s.n
                       ? {
-                          background: 'linear-gradient(135deg, #059669 0%, #10b981 50%, #0d9488 100%)',
-                          border: '1px solid rgba(255, 255, 255, 0.25)',
-                          boxShadow: '0 8px 24px rgba(16, 185, 129, 0.35)',
-                        }
+                        background: 'linear-gradient(135deg, #059669 0%, #10b981 50%, #0d9488 100%)',
+                        border: '1px solid rgba(255, 255, 255, 0.25)',
+                        boxShadow: '0 8px 24px rgba(16, 185, 129, 0.35)',
+                      }
                       : { border: '1px solid transparent' }
                   }
                 >
@@ -1604,11 +1595,10 @@ export const AdminStudioView = ({ onBookCreated }) => {
                         key={t.id}
                         type="button"
                         onClick={() => setContentType(t.id)}
-                        className={`p-3 rounded-2xl border text-xs font-bold flex flex-col items-center gap-1.5 transition-all ${
-                          contentType === t.id
+                        className={`p-3 rounded-2xl border text-xs font-bold flex flex-col items-center gap-1.5 transition-all ${contentType === t.id
                             ? `${t.color} border-2 shadow-lg`
                             : 'border-white/10 bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
-                        }`}
+                          }`}
                       >
                         <span className="text-lg">{t.icon}</span>
                         <span>{t.label}</span>
@@ -1621,9 +1611,9 @@ export const AdminStudioView = ({ onBookCreated }) => {
                   <div className="sm:col-span-2">
                     <label className="text-xs font-bold text-slate-300 block mb-1.5">
                       {contentType === 'podcast' ? 'Titre de l\'Épisode / Émission *' :
-                       contentType === 'music' ? 'Titre de la Piste / Album *' :
-                       contentType === 'masterclass' ? 'Titre de la Masterclass *' :
-                       'Titre de l\'œuvre *'}
+                        contentType === 'music' ? 'Titre de la Piste / Album *' :
+                          contentType === 'masterclass' ? 'Titre de la Masterclass *' :
+                            'Titre de l\'œuvre *'}
                     </label>
                     <input
                       type="text"
@@ -1631,9 +1621,9 @@ export const AdminStudioView = ({ onBookCreated }) => {
                       onChange={e => setTitle(e.target.value)}
                       placeholder={
                         contentType === 'podcast' ? 'Ex : Tech Pulse Afrique #12' :
-                        contentType === 'music' ? 'Ex : Lofi Midnight Focus' :
-                        contentType === 'masterclass' ? 'Ex : Masterclass IA Générative' :
-                        'Ex : L\'Art de la Stratégie Gagnante'
+                          contentType === 'music' ? 'Ex : Lofi Midnight Focus' :
+                            contentType === 'masterclass' ? 'Ex : Masterclass IA Générative' :
+                              'Ex : L\'Art de la Stratégie Gagnante'
                       }
                       className="rg-input"
                     />
@@ -2084,11 +2074,10 @@ export const AdminStudioView = ({ onBookCreated }) => {
                   <button
                     key={item.label}
                     onClick={() => item.set(!item.state)}
-                    className={`p-3 rounded-2xl border text-xs font-bold transition-all text-left flex flex-col justify-between h-20 ${
-                      item.state
+                    className={`p-3 rounded-2xl border text-xs font-bold transition-all text-left flex flex-col justify-between h-20 ${item.state
                         ? 'bg-purple-600/20 border-purple-500/40 text-purple-200'
                         : 'bg-white/4 border-white/8 text-slate-400'
-                    }`}
+                      }`}
                   >
                     <span>{item.label}</span>
                     <span className={`text-[10px] uppercase font-extrabold ${item.state ? 'text-emerald-400' : 'text-slate-500'}`}>
@@ -2394,78 +2383,78 @@ export const AdminStudioView = ({ onBookCreated }) => {
           const featuredCount = books.filter(b => Boolean(b.is_featured)).length;
           const bestsellerCount = books.filter(b => Boolean(b.is_bestseller)).length;
           return (
-          <div className="space-y-6 animate-fadeIn">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-black text-white font-['Outfit']">Statistiques & Ventes</h1>
-              <p className="text-xs sm:text-sm text-slate-400 mt-0.5">Suivi des performances du catalogue en temps réel</p>
-            </div>
-
-            {/* KPIs réels */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {[
-                { label: 'Livres dans le Catalogue', value: totalBooks, icon: BookOpen, color: 'text-purple-400' },
-                { label: 'Durée Totale du Catalogue', value: `${Math.round(totalDuration / 3600)}h`, icon: Clock, color: 'text-cyan-400' },
-                { label: 'Prix Moyen', value: `${avgPrice} FCFA`, icon: DollarSign, color: 'text-emerald-400' },
-                { label: 'Bestsellers', value: bestsellerCount, icon: Star, color: 'text-amber-400' },
-              ].map(({ label, value, icon: Icon, color }) => (
-                <div key={label} className="card-md space-y-2">
-                  <Icon className={`w-5 h-5 ${color}`} />
-                  <p className="text-lg sm:text-xl font-black text-white">{value}</p>
-                  <p className="text-xs text-slate-400">{label}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Catalogue par catégorie */}
-            <div className="card-lg space-y-4">
-              <h2 className="text-sm font-bold text-white">Répartition par Catégorie</h2>
-              <div className="space-y-2">
-                {categories.map(cat => {
-                  const count = books.filter(b => b.category_id === cat.id).length;
-                  const pct = totalBooks > 0 ? Math.round((count / totalBooks) * 100) : 0;
-                  if (count === 0) return null;
-                  return (
-                    <div key={cat.id} className="flex items-center gap-3 text-xs">
-                      <span className="text-slate-300 w-40 truncate">{cat.name}</span>
-                      <div className="flex-1 h-2 rounded-full bg-white/10 overflow-hidden">
-                        <div className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
-                      </div>
-                      <span className="text-slate-400 font-mono w-14 text-right">{count} livre{count > 1 ? 's' : ''}</span>
-                    </div>
-                  );
-                })}
+            <div className="space-y-6 animate-fadeIn">
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-black text-white font-['Outfit']">Statistiques & Ventes</h1>
+                <p className="text-xs sm:text-sm text-slate-400 mt-0.5">Suivi des performances du catalogue en temps réel</p>
               </div>
-            </div>
 
-            {/* Catalogue complet */}
-            <div className="card-lg space-y-3">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-bold text-white">Tous les Titres du Catalogue</h2>
-                <span className="text-xs text-slate-400">{totalBooks} titre{totalBooks > 1 ? 's' : ''}</span>
-              </div>
-              <div className="space-y-2 max-h-80 overflow-y-auto pr-1 no-scrollbar">
-                {books.map((book, idx) => (
-                  <div key={book.id} className="flex items-center gap-3 p-2.5 rounded-xl bg-white/4 border border-white/6 text-xs">
-                    <span className="text-slate-500 font-mono w-5">{idx + 1}</span>
-                    <img src={book.cover_url} alt={book.title}
-                      onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?w=100&q=60'; }}
-                      className="w-10 h-10 rounded-lg object-cover border border-white/10 flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-white truncate">{book.title}</p>
-                      <p className="text-slate-400 truncate">Par {book.author} • {book.chapters?.length || 1} ch.</p>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      <p className="font-black text-emerald-400">{book.discount_price || book.price} F</p>
-                      <div className="flex items-center gap-1 justify-end mt-0.5">
-                        <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                        <span className="text-amber-300">{book.rating || 5.0}</span>
-                      </div>
-                    </div>
+              {/* KPIs réels */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                  { label: 'Livres dans le Catalogue', value: totalBooks, icon: BookOpen, color: 'text-purple-400' },
+                  { label: 'Durée Totale du Catalogue', value: `${Math.round(totalDuration / 3600)}h`, icon: Clock, color: 'text-cyan-400' },
+                  { label: 'Prix Moyen', value: `${avgPrice} FCFA`, icon: DollarSign, color: 'text-emerald-400' },
+                  { label: 'Bestsellers', value: bestsellerCount, icon: Star, color: 'text-amber-400' },
+                ].map(({ label, value, icon: Icon, color }) => (
+                  <div key={label} className="card-md space-y-2">
+                    <Icon className={`w-5 h-5 ${color}`} />
+                    <p className="text-lg sm:text-xl font-black text-white">{value}</p>
+                    <p className="text-xs text-slate-400">{label}</p>
                   </div>
                 ))}
               </div>
+
+              {/* Catalogue par catégorie */}
+              <div className="card-lg space-y-4">
+                <h2 className="text-sm font-bold text-white">Répartition par Catégorie</h2>
+                <div className="space-y-2">
+                  {categories.map(cat => {
+                    const count = books.filter(b => b.category_id === cat.id).length;
+                    const pct = totalBooks > 0 ? Math.round((count / totalBooks) * 100) : 0;
+                    if (count === 0) return null;
+                    return (
+                      <div key={cat.id} className="flex items-center gap-3 text-xs">
+                        <span className="text-slate-300 w-40 truncate">{cat.name}</span>
+                        <div className="flex-1 h-2 rounded-full bg-white/10 overflow-hidden">
+                          <div className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-slate-400 font-mono w-14 text-right">{count} livre{count > 1 ? 's' : ''}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Catalogue complet */}
+              <div className="card-lg space-y-3">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-bold text-white">Tous les Titres du Catalogue</h2>
+                  <span className="text-xs text-slate-400">{totalBooks} titre{totalBooks > 1 ? 's' : ''}</span>
+                </div>
+                <div className="space-y-2 max-h-80 overflow-y-auto pr-1 no-scrollbar">
+                  {books.map((book, idx) => (
+                    <div key={book.id} className="flex items-center gap-3 p-2.5 rounded-xl bg-white/4 border border-white/6 text-xs">
+                      <span className="text-slate-500 font-mono w-5">{idx + 1}</span>
+                      <img src={book.cover_url} alt={book.title}
+                        onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?w=100&q=60'; }}
+                        className="w-10 h-10 rounded-lg object-cover border border-white/10 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-white truncate">{book.title}</p>
+                        <p className="text-slate-400 truncate">Par {book.author} • {book.chapters?.length || 1} ch.</p>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="font-black text-emerald-400">{book.discount_price || book.price} F</p>
+                        <div className="flex items-center gap-1 justify-end mt-0.5">
+                          <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                          <span className="text-amber-300">{book.rating || 5.0}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-          </div>
           );
         })()}
 
@@ -2482,9 +2471,8 @@ export const AdminStudioView = ({ onBookCreated }) => {
             {/* Statut Abonnement Push */}
             <div className="card-md flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
-                  isSubscribed ? 'bg-emerald-500/20 border border-emerald-500/40' : 'bg-white/6 border border-white/10'
-                }`}>
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${isSubscribed ? 'bg-emerald-500/20 border border-emerald-500/40' : 'bg-white/6 border border-white/10'
+                  }`}>
                   <Bell className={`w-4 h-4 ${isSubscribed ? 'text-emerald-400' : 'text-slate-400'}`} />
                 </div>
                 <div>
@@ -2495,8 +2483,8 @@ export const AdminStudioView = ({ onBookCreated }) => {
                     {pushPermission === 'denied'
                       ? 'Bloquées par le navigateur — autorisez dans les paramètres'
                       : isSubscribed
-                      ? 'Vous recevrez les alertes push en temps réel'
-                      : 'Activez pour recevoir les tests de push'}
+                        ? 'Vous recevrez les alertes push en temps réel'
+                        : 'Activez pour recevoir les tests de push'}
                   </p>
                 </div>
               </div>
@@ -2570,8 +2558,8 @@ export const AdminStudioView = ({ onBookCreated }) => {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ title: pushTitle, body: pushMessage, url: '/' }),
-                    }).catch(() => {});
-                  } catch (_) {}
+                    }).catch(() => { });
+                  } catch (_) { }
                   // Notification locale si abonné
                   if (isSubscribed) {
                     await sendTestNotification({ title: pushTitle, body: pushMessage, url: '/' });
