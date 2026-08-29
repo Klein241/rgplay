@@ -66,14 +66,8 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
   // ── Validation du numéro ────────────────────────────────────────────────
   const validatePhone = (num) => {
     const digits = num.replace(/\D/g, '');
-    if (digits.length < 9) return 'Numéro trop court (min. 9 chiffres)';
-    if (digits.length > 9) return 'Numéro trop long (max. 9 chiffres sans indicatif)';
-    if (paymentMethod === 'orange_money' && !digits.match(/^6[89]/)) {
-      return 'Orange Money : numéro doit commencer par 68 ou 69';
-    }
-    if (paymentMethod === 'mtn_momo' && !digits.match(/^6[567]/)) {
-      return 'MTN MoMo : numéro doit commencer par 65, 66 ou 67';
-    }
+    if (digits.length < 8) return 'Numéro trop court (minimum 8 chiffres)';
+    if (digits.length > 12) return 'Numéro trop long (maximum 12 chiffres)';
     return '';
   };
 
@@ -229,7 +223,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
       icon: '🟠',
       color: 'border-orange-500 bg-orange-500/10 text-orange-300',
       activeColor: 'ring-2 ring-orange-400',
-      hint: 'Numéros 68x / 69x',
+      hint: 'Mobile Money Orange',
     },
     {
       id: 'mtn_momo',
@@ -237,7 +231,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
       icon: '🟡',
       color: 'border-yellow-500 bg-yellow-500/10 text-yellow-300',
       activeColor: 'ring-2 ring-yellow-400',
-      hint: 'Numéros 65x / 66x / 67x',
+      hint: 'Mobile Money MTN',
     },
   ];
 
@@ -328,28 +322,35 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
                   Votre numéro de téléphone
                 </label>
-                <div className="relative">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center gap-2 text-slate-400">
-                    <Phone size={16} />
-                    <span className="text-sm font-semibold text-slate-300">+237</span>
-                    <span className="text-slate-600">|</span>
+                {/* Indicatif pays + champ - flex row bien structuré */}
+                <div className="flex items-center gap-2">
+                  {/* Badge indicatif pays */}
+                  <div className="flex-shrink-0 flex items-center gap-1.5 px-3 py-3.5 rounded-xl bg-white/5 border border-white/10 text-slate-300">
+                    <Phone size={15} className="text-slate-400" />
+                    <span className="text-sm font-bold whitespace-nowrap">+XXX</span>
                   </div>
+                  {/* Champ numéro */}
                   <input
                     type="tel"
                     value={phoneNumber}
                     onChange={e => {
-                      setPhoneNumber(e.target.value);
+                      // Garder seulement les chiffres
+                      const raw = e.target.value.replace(/[^0-9]/g, '');
+                      setPhoneNumber(raw);
                       setPhoneError('');
                     }}
-                    placeholder="6XXXXXXXX"
-                    maxLength={9}
+                    placeholder="Numéro sans indicatif"
+                    maxLength={12}
                     inputMode="numeric"
-                    className="w-full pl-24 pr-4 py-3.5 rounded-xl bg-white/5 border border-white/10 text-white
+                    className="flex-1 min-w-0 px-4 py-3.5 rounded-xl bg-white/5 border border-white/10 text-white
                       placeholder-slate-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500
-                      text-lg font-mono tracking-widest transition-all"
+                      text-base font-mono tracking-widest transition-all"
                     disabled={step === 'initiating'}
                   />
                 </div>
+                <p className="text-[11px] text-slate-500 mt-1.5">
+                  Entrez votre numéro local sans l'indicatif pays (ex: 6XXXXXXXX pour le Cameroun)
+                </p>
                 {phoneError && (
                   <p className="text-red-400 text-xs mt-1.5 flex items-center gap-1.5">
                     <AlertCircle size={12} /> {phoneError}
