@@ -445,15 +445,14 @@ export async function onRequest(context) {
       return jsonResponse({ success: true, synced_to: 'cloudflare_d1' }, corsHeaders);
     }
 
-    // ─── POST /api/payment/initiate (CamerPay — Paiement Réel) ──────
+    // ─── POST /api/payment/initiate (CamerPay — Paiement Réel & Multi-Apps) ──
     // Initie un paiement Mobile Money via CamerPay.
     // Crée la transaction en état 'pending' dans D1 et envoie la requête à l'opérateur.
-    // L'utilisateur reçoit un push USSD/SMS sur son téléphone et entre son PIN.
-    // Une fois confirmé, CamerPay appelle POST /api/payment/notify (webhook).
+    // Supporte le préfixe multi-applications (ex: 'RGP', 'IZIT') pour réutilisation universelle.
     if (path === '/payment/initiate' && method === 'POST') {
       const body = await request.json();
       const userId = request.headers.get('X-User-Id') || 'user-demo';
-      const { audiobook_id, payment_method, customer_phone, amount } = body;
+      const { audiobook_id, payment_method, customer_phone, amount, app_prefix } = body;
 
       // Validation des champs requis
       if (!audiobook_id || !payment_method || !amount) {
@@ -463,8 +462,9 @@ export async function onRequest(context) {
         return jsonResponse({ success: false, error: 'Numéro de téléphone requis pour le paiement mobile' }, corsHeaders, 400);
       }
 
-      // Générer un identifiant de transaction unique
-      const txId = `RGP-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+      // ── Préfixe dynamique configurable (ex: 'RGP', 'IZIT', 'STORE'...)
+      const prefix = (app_prefix || 'RGP').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+      const txId = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
       const purchaseId = `pur-${Date.now()}`;
       const CAMERPAY_TOKEN = env.CAMERPAY_TOKEN || '800|QNy2YL5p5kkEAVFK3FNi7RY8XaL8LrKYW71RA5XQ3262b7e9';
       const WEBHOOK_URL = 'https://rg-play.pages.dev/api/payment/notify';
@@ -484,82 +484,114 @@ export async function onRequest(context) {
         }
       }
 
-      // Stocker dans KV pour polling rapide (évite requêtes D1 répétées)
+      // Stocker dans KV pour polling rapide
       if (env.KV_BINDING) {
         await env.KV_BINDING.put(`tx_${txId}`, JSON.stringify({
           userId, audiobook_id, amount: Number(amount), payment_method,
-          customer_phone, status: 'pending', created_at: Date.now()
-        }), { expirationTtl: 3600 }); // expire après 1h si non confirmé
+          customer_phone, app_prefix: prefix, status: 'pending', created_at: Date.now()
+        }), { expirationTtl: 3600 });
       }
 
-      // 2. Appel à CamerPay pour déclencher le push USSD sur le téléphone de l'utilisateur
+      // 2. Appel robuste à CamerPay avec Retry automatique sur 5xx / Cloudflare 520
       let camerpayData = null;
       let camerpayError = null;
-      try {
-        const camerpayRes = await fetch('https://camerpay.biz/api/payment/initiate', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${CAMERPAY_TOKEN}`,
-            'Accept': 'application/json',
-          },
-          body: JSON.stringify({
-            payment_method,                // "orange_money" | "mtn_momo"
-            amount: Number(amount),
-            currency: 'XAF',
-            customer_phone,                // Ex: "699123456" (sans indicatif)
-            merchant_invoice_id: txId,     // Référence unique de notre côté
-            merchant_callback_url: WEBHOOK_URL, // CamerPay appellera cette URL quand confirmé
-            merchant_return_url: RETURN_URL,
-            source: 'api',
-          }),
-        });
+      let lastHttpStatus = 0;
+      const MAX_RETRIES = 3;
 
-        const camerpayText = await camerpayRes.text();
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
-          camerpayData = JSON.parse(camerpayText);
-        } catch {
-          camerpayData = { raw: camerpayText };
+          const camerpayRes = await fetch('https://camerpay.biz/api/payment/initiate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${CAMERPAY_TOKEN}`,
+              'Accept': 'application/json',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 CamerPay-Client/2.0',
+            },
+            body: JSON.stringify({
+              payment_method,                // "orange_money" | "mtn_momo"
+              amount: Number(amount),
+              currency: 'XAF',
+              customer_phone,                // Ex: "699123456"
+              merchant_invoice_id: txId,     // Référence unique avec préfixe (ex: RGP-... ou IZIT-...)
+              merchant_callback_url: WEBHOOK_URL,
+              merchant_return_url: RETURN_URL,
+              source: 'api',
+            }),
+          });
+
+          lastHttpStatus = camerpayRes.status;
+          const camerpayText = await camerpayRes.text();
+
+          try {
+            camerpayData = JSON.parse(camerpayText);
+          } catch {
+            camerpayData = { raw: camerpayText };
+          }
+
+          // Succès (200 / 201)
+          if (camerpayRes.ok) {
+            camerpayError = null;
+            break;
+          }
+
+          // Erreurs 5xx (ex: 520 Cloudflare origin glitch) → réessayer avec délai court
+          if (camerpayRes.status >= 500 && attempt < MAX_RETRIES) {
+            console.warn(`[PAYMENT] CamerPay a retourné ${camerpayRes.status}, tentative ${attempt}/${MAX_RETRIES}...`);
+            await new Promise(r => setTimeout(r, 600 * attempt));
+            continue;
+          }
+
+          // Erreur applicative (ex: 400 mauvais paramètre, 401 token)
+          camerpayError = camerpayData?.message || `CamerPay HTTP ${camerpayRes.status}`;
+          break;
+        } catch (fetchErr) {
+          console.warn(`[PAYMENT] Erreur réseau tentative ${attempt}/${MAX_RETRIES}:`, fetchErr.message);
+          if (attempt < MAX_RETRIES) {
+            await new Promise(r => setTimeout(r, 600 * attempt));
+            continue;
+          }
+          camerpayError = 'Service de paiement momentanément inaccessible. Veuillez réessayer dans quelques instants.';
+        }
+      }
+
+      // Si échec après toutes les tentatives
+      if (camerpayError) {
+        if (env.DB) {
+          await env.DB.prepare(
+            `UPDATE purchases SET status = 'failed' WHERE transaction_id = ?`
+          ).bind(txId).run().catch(() => {});
+        }
+        if (env.KV_BINDING) {
+          await env.KV_BINDING.put(`tx_${txId}`, JSON.stringify({
+            userId, audiobook_id, status: 'failed', error: camerpayError, updated_at: Date.now()
+          }), { expirationTtl: 3600 });
         }
 
-        if (!camerpayRes.ok) {
-          // CamerPay a refusé : marquer comme failed et retourner l'erreur
-          camerpayError = camerpayData?.message || `CamerPay HTTP ${camerpayRes.status}`;
-          if (env.DB) {
-            await env.DB.prepare(
-              `UPDATE purchases SET status = 'failed' WHERE transaction_id = ?`
-            ).bind(txId).run();
-          }
-          if (env.KV_BINDING) {
-            await env.KV_BINDING.put(`tx_${txId}`, JSON.stringify({
-              userId, audiobook_id, status: 'failed', error: camerpayError, updated_at: Date.now()
-            }), { expirationTtl: 3600 });
-          }
-          return jsonResponse({
-            success: false,
-            transaction_id: txId,
-            status: 'failed',
-            error: camerpayError,
-            camerpay_response: camerpayData,
-          }, corsHeaders, 402);
-        }
-      } catch (fetchErr) {
-        // Erreur réseau (timeout, DNS...) — garder en pending pour retry
-        console.error('[PAYMENT] Erreur réseau CamerPay:', fetchErr.message);
+        // Message convivial si 520 / 5xx
+        const friendlyError = lastHttpStatus >= 500 || camerpayError.includes('520')
+          ? 'Le réseau de l\'opérateur mobile (Orange / MTN) est temporairement saturé. Veuillez réessayer.'
+          : camerpayError;
+
         return jsonResponse({
           success: false,
           transaction_id: txId,
-          status: 'pending',
-          error: 'Impossible de joindre le service de paiement. Vérifiez votre connexion.',
-        }, corsHeaders, 503);
+          status: 'failed',
+          error: friendlyError,
+          raw_error: camerpayError,
+          http_status: lastHttpStatus,
+          camerpay_response: camerpayData,
+        }, corsHeaders, 402);
       }
 
-      // 3. Succès : CamerPay a accepté la demande → push envoyé sur le téléphone
+      // 3. Succès : CamerPay a accepté la demande → push USSD envoyé sur le téléphone
       return jsonResponse({
         success: true,
         transaction_id: txId,
         audiobook_id,
         status: 'pending',
+        pay_url: camerpayData?.pay_url || camerpayData?.redirect_url || null,
+        redirect_url: camerpayData?.redirect_url || null,
         message: 'Demande envoyée ! Vérifiez votre téléphone et entrez votre code PIN pour confirmer le paiement.',
         camerpay_response: camerpayData,
       }, corsHeaders);

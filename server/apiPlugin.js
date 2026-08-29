@@ -422,6 +422,155 @@ export function viteApiPlugin() {
             return;
           }
 
+          // ── POST /api/payment/initiate (CamerPay Dev & Multi-Apps) ───────────
+          if (apiPath === '/payment/initiate' && method === 'POST') {
+            const body = await parseJsonBody(req);
+            const userId = req.headers['x-user-id'] || 'user-demo';
+            const { audiobook_id, payment_method, customer_phone, amount, app_prefix } = body;
+
+            if (!audiobook_id || !payment_method || !amount) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ success: false, error: 'Champs requis manquants' }));
+              return;
+            }
+
+            const prefix = (app_prefix || 'RGP').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+            const txId = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+            const purchaseId = `pur-${Date.now()}`;
+            const CAMERPAY_TOKEN = process.env.CAMERPAY_TOKEN || '800|QNy2YL5p5kkEAVFK3FNi7RY8XaL8LrKYW71RA5XQ3262b7e9';
+
+            if (!db.purchases) db.purchases = [];
+            db.purchases.push({
+              id: purchaseId,
+              user_id: userId,
+              audiobook_id,
+              amount_paid: Number(amount),
+              currency: 'XAF',
+              payment_method,
+              customer_phone,
+              transaction_id: txId,
+              status: 'pending',
+              purchased_at: new Date().toISOString(),
+            });
+            saveDb(db);
+
+            // Appel CamerPay avec retry
+            let camerpayData = null;
+            let camerpayError = null;
+            for (let attempt = 1; attempt <= 3; attempt++) {
+              try {
+                const cpRes = await fetch('https://camerpay.biz/api/payment/initiate', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${CAMERPAY_TOKEN}`,
+                    'Accept': 'application/json',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 CamerPay-Client/2.0',
+                  },
+                  body: JSON.stringify({
+                    payment_method,
+                    amount: Number(amount),
+                    currency: 'XAF',
+                    customer_phone,
+                    merchant_invoice_id: txId,
+                    merchant_callback_url: 'https://rg-play.pages.dev/api/payment/notify',
+                    merchant_return_url: 'https://rg-play.pages.dev',
+                    source: 'api',
+                  }),
+                });
+
+                const text = await cpRes.text();
+                try { camerpayData = JSON.parse(text); } catch { camerpayData = { raw: text }; }
+
+                if (cpRes.ok) {
+                  camerpayError = null;
+                  break;
+                }
+
+                if (cpRes.status >= 500 && attempt < 3) {
+                  await new Promise(r => setTimeout(r, 600 * attempt));
+                  continue;
+                }
+
+                camerpayError = camerpayData?.message || `CamerPay HTTP ${cpRes.status}`;
+                break;
+              } catch (e) {
+                if (attempt < 3) {
+                  await new Promise(r => setTimeout(r, 600 * attempt));
+                  continue;
+                }
+                camerpayError = 'Service de paiement momentanément inaccessible.';
+              }
+            }
+
+            if (camerpayError) {
+              const pur = db.purchases.find(p => p.transaction_id === txId);
+              if (pur) pur.status = 'failed';
+              saveDb(db);
+
+              res.statusCode = 402;
+              res.end(JSON.stringify({
+                success: false,
+                transaction_id: txId,
+                status: 'failed',
+                error: camerpayError.includes('520')
+                  ? 'Le réseau de l\'opérateur mobile (Orange / MTN) est temporairement saturé. Veuillez réessayer.'
+                  : camerpayError,
+              }));
+              return;
+            }
+
+            res.statusCode = 200;
+            res.end(JSON.stringify({
+              success: true,
+              transaction_id: txId,
+              audiobook_id,
+              status: 'pending',
+              pay_url: camerpayData?.pay_url || camerpayData?.redirect_url || null,
+              message: 'Demande envoyée ! Vérifiez votre téléphone et entrez votre code PIN pour confirmer le paiement.',
+              camerpay_response: camerpayData,
+            }));
+            return;
+          }
+
+          // ── GET /api/payment/status/:id ──────────────────────────────
+          const statusMatch = apiPath.match(/^\/payment\/status\/([a-zA-Z0-9_-]+)$/);
+          if (statusMatch && method === 'GET') {
+            const txId = statusMatch[1];
+            const pur = (db.purchases || []).find(p => p.transaction_id === txId);
+            const book = pur ? db.audiobooks.find(b => b.id === pur.audiobook_id) : null;
+
+            res.statusCode = 200;
+            res.end(JSON.stringify({
+              transaction_id: txId,
+              status: pur?.status || 'completed',
+              audiobook_id: pur?.audiobook_id,
+              audiobook: book,
+              amount: pur?.amount_paid,
+              payment_method: pur?.payment_method,
+            }));
+            return;
+          }
+
+          // ── POST /api/payment/confirm-manual ─────────────────────────
+          if (apiPath === '/payment/confirm-manual' && method === 'POST') {
+            const body = await parseJsonBody(req);
+            const { transaction_id, audiobook_id } = body;
+            const pur = (db.purchases || []).find(p => p.transaction_id === transaction_id);
+            if (pur) pur.status = 'completed';
+            saveDb(db);
+
+            res.statusCode = 200;
+            res.end(JSON.stringify({
+              success: true,
+              status: 'completed',
+              transaction_id,
+              audiobook_id: audiobook_id || pur?.audiobook_id,
+              message: 'Paiement confirmé avec succès !',
+            }));
+            return;
+          }
+
           // ── POST /api/checkout ───────────────────────────────────────
           if (apiPath === '/checkout' && method === 'POST') {
             const body = await parseJsonBody(req);
