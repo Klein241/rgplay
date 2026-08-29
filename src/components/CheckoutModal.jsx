@@ -2,15 +2,52 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   X, Smartphone, CreditCard, CheckCircle2,
   ArrowRight, Loader2, AlertCircle, ShieldCheck,
-  Phone, RefreshCw, Clock, XCircle, Wifi
+  Phone, RefreshCw, Clock, XCircle, Wifi, ExternalLink
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { apiClient } from '../services/api';
 import { useAudio } from '../context/AudioContext';
 
 // ─── Constantes ────────────────────────────────────────────────────────────
-const POLL_INTERVAL_MS  = 3000;   // Polling toutes les 3 secondes
-const PAYMENT_TIMEOUT_S = 180;    // 3 minutes avant expiration
+const POLL_INTERVAL_MS  = 3000;  // Polling toutes les 3 secondes
+const PAYMENT_TIMEOUT_S = 300;   // 5 minutes avant expiration
+
+// ─── Méthodes de paiement disponibles ─────────────────────────────────────
+const METHODS = [
+  {
+    id: 'orange_money',
+    label: 'Orange Money',
+    icon: '🟠',
+    borderColor: 'border-orange-500',
+    bgColor: 'bg-orange-500/10',
+    textColor: 'text-orange-300',
+    ringColor: 'ring-orange-400',
+    hint: 'Mobile Money Orange',
+    needsPhone: true,
+  },
+  {
+    id: 'mtn_momo',
+    label: 'MTN MoMo',
+    icon: '🟡',
+    borderColor: 'border-yellow-500',
+    bgColor: 'bg-yellow-500/10',
+    textColor: 'text-yellow-300',
+    ringColor: 'ring-yellow-400',
+    hint: 'Mobile Money MTN',
+    needsPhone: true,
+  },
+  {
+    id: 'card',
+    label: 'Carte Bancaire',
+    icon: '💳',
+    borderColor: 'border-blue-500',
+    bgColor: 'bg-blue-500/10',
+    textColor: 'text-blue-300',
+    ringColor: 'ring-blue-400',
+    hint: 'Visa / Mastercard',
+    needsPhone: false,
+  },
+];
 
 export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
   const { playBook } = useAudio();
@@ -21,18 +58,22 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
   const [phoneError, setPhoneError]       = useState('');
 
   // ── Flux de paiement ─────────────────────────────────────────────────────
-  // 'form' → 'initiating' → 'waiting_phone' → 'success' | 'failed'
+  // 'form' → 'initiating' → 'waiting_phone' | 'waiting_card' → 'success' | 'failed' | 'timeout'
   const [step, setStep]               = useState('form');
   const [initError, setInitError]     = useState('');
   const [transactionId, setTransactionId] = useState('');
+  const [payUrl, setPayUrl]           = useState('');
   const [elapsedSec, setElapsedSec]   = useState(0);
+  const [isConfirming, setIsConfirming] = useState(false);
 
   // ── Refs pour le nettoyage ────────────────────────────────────────────────
   const pollIntervalRef  = useRef(null);
   const timerIntervalRef = useRef(null);
   const isMountedRef     = useRef(true);
 
-  const finalPrice = book?.discount_price || book?.price;
+  const finalPrice  = book?.discount_price || book?.price;
+  const methodInfo  = METHODS.find(m => m.id === paymentMethod) || METHODS[0];
+  const isCard      = paymentMethod === 'card';
 
   // ── Nettoyage à la fermeture ─────────────────────────────────────────────
   useEffect(() => {
@@ -51,6 +92,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
       setPhoneError('');
       setInitError('');
       setTransactionId('');
+      setPayUrl('');
       setElapsedSec(0);
       setPaymentMethod('orange_money');
     }
@@ -66,28 +108,32 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
   // ── Validation du numéro ────────────────────────────────────────────────
   const validatePhone = (num) => {
     const digits = num.replace(/\D/g, '');
-    if (digits.length < 8) return 'Numéro trop court (minimum 8 chiffres)';
+    if (digits.length < 8)  return 'Numéro trop court (minimum 8 chiffres)';
     if (digits.length > 12) return 'Numéro trop long (maximum 12 chiffres)';
     return '';
   };
 
-  // ── Étape 1 : Soumettre le formulaire → appel CamerPay ───────────────────
+  // ── Étape 1 : Soumettre le formulaire ────────────────────────────────────
   const handleSubmitForm = async (e) => {
     e.preventDefault();
     setPhoneError('');
     setInitError('');
 
     const cleanPhone = phoneNumber.replace(/\D/g, '');
-    const err = validatePhone(cleanPhone);
-    if (err) { setPhoneError(err); return; }
+
+    // Valider le téléphone seulement pour Mobile Money
+    if (!isCard) {
+      const err = validatePhone(cleanPhone);
+      if (err) { setPhoneError(err); return; }
+    }
 
     setStep('initiating');
 
     try {
       const result = await apiClient.initiatePayment({
         audiobook: book,
-        payment_method: paymentMethod,   // 'orange_money' | 'mtn_momo'
-        customer_phone: cleanPhone,
+        payment_method: paymentMethod,
+        customer_phone: isCard ? undefined : cleanPhone,
       });
 
       if (!isMountedRef.current) return;
@@ -95,7 +141,25 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
       if (result.success && result.transaction_id) {
         setTransactionId(result.transaction_id);
         setElapsedSec(0);
-        setStep('waiting_phone');
+
+        // ── Paiement carte : rediriger vers pay_url CamerPay
+        if (result.is_card || result.status === 'redirect') {
+          const url = result.pay_url || result.redirect_url;
+          if (url) {
+            setPayUrl(url);
+            setStep('waiting_card');
+            // Ouvrir la page de paiement CamerPay dans un nouvel onglet
+            window.open(url, '_blank', 'noopener,noreferrer');
+          } else {
+            // Si CamerPay ne renvoie pas de pay_url, afficher une erreur
+            setInitError('CamerPay n\'a pas renvoyé d\'URL de paiement carte. Essayez Mobile Money.');
+            setStep('form');
+            return;
+          }
+        } else {
+          // ── Mobile Money : attendre la confirmation PIN
+          setStep('waiting_phone');
+        }
         startPolling(result.transaction_id);
         startTimer();
       } else {
@@ -121,11 +185,10 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
 
         if (status.status === 'completed') {
           clearAllIntervals();
-          // Ajouter immédiatement à la bibliothèque locale
           apiClient._addToLocalLibrary(book);
           setStep('success');
           confetti({
-            particleCount: 120,
+            particleCount: 150,
             spread: 90,
             origin: { y: 0.5 },
             colors: ['#9d4edd', '#c77dff', '#f72585', '#06d6a0', '#ffbe0b'],
@@ -135,9 +198,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
           clearAllIntervals();
           setStep('failed');
         }
-        // 'pending' → continuer le polling
       } catch (e) {
-        // Erreur réseau temporaire → continuer le polling
         console.warn('[POLLING] Erreur temporaire :', e.message);
       }
     }, POLL_INTERVAL_MS);
@@ -158,9 +219,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
     }, 1000);
   };
 
-  const [isConfirming, setIsConfirming] = useState(false);
-
-  // ── Confirmation Manuelle Instantanée ─────────────────────────────────────
+  // ── Confirmation Manuelle (Mobile Money — après PIN validé) ───────────────
   const handleConfirmManual = async () => {
     setIsConfirming(true);
     try {
@@ -169,9 +228,10 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
         audiobook: book,
       });
       clearAllIntervals();
+      apiClient._addToLocalLibrary(book);
       setStep('success');
       confetti({
-        particleCount: 120,
+        particleCount: 150,
         spread: 90,
         origin: { y: 0.5 },
         colors: ['#9d4edd', '#c77dff', '#f72585', '#06d6a0', '#ffbe0b'],
@@ -184,11 +244,31 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
     }
   };
 
-  // ── Annuler / Réessayer ───────────────────────────────────────────────────
+  // ── Confirmation manuelle pour carte (après retour de la page CamerPay) ──
+  const handleCardConfirm = async () => {
+    setIsConfirming(true);
+    try {
+      await apiClient.confirmManualPayment({
+        transaction_id: transactionId,
+        audiobook: book,
+      });
+      clearAllIntervals();
+      apiClient._addToLocalLibrary(book);
+      setStep('success');
+      confetti({ particleCount: 150, spread: 90, origin: { y: 0.5 } });
+      if (onSuccess) onSuccess(book);
+    } catch (err) {
+      console.warn('Erreur confirmation carte:', err);
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+
   const handleCancel = () => {
     clearAllIntervals();
     setStep('form');
     setTransactionId('');
+    setPayUrl('');
     setElapsedSec(0);
     setInitError('');
   };
@@ -197,6 +277,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
     clearAllIntervals();
     setStep('form');
     setTransactionId('');
+    setPayUrl('');
     setElapsedSec(0);
     setInitError('');
     setPhoneNumber('');
@@ -207,7 +288,6 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
     onClose();
   };
 
-  // ── Helpers UI ────────────────────────────────────────────────────────────
   const formatTime = (sec) => {
     const m = Math.floor(sec / 60);
     const s = sec % 60;
@@ -215,25 +295,6 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
   };
 
   const remainingSec = PAYMENT_TIMEOUT_S - elapsedSec;
-
-  const METHODS = [
-    {
-      id: 'orange_money',
-      label: 'Orange Money',
-      icon: '🟠',
-      color: 'border-orange-500 bg-orange-500/10 text-orange-300',
-      activeColor: 'ring-2 ring-orange-400',
-      hint: 'Mobile Money Orange',
-    },
-    {
-      id: 'mtn_momo',
-      label: 'MTN MoMo',
-      icon: '🟡',
-      color: 'border-yellow-500 bg-yellow-500/10 text-yellow-300',
-      activeColor: 'ring-2 ring-yellow-400',
-      hint: 'Mobile Money MTN',
-    },
-  ];
 
   if (!isOpen || !book) return null;
 
@@ -299,64 +360,78 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                 <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2.5">
                   Méthode de paiement
                 </p>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-2">
                   {METHODS.map(m => (
                     <button
                       key={m.id}
                       type="button"
-                      onClick={() => { setPaymentMethod(m.id); setPhoneError(''); }}
-                      className={`flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all duration-200
-                        ${m.color}
-                        ${paymentMethod === m.id ? m.activeColor + ' scale-[1.02]' : 'opacity-70 hover:opacity-100'}`}
+                      onClick={() => { setPaymentMethod(m.id); setPhoneError(''); setInitError(''); }}
+                      className={`flex flex-col items-center gap-1.5 p-3 rounded-2xl border transition-all duration-200
+                        ${m.borderColor} ${m.bgColor} ${m.textColor}
+                        ${paymentMethod === m.id
+                          ? `ring-2 ${m.ringColor} scale-[1.03] opacity-100`
+                          : 'opacity-60 hover:opacity-90'}`}
                     >
-                      <span className="text-2xl">{m.icon}</span>
-                      <span className="font-bold text-sm">{m.label}</span>
-                      <span className="text-xs opacity-70">{m.hint}</span>
+                      <span className="text-xl">{m.icon}</span>
+                      <span className="font-bold text-xs leading-tight text-center">{m.label}</span>
+                      <span className="text-[10px] opacity-70 text-center">{m.hint}</span>
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Numéro de téléphone */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                  Votre numéro de téléphone
-                </label>
-                {/* Indicatif pays + champ - flex row bien structuré */}
-                <div className="flex items-center gap-2">
-                  {/* Badge indicatif pays */}
-                  <div className="flex-shrink-0 flex items-center gap-1.5 px-3 py-3.5 rounded-xl bg-white/5 border border-white/10 text-slate-300">
-                    <Phone size={15} className="text-slate-400" />
-                    <span className="text-sm font-bold whitespace-nowrap">+XXX</span>
+              {/* Numéro de téléphone (Mobile Money uniquement) */}
+              {!isCard && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                    Votre numéro de téléphone
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-shrink-0 flex items-center gap-1.5 px-3 py-3.5 rounded-xl bg-white/5 border border-white/10 text-slate-300">
+                      <Phone size={15} className="text-slate-400" />
+                      <span className="text-sm font-bold whitespace-nowrap">+237</span>
+                    </div>
+                    <input
+                      type="tel"
+                      value={phoneNumber}
+                      onChange={e => {
+                        const raw = e.target.value.replace(/[^0-9]/g, '');
+                        setPhoneNumber(raw);
+                        setPhoneError('');
+                      }}
+                      placeholder="6XXXXXXXX"
+                      maxLength={9}
+                      inputMode="numeric"
+                      className="flex-1 min-w-0 px-4 py-3.5 rounded-xl bg-white/5 border border-white/10 text-white
+                        placeholder-slate-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500
+                        text-base font-mono tracking-widest transition-all"
+                      disabled={step === 'initiating'}
+                    />
                   </div>
-                  {/* Champ numéro */}
-                  <input
-                    type="tel"
-                    value={phoneNumber}
-                    onChange={e => {
-                      // Garder seulement les chiffres
-                      const raw = e.target.value.replace(/[^0-9]/g, '');
-                      setPhoneNumber(raw);
-                      setPhoneError('');
-                    }}
-                    placeholder="Numéro sans indicatif"
-                    maxLength={12}
-                    inputMode="numeric"
-                    className="flex-1 min-w-0 px-4 py-3.5 rounded-xl bg-white/5 border border-white/10 text-white
-                      placeholder-slate-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500
-                      text-base font-mono tracking-widest transition-all"
-                    disabled={step === 'initiating'}
-                  />
+                  {phoneError && (
+                    <p className="text-red-400 text-xs mt-1.5 flex items-center gap-1.5">
+                      <AlertCircle size={12} /> {phoneError}
+                    </p>
+                  )}
                 </div>
-                <p className="text-[11px] text-slate-500 mt-1.5">
-                  Entrez votre numéro local sans l'indicatif pays (ex: 6XXXXXXXX pour le Cameroun)
-                </p>
-                {phoneError && (
-                  <p className="text-red-400 text-xs mt-1.5 flex items-center gap-1.5">
-                    <AlertCircle size={12} /> {phoneError}
+              )}
+
+              {/* Info carte bancaire */}
+              {isCard && (
+                <div className="p-4 rounded-2xl bg-blue-500/10 border border-blue-500/30 space-y-2">
+                  <p className="text-blue-300 text-sm font-semibold flex items-center gap-2">
+                    <CreditCard size={16} /> Paiement par carte sécurisé
                   </p>
-                )}
-              </div>
+                  <p className="text-slate-400 text-xs leading-relaxed">
+                    Vous serez redirigé vers la page de paiement sécurisée CamerPay où vous pourrez entrer
+                    les informations de votre carte Visa ou Mastercard.
+                  </p>
+                  <div className="flex items-center gap-2 text-xs text-slate-500">
+                    <ShieldCheck size={12} className="text-emerald-400" />
+                    <span>Chiffrement SSL 256 bits • Aucune donnée carte stockée</span>
+                  </div>
+                </div>
+              )}
 
               {/* Erreur d'initiation */}
               {initError && (
@@ -366,11 +441,13 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                 </div>
               )}
 
-              {/* Info sécurité */}
-              <div className="flex items-center gap-2.5 text-xs text-slate-500">
-                <ShieldCheck size={14} className="text-emerald-500 flex-shrink-0" />
-                <span>Vous recevrez un message sur votre téléphone pour confirmer avec votre code PIN. <strong className="text-slate-400">Votre PIN n'est jamais saisi ici.</strong></span>
-              </div>
+              {/* Info sécurité Mobile Money */}
+              {!isCard && (
+                <div className="flex items-center gap-2.5 text-xs text-slate-500">
+                  <ShieldCheck size={14} className="text-emerald-500 flex-shrink-0" />
+                  <span>Vous recevrez un message sur votre téléphone. <strong className="text-slate-400">Votre PIN n'est jamais saisi ici.</strong></span>
+                </div>
+              )}
 
               {/* Bouton principal */}
               <button
@@ -387,10 +464,11 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                 {step === 'initiating' ? (
                   <>
                     <Loader2 size={20} className="animate-spin" />
-                    Connexion à {paymentMethod === 'orange_money' ? 'Orange Money' : 'MTN MoMo'}...
+                    {isCard ? 'Préparation de la page de paiement...' : `Connexion à ${methodInfo.label}...`}
                   </>
                 ) : (
                   <>
+                    {isCard ? <CreditCard size={20} /> : <Smartphone size={20} />}
                     Payer {finalPrice?.toLocaleString()} FCFA
                     <ArrowRight size={20} />
                   </>
@@ -400,27 +478,21 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
           )}
 
           {/* ══════════════════════════════════════════════════════════════
-              ÉTAPE 2 — EN ATTENTE DE CONFIRMATION SUR LE TÉLÉPHONE
+              ÉTAPE 2a — EN ATTENTE DE CONFIRMATION MOBILE MONEY
           ══════════════════════════════════════════════════════════════ */}
           {step === 'waiting_phone' && (
             <div className="text-center space-y-6 py-2">
-
               {/* Animation téléphone */}
               <div className="relative mx-auto w-28 h-28">
-                {/* Anneaux de pulsation */}
                 <div className="absolute inset-0 rounded-full bg-purple-500/20 animate-ping" style={{ animationDuration: '1.5s' }} />
                 <div className="absolute inset-3 rounded-full bg-purple-500/30 animate-ping" style={{ animationDuration: '1.8s', animationDelay: '0.3s' }} />
-                {/* Icône centrale */}
                 <div className="absolute inset-6 rounded-full bg-gradient-to-br from-purple-600 to-fuchsia-600 flex items-center justify-center shadow-xl">
                   <Smartphone size={28} className="text-white" />
                 </div>
               </div>
 
-              {/* Titre */}
               <div>
-                <h2 className="text-2xl font-black text-white mb-2">
-                  Vérifiez votre téléphone !
-                </h2>
+                <h2 className="text-2xl font-black text-white mb-2">Vérifiez votre téléphone !</h2>
                 <p className="text-slate-400 text-sm leading-relaxed max-w-xs mx-auto">
                   Un message de confirmation a été envoyé sur le numéro&nbsp;
                   <span className="font-bold text-white">+237 {phoneNumber}</span>.
@@ -430,26 +502,25 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
               {/* Instructions étapes */}
               <div className="text-left space-y-3 p-4 rounded-2xl bg-white/5 border border-white/10">
                 {[
-                  { num: '1', text: `Ouvrez le message ${paymentMethod === 'orange_money' ? 'Orange Money' : 'MTN MoMo'} sur votre téléphone` },
+                  { num: '1', text: `Ouvrez le message ${methodInfo.label} sur votre téléphone` },
                   { num: '2', text: 'Entrez votre code PIN Mobile Money pour valider' },
-                  { num: '3', text: `Le montant de ${finalPrice?.toLocaleString()} FCFA sera débité et l'audio débloqué automatiquement` },
-                ].map(step => (
-                  <div key={step.num} className="flex items-start gap-3">
+                  { num: '3', text: `Le montant de ${finalPrice?.toLocaleString()} FCFA sera débité et l'audio débloqué` },
+                ].map(s => (
+                  <div key={s.num} className="flex items-start gap-3">
                     <span className="w-6 h-6 rounded-full bg-purple-600 text-white text-xs font-bold flex-shrink-0 flex items-center justify-center mt-0.5">
-                      {step.num}
+                      {s.num}
                     </span>
-                    <p className="text-slate-300 text-sm">{step.text}</p>
+                    <p className="text-slate-300 text-sm">{s.text}</p>
                   </div>
                 ))}
               </div>
 
-              {/* Indicateur de polling */}
+              {/* Indicateur de polling + timer */}
               <div className="flex flex-col items-center gap-2">
                 <div className="flex items-center gap-2 text-slate-400 text-sm">
                   <Wifi size={14} className="text-emerald-400 animate-pulse" />
                   <span>En attente de confirmation...</span>
                 </div>
-                {/* Barre de progression du temps restant */}
                 <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-gradient-to-r from-purple-500 to-fuchsia-500 rounded-full transition-all"
@@ -462,7 +533,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                 </div>
               </div>
 
-              {/* Bouton de confirmation manuelle immédiate */}
+              {/* Bouton de confirmation manuelle */}
               <div className="space-y-2 pt-2">
                 <button
                   type="button"
@@ -476,15 +547,9 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                     transition-all duration-200 active:scale-[0.98]"
                 >
                   {isConfirming ? (
-                    <>
-                      <Loader2 size={20} className="animate-spin" />
-                      Déblocage en cours...
-                    </>
+                    <><Loader2 size={20} className="animate-spin" /> Déblocage en cours...</>
                   ) : (
-                    <>
-                      <CheckCircle2 size={20} />
-                      J'ai validé mon code PIN (Débloquer)
-                    </>
+                    <><CheckCircle2 size={20} /> J'ai validé mon code PIN (Débloquer)</>
                   )}
                 </button>
                 <p className="text-[11px] text-slate-400">
@@ -492,20 +557,118 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                 </p>
               </div>
 
-              {/* Bouton annuler */}
               <button
                 onClick={handleCancel}
                 className="w-full py-3 rounded-xl font-semibold text-slate-400 text-sm
-                  border border-white/10 hover:border-white/20 hover:text-white
-                  transition-all duration-200"
+                  border border-white/10 hover:border-white/20 hover:text-white transition-all duration-200"
               >
                 Annuler le paiement
               </button>
 
-              {/* Référence transaction */}
-              <p className="text-xs text-slate-600 font-mono">
-                Réf : {transactionId}
-              </p>
+              <p className="text-xs text-slate-600 font-mono">Réf : {transactionId}</p>
+            </div>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════════
+              ÉTAPE 2b — REDIRECTION CARTE BANCAIRE
+          ══════════════════════════════════════════════════════════════ */}
+          {step === 'waiting_card' && (
+            <div className="text-center space-y-6 py-2">
+              {/* Animation carte */}
+              <div className="relative mx-auto w-28 h-28">
+                <div className="absolute inset-0 rounded-full bg-blue-500/20 animate-ping" style={{ animationDuration: '1.5s' }} />
+                <div className="absolute inset-6 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-xl">
+                  <CreditCard size={28} className="text-white" />
+                </div>
+              </div>
+
+              <div>
+                <h2 className="text-2xl font-black text-white mb-2">Page de paiement ouverte</h2>
+                <p className="text-slate-400 text-sm leading-relaxed max-w-xs mx-auto">
+                  Un nouvel onglet CamerPay a été ouvert pour votre paiement par carte. Entrez vos informations
+                  Visa / Mastercard puis revenez ici.
+                </p>
+              </div>
+
+              {/* Instructions */}
+              <div className="text-left space-y-3 p-4 rounded-2xl bg-white/5 border border-white/10">
+                {[
+                  { num: '1', text: 'Renseignez les informations de votre carte Visa / Mastercard dans l\'onglet ouvert' },
+                  { num: '2', text: 'Validez le paiement sécurisé (3D Secure si requis par votre banque)' },
+                  { num: '3', text: 'Revenez sur cet onglet et cliquez sur "J\'ai payé"' },
+                ].map(s => (
+                  <div key={s.num} className="flex items-start gap-3">
+                    <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex-shrink-0 flex items-center justify-center mt-0.5">
+                      {s.num}
+                    </span>
+                    <p className="text-slate-300 text-sm">{s.text}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Polling indicator */}
+              <div className="flex flex-col items-center gap-2">
+                <div className="flex items-center gap-2 text-slate-400 text-sm">
+                  <Wifi size={14} className="text-blue-400 animate-pulse" />
+                  <span>En attente de confirmation de paiement...</span>
+                </div>
+                <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all"
+                    style={{ width: `${(remainingSec / PAYMENT_TIMEOUT_S) * 100}%` }}
+                  />
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                  <Clock size={12} />
+                  <span>Expire dans {formatTime(remainingSec)}</span>
+                </div>
+              </div>
+
+              {/* Boutons */}
+              <div className="space-y-3 pt-2">
+                {/* Ré-ouvrir la page CamerPay */}
+                {payUrl && (
+                  <a
+                    href={payUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-3 rounded-2xl font-semibold text-blue-300 text-sm
+                      border border-blue-500/40 hover:border-blue-400 hover:text-blue-200
+                      flex items-center justify-center gap-2
+                      transition-all duration-200"
+                  >
+                    <ExternalLink size={16} /> Réouvrir la page de paiement
+                  </a>
+                )}
+                {/* Confirmer manuellement après paiement */}
+                <button
+                  type="button"
+                  onClick={handleCardConfirm}
+                  disabled={isConfirming}
+                  className="w-full py-4 rounded-2xl font-bold text-white text-base
+                    bg-gradient-to-r from-emerald-600 to-teal-600
+                    hover:from-emerald-500 hover:to-teal-500
+                    shadow-lg shadow-emerald-500/30
+                    flex items-center justify-center gap-2.5
+                    transition-all duration-200 active:scale-[0.98]"
+                >
+                  {isConfirming ? (
+                    <><Loader2 size={20} className="animate-spin" /> Vérification...</>
+                  ) : (
+                    <><CheckCircle2 size={20} /> J'ai payé — Débloquer le livre</>
+                  )}
+                </button>
+              </div>
+
+              <button
+                onClick={handleCancel}
+                className="w-full py-3 rounded-xl font-semibold text-slate-400 text-sm
+                  border border-white/10 hover:border-white/20 hover:text-white transition-all duration-200"
+              >
+                Annuler le paiement
+              </button>
+
+              <p className="text-xs text-slate-600 font-mono">Réf : {transactionId}</p>
             </div>
           )}
 
@@ -514,7 +677,6 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
           ══════════════════════════════════════════════════════════════ */}
           {step === 'success' && (
             <div className="text-center space-y-6 py-4">
-              {/* Icône succès */}
               <div className="mx-auto w-24 h-24 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-2xl shadow-emerald-500/30">
                 <CheckCircle2 size={44} className="text-white" />
               </div>
@@ -522,11 +684,10 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
               <div>
                 <h2 className="text-2xl font-black text-white mb-2">Paiement Confirmé !</h2>
                 <p className="text-slate-400 text-sm">
-                  {finalPrice?.toLocaleString()} FCFA ont été débités de votre compte {paymentMethod === 'orange_money' ? 'Orange Money' : 'MTN MoMo'}.
+                  {finalPrice?.toLocaleString()} FCFA débités avec succès.
                 </p>
               </div>
 
-              {/* Livre débloqué */}
               <div className="flex items-center gap-4 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30">
                 <img
                   src={book.cover_url}
@@ -555,8 +716,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                 <button
                   onClick={onClose}
                   className="w-full py-3 rounded-xl font-semibold text-slate-400 text-sm
-                    border border-white/10 hover:border-white/20 hover:text-white
-                    transition-all duration-200"
+                    border border-white/10 hover:border-white/20 hover:text-white transition-all duration-200"
                 >
                   Fermer
                 </button>
@@ -575,18 +735,17 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
 
               <div>
                 <h2 className="text-2xl font-black text-white mb-2">Paiement Échoué</h2>
-                <p className="text-slate-400 text-sm">
-                  Le paiement n'a pas pu être validé. Vérifiez votre solde et réessayez.
-                </p>
+                <p className="text-slate-400 text-sm">Le paiement n'a pas pu être validé. Vérifiez votre solde et réessayez.</p>
               </div>
 
               <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/30 text-left space-y-2 text-sm text-slate-300">
                 <p className="font-semibold text-red-300">Causes possibles :</p>
                 <ul className="list-disc list-inside space-y-1 text-slate-400 text-xs">
-                  <li>Solde insuffisant sur votre compte mobile money</li>
+                  <li>Solde insuffisant sur votre compte</li>
                   <li>Code PIN incorrect ou annulation de votre part</li>
                   <li>Délai dépassé pour la confirmation</li>
                   <li>Numéro de téléphone incorrect</li>
+                  <li>Données de carte invalides</li>
                 </ul>
               </div>
 
@@ -613,7 +772,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
           )}
 
           {/* ══════════════════════════════════════════════════════════════
-              ÉTAPE — TIMEOUT (3 minutes sans confirmation)
+              ÉTAPE — TIMEOUT
           ══════════════════════════════════════════════════════════════ */}
           {step === 'timeout' && (
             <div className="text-center space-y-6 py-4">
@@ -624,8 +783,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
               <div>
                 <h2 className="text-2xl font-black text-white mb-2">Délai Expiré</h2>
                 <p className="text-slate-400 text-sm">
-                  La demande a expiré après 3 minutes sans confirmation.
-                  Aucun montant n'a été débité. Vous pouvez réessayer.
+                  La demande a expiré après 5 minutes sans confirmation. Aucun montant n'a été débité.
                 </p>
               </div>
 

@@ -426,15 +426,16 @@ export async function onRequest(context) {
       if (env.DB) {
         const id = `prog-${userId.slice(0, 8)}-${audiobook_id}`;
         await env.DB.prepare(`
-          INSERT INTO user_progress (id, user_id, audiobook_id, current_chapter_id, position_seconds, completed_percentage, is_completed, last_listened_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        await env.DB.prepare(`
+          INSERT INTO user_progress (user_id, audiobook_id, current_chapter_id, position_seconds, completed_percentage, is_completed, last_listened_at)
+          VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
           ON CONFLICT(user_id, audiobook_id) DO UPDATE SET
             current_chapter_id = excluded.current_chapter_id,
             position_seconds = excluded.position_seconds,
             completed_percentage = excluded.completed_percentage,
             is_completed = excluded.is_completed,
             last_listened_at = CURRENT_TIMESTAMP
-        `).bind(id, userId, audiobook_id, chapter_id, position_seconds, completed_percentage, is_completed ? 1 : 0).run();
+        `).bind(userId, audiobook_id, chapter_id, position_seconds, completed_percentage, is_completed ? 1 : 0).run();
       }
 
       // Invalidation du cache KV pour la bibliothèque
@@ -445,42 +446,60 @@ export async function onRequest(context) {
       return jsonResponse({ success: true, synced_to: 'cloudflare_d1' }, corsHeaders);
     }
 
-    // ─── POST /api/payment/initiate (CamerPay — Paiement Réel & Multi-Apps) ──
-    // Initie un paiement Mobile Money via CamerPay.
-    // Crée la transaction en état 'pending' dans D1 et envoie la requête à l'opérateur.
-    // Supporte le préfixe multi-applications (ex: 'RGP', 'IZIT') pour réutilisation universelle.
+    // ─── POST /api/payment/initiate (CamerPay — Paiement Réel, Mobile Money + Carte) ──
     if (path === '/payment/initiate' && method === 'POST') {
       const body = await request.json();
       const userId = request.headers.get('X-User-Id') || 'user-demo';
       const { audiobook_id, payment_method, customer_phone, amount, app_prefix } = body;
 
-      // Validation des champs requis
       if (!audiobook_id || !payment_method || !amount) {
         return jsonResponse({ success: false, error: 'Champs requis manquants : audiobook_id, payment_method, amount' }, corsHeaders, 400);
       }
-      if ((payment_method === 'orange_money' || payment_method === 'mtn_momo') && !customer_phone) {
-        return jsonResponse({ success: false, error: 'Numéro de téléphone requis pour le paiement mobile' }, corsHeaders, 400);
+
+      const isCardPayment = ['card', 'visa', 'mastercard', 'card_payment'].includes(payment_method);
+      if (!isCardPayment && !customer_phone) {
+        return jsonResponse({ success: false, error: 'Numéro de téléphone requis pour le paiement Mobile Money' }, corsHeaders, 400);
       }
 
-      // ── Préfixe dynamique configurable (ex: 'RGP', 'IZIT', 'STORE'...)
+      // ── Vérifier si l'utilisateur possède déjà ce livre (achat complété)
+      if (env.DB) {
+        try {
+          const existing = await env.DB.prepare(
+            `SELECT id FROM purchases WHERE user_id = ? AND audiobook_id = ? AND status = 'completed' LIMIT 1`
+          ).bind(userId, audiobook_id).first();
+          if (existing) {
+            return jsonResponse({
+              success: false, error: 'Vous possédez déjà ce livre dans votre bibliothèque.', already_owned: true,
+            }, corsHeaders, 409);
+          }
+        } catch (_) {}
+      }
+
+      // ── Générer un identifiant de transaction unique avec préfixe de l'application
       const prefix = (app_prefix || 'RGP').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
       const txId = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
-      const purchaseId = `pur-${Date.now()}`;
+      const purchaseId = `pur-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
       const CAMERPAY_TOKEN = env.CAMERPAY_TOKEN || '800|QNy2YL5p5kkEAVFK3FNi7RY8XaL8LrKYW71RA5XQ3262b7e9';
       const WEBHOOK_URL = 'https://rg-play.pages.dev/api/payment/notify';
       const RETURN_URL  = 'https://rg-play.pages.dev';
 
-      // 1. Enregistrer la transaction en état PENDING dans D1
+      // ── 1. Enregistrer la transaction en état PENDING dans D1
+      // On supprime d'abord les éventuelles transactions pending/failed précédentes
+      // pour éviter la contrainte UNIQUE(user_id, audiobook_id)
       if (env.DB) {
         try {
+          await env.DB.prepare(
+            `DELETE FROM purchases WHERE user_id = ? AND audiobook_id = ? AND status IN ('pending', 'failed')`
+          ).bind(userId, audiobook_id).run();
+
           await env.DB.prepare(`
-            INSERT OR REPLACE INTO purchases
+            INSERT INTO purchases
               (id, user_id, audiobook_id, amount_paid, currency, payment_method, transaction_id, status, purchased_at)
             VALUES (?, ?, ?, ?, 'XAF', ?, ?, 'pending', CURRENT_TIMESTAMP)
           `).bind(purchaseId, userId, audiobook_id, Number(amount), payment_method, txId).run();
         } catch (dbErr) {
-          console.error('[PAYMENT] Erreur insertion D1:', dbErr.message);
-          return jsonResponse({ success: false, error: 'Erreur base de données' }, corsHeaders, 500);
+          console.error('[PAYMENT] Erreur D1:', dbErr.message);
+          return jsonResponse({ success: false, error: `Erreur base de données : ${dbErr.message}` }, corsHeaders, 500);
         }
       }
 
@@ -488,19 +507,32 @@ export async function onRequest(context) {
       if (env.KV_BINDING) {
         await env.KV_BINDING.put(`tx_${txId}`, JSON.stringify({
           userId, audiobook_id, amount: Number(amount), payment_method,
-          customer_phone, app_prefix: prefix, status: 'pending', created_at: Date.now()
+          customer_phone: customer_phone || null, app_prefix: prefix,
+          status: 'pending', is_card: isCardPayment, created_at: Date.now()
         }), { expirationTtl: 3600 });
       }
 
-      // 2. Appel robuste à CamerPay avec Retry automatique sur 5xx / Cloudflare 520
+      // ── 2. Appel CamerPay avec retry automatique (résistance aux 520 / 5xx)
+      const camerpayMethod = isCardPayment ? 'card' : payment_method;
       let camerpayData = null;
       let camerpayError = null;
-      let lastHttpStatus = 0;
+      let lastStatus = 0;
       const MAX_RETRIES = 3;
 
       for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
-          const camerpayRes = await fetch('https://camerpay.biz/api/payment/initiate', {
+          const cpBody = {
+            payment_method: camerpayMethod,
+            amount: Number(amount),
+            currency: 'XAF',
+            merchant_invoice_id: txId,
+            merchant_callback_url: WEBHOOK_URL,
+            merchant_return_url: `${RETURN_URL}?tx=${txId}`,
+            source: 'api',
+          };
+          if (!isCardPayment) cpBody.customer_phone = customer_phone;
+
+          const cpRes = await fetch('https://camerpay.biz/api/payment/initiate', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -508,91 +540,53 @@ export async function onRequest(context) {
               'Accept': 'application/json',
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 CamerPay-Client/2.0',
             },
-            body: JSON.stringify({
-              payment_method,                // "orange_money" | "mtn_momo"
-              amount: Number(amount),
-              currency: 'XAF',
-              customer_phone,                // Ex: "699123456"
-              merchant_invoice_id: txId,     // Référence unique avec préfixe (ex: RGP-... ou IZIT-...)
-              merchant_callback_url: WEBHOOK_URL,
-              merchant_return_url: RETURN_URL,
-              source: 'api',
-            }),
+            body: JSON.stringify(cpBody),
           });
 
-          lastHttpStatus = camerpayRes.status;
-          const camerpayText = await camerpayRes.text();
+          lastStatus = cpRes.status;
+          const text = await cpRes.text();
+          try { camerpayData = JSON.parse(text); } catch { camerpayData = { raw: text }; }
 
-          try {
-            camerpayData = JSON.parse(camerpayText);
-          } catch {
-            camerpayData = { raw: camerpayText };
-          }
+          if (cpRes.ok) { camerpayError = null; break; }
 
-          // Succès (200 / 201)
-          if (camerpayRes.ok) {
-            camerpayError = null;
-            break;
-          }
-
-          // Erreurs 5xx (ex: 520 Cloudflare origin glitch) → réessayer avec délai court
-          if (camerpayRes.status >= 500 && attempt < MAX_RETRIES) {
-            console.warn(`[PAYMENT] CamerPay a retourné ${camerpayRes.status}, tentative ${attempt}/${MAX_RETRIES}...`);
-            await new Promise(r => setTimeout(r, 600 * attempt));
+          if (cpRes.status >= 500 && attempt < MAX_RETRIES) {
+            console.warn(`[PAYMENT] CamerPay ${cpRes.status} — tentative ${attempt}/${MAX_RETRIES}`);
+            await new Promise(r => setTimeout(r, 700 * attempt));
             continue;
           }
-
-          // Erreur applicative (ex: 400 mauvais paramètre, 401 token)
-          camerpayError = camerpayData?.message || `CamerPay HTTP ${camerpayRes.status}`;
+          camerpayError = camerpayData?.message || `CamerPay HTTP ${cpRes.status}`;
           break;
         } catch (fetchErr) {
-          console.warn(`[PAYMENT] Erreur réseau tentative ${attempt}/${MAX_RETRIES}:`, fetchErr.message);
-          if (attempt < MAX_RETRIES) {
-            await new Promise(r => setTimeout(r, 600 * attempt));
-            continue;
-          }
-          camerpayError = 'Service de paiement momentanément inaccessible. Veuillez réessayer dans quelques instants.';
+          console.warn(`[PAYMENT] Réseau - tentative ${attempt}:`, fetchErr.message);
+          if (attempt < MAX_RETRIES) { await new Promise(r => setTimeout(r, 700 * attempt)); continue; }
+          camerpayError = 'Le service de paiement est momentanément inaccessible. Réessayez dans quelques instants.';
         }
       }
 
-      // Si échec après toutes les tentatives
+      // ── Si toutes les tentatives ont échoué
       if (camerpayError) {
-        if (env.DB) {
-          await env.DB.prepare(
-            `UPDATE purchases SET status = 'failed' WHERE transaction_id = ?`
-          ).bind(txId).run().catch(() => {});
-        }
-        if (env.KV_BINDING) {
-          await env.KV_BINDING.put(`tx_${txId}`, JSON.stringify({
-            userId, audiobook_id, status: 'failed', error: camerpayError, updated_at: Date.now()
-          }), { expirationTtl: 3600 });
-        }
+        if (env.DB) await env.DB.prepare(`UPDATE purchases SET status = 'failed' WHERE transaction_id = ?`).bind(txId).run().catch(() => {});
+        if (env.KV_BINDING) await env.KV_BINDING.put(`tx_${txId}`, JSON.stringify({
+          userId, audiobook_id, status: 'failed', error: camerpayError, updated_at: Date.now()
+        }), { expirationTtl: 3600 });
 
-        // Message convivial si 520 / 5xx
-        const friendlyError = lastHttpStatus >= 500 || camerpayError.includes('520')
-          ? 'Le réseau de l\'opérateur mobile (Orange / MTN) est temporairement saturé. Veuillez réessayer.'
-          : camerpayError;
-
-        return jsonResponse({
-          success: false,
-          transaction_id: txId,
-          status: 'failed',
-          error: friendlyError,
-          raw_error: camerpayError,
-          http_status: lastHttpStatus,
-          camerpay_response: camerpayData,
-        }, corsHeaders, 402);
+        const msg = lastStatus >= 500 ? 'Le réseau de paiement est temporairement saturé. Attendez 30s et réessayez.' : camerpayError;
+        return jsonResponse({ success: false, transaction_id: txId, status: 'failed', error: msg }, corsHeaders, 402);
       }
 
-      // 3. Succès : CamerPay a accepté la demande → push USSD envoyé sur le téléphone
+      // ── 3. Succès
+      const payUrl = camerpayData?.pay_url || camerpayData?.redirect_url || null;
       return jsonResponse({
         success: true,
         transaction_id: txId,
         audiobook_id,
-        status: 'pending',
-        pay_url: camerpayData?.pay_url || camerpayData?.redirect_url || null,
-        redirect_url: camerpayData?.redirect_url || null,
-        message: 'Demande envoyée ! Vérifiez votre téléphone et entrez votre code PIN pour confirmer le paiement.',
+        status: isCardPayment ? 'redirect' : 'pending',
+        pay_url: payUrl,
+        redirect_url: payUrl,
+        is_card: isCardPayment,
+        message: isCardPayment
+          ? 'Redirection vers la page de paiement sécurisée par carte bancaire...'
+          : 'Demande envoyée ! Vérifiez votre téléphone et entrez votre code PIN.',
         camerpay_response: camerpayData,
       }, corsHeaders);
     }
