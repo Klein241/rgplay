@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { apiClient } from '../services/api';
+import { cacheAudioForOffline, getOfflineAudioUrl, getOfflineBooks, isAudioOffline } from '../utils/offlineAudioCache';
 
 const AudioContext = createContext();
 
@@ -15,6 +16,7 @@ export const AudioProvider = ({ children }) => {
   const [isMuted, setIsMuted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isPreviewMode, setIsPreviewMode] = useState(false);
+  const [offlineBooks, setOfflineBooks] = useState(() => getOfflineBooks());
 
   // État du lecteur plein écran
   const [isFullScreenOpen, setIsFullScreenOpen] = useState(false);
@@ -32,6 +34,18 @@ export const AudioProvider = ({ children }) => {
   const audioRef = useRef(new Audio());
   const progressSaveTimerRef = useRef(null);
   const handleNextChapterRef = useRef(null);
+  const currentBookRef = useRef(null);
+  const currentChapterIndexRef = useRef(0);
+
+  useEffect(() => { currentBookRef.current = currentBook; }, [currentBook]);
+  useEffect(() => { currentChapterIndexRef.current = currentChapterIndex; }, [currentChapterIndex]);
+
+  // Écouter les mises à jour du cache hors ligne
+  useEffect(() => {
+    const onCacheUpdate = () => setOfflineBooks(getOfflineBooks());
+    window.addEventListener('rg_offline_cache_updated', onCacheUpdate);
+    return () => window.removeEventListener('rg_offline_cache_updated', onCacheUpdate);
+  }, []);
 
   // Ref pour sleepTimerOption (évite closure stale sans recréer les listeners)
   const sleepTimerOptionRef = useRef(sleepTimerOption);
@@ -60,12 +74,28 @@ export const AudioProvider = ({ children }) => {
       setIsPlaying(true);
     };
     const onPause = () => setIsPlaying(false);
-    const onError = (e) => {
-      console.warn('Erreur audio :', audio.src, e);
+    const onError = async (e) => {
+      console.warn('Erreur audio réseau, tentative de fallback hors-ligne :', audio.src);
+      // Tentative de récupération depuis le cache hors-ligne si erreur réseau
+      if (audio.src && !audio.src.startsWith('blob:')) {
+        const offlineUrl = await getOfflineAudioUrl(audio.src);
+        if (offlineUrl && offlineUrl !== audio.src) {
+          audio.src = offlineUrl;
+          audio.play().catch(() => {});
+          return;
+        }
+      }
       setIsLoading(false);
     };
 
     const onEnded = () => {
+      // ── Auto-téléchargement et mise en cache hors-connexion dès que l'audio est terminé
+      if (currentBookRef.current) {
+        const book = currentBookRef.current;
+        const chap = book.chapters?.[currentChapterIndexRef.current];
+        cacheAudioForOffline(book, chap);
+      }
+
       if (sleepTimerOptionRef.current === 'end_chapter') {
         setIsPlaying(false);
         setSleepTimerOption(null);
@@ -91,7 +121,6 @@ export const AudioProvider = ({ children }) => {
       audio.removeEventListener('pause', onPause);
       audio.removeEventListener('ended', onEnded);
       audio.removeEventListener('error', onError);
-      // NE PAS appeler audio.pause() ici : cela stopperait la lecture à chaque rendu
     };
   }, []); // Montage uniquement
 
@@ -124,6 +153,11 @@ export const AudioProvider = ({ children }) => {
       const chapter = currentBook.chapters?.[currentChapterIndex];
       const percent = duration > 0 ? Math.round((currentTime / duration) * 100) : 0;
 
+      // Si l'écoute dépasse 90%, pré-mettre en cache pour le mode hors-ligne
+      if (percent >= 90 && currentBook) {
+        cacheAudioForOffline(currentBook, chapter);
+      }
+
       apiClient.saveProgress({
         audiobook_id: currentBook.id,
         chapter_id: chapter?.id,
@@ -136,30 +170,40 @@ export const AudioProvider = ({ children }) => {
     return () => clearInterval(progressSaveTimerRef.current);
   }, [currentBook, currentChapterIndex, currentTime, duration, isPlaying]);
 
-  // Lancer la lecture d'un livre complet
-  const playBook = (book, chapterIdx = 0, startTime = 0) => {
+  // Lancer la lecture d'un livre complet (avec vérification hors-ligne)
+  const playBook = async (book, chapterIdx = 0, startTime = 0) => {
     setCurrentBook(book);
     setCurrentChapterIndex(chapterIdx);
     setIsPreviewMode(false);
 
     const chapter = book.chapters?.[chapterIdx];
-    const audioSrc = chapter?.audio_url || book.preview_url || 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3';
+    const rawAudioSrc = chapter?.audio_url || book.preview_url || 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3';
 
-    audioRef.current.src = audioSrc;
+    // Résoudre l'URL locale/hors-ligne si déjà dans le cache
+    const finalAudioSrc = await getOfflineAudioUrl(rawAudioSrc);
+
+    audioRef.current.src = finalAudioSrc;
     audioRef.current.playbackRate = playbackRate;
     audioRef.current.currentTime = startTime || 0;
     audioRef.current.play().catch(e => console.warn('Lecture automatique restreinte:', e));
     setIsPlaying(true);
   };
 
+  // Télécharger explicitement un livre pour lecture hors-ligne
+  const downloadForOffline = async (book) => {
+    return await cacheAudioForOffline(book);
+  };
+
   // Lancer la lecture d'un extrait gratuit
-  const playPreview = (book) => {
+  const playPreview = async (book) => {
     setCurrentBook(book);
     setCurrentChapterIndex(0);
     setIsPreviewMode(true);
 
-    const audioSrc = book.preview_url || 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3';
-    audioRef.current.src = audioSrc;
+    const rawAudioSrc = book.preview_url || 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3';
+    const finalAudioSrc = await getOfflineAudioUrl(rawAudioSrc);
+
+    audioRef.current.src = finalAudioSrc;
     audioRef.current.playbackRate = playbackRate;
     audioRef.current.currentTime = 0;
     audioRef.current.play().catch(e => console.warn('Lecture restreinte:', e));
@@ -301,6 +345,9 @@ export const AudioProvider = ({ children }) => {
         sleepTimerOption,
         sleepTimerSecondsLeft,
         bookmarks,
+        offlineBooks,
+        downloadForOffline,
+        isAudioOffline,
         playBook,
         playPreview,
         togglePlay,

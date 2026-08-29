@@ -11,7 +11,7 @@ export const LibraryView = ({ onSelectBook, onGoToDiscover }) => {
   const [filter, setFilter] = useState('all'); // 'all', 'in_progress', 'completed', 'favorites'
   const [isLoading, setIsLoading] = useState(true);
 
-  const { playBook, currentBook, isPlaying, formatTime } = useAudio();
+  const { playBook, currentBook, isPlaying, formatTime, offlineBooks, downloadForOffline, isAudioOffline } = useAudio();
 
   const loadLibrary = async () => {
     setIsLoading(true);
@@ -51,6 +51,7 @@ export const LibraryView = ({ onSelectBook, onGoToDiscover }) => {
   const minutesListened = Math.floor((totalSecondsListened % 3600) / 60);
 
   const filteredBooks = libraryBooks.filter((book) => {
+    if (filter === 'offline') return isAudioOffline(book.chapters?.[0]?.audio_url || book.preview_url);
     if (filter === 'audiobook') return !book.content_type || book.content_type === 'audiobook';
     if (filter === 'podcast') return book.content_type === 'podcast';
     if (filter === 'music') return book.content_type === 'music';
@@ -70,7 +71,7 @@ export const LibraryView = ({ onSelectBook, onGoToDiscover }) => {
           <div>
             <h1 className="text-2xl font-black text-white font-['Outfit']">Ma Bibliothèque</h1>
             <p className="text-xs text-slate-400">
-              Synchronisée en temps réel sur tous vos appareils
+              Synchronisée en temps réel • Disponible hors-connexion
             </p>
           </div>
         </div>
@@ -82,9 +83,9 @@ export const LibraryView = ({ onSelectBook, onGoToDiscover }) => {
             <span className="text-sm font-extrabold text-white">{libraryBooks.length}</span>
           </div>
           <div className="px-4 py-2 rounded-2xl bg-white/5 border border-white/10 text-center">
-            <span className="text-xs text-slate-400 block">Temps Écouté</span>
-            <span className="text-sm font-extrabold text-purple-300">
-              {hoursListened > 0 ? `${hoursListened}h ${minutesListened}m` : `${minutesListened} min`}
+            <span className="text-xs text-slate-400 block">Hors-ligne</span>
+            <span className="text-sm font-extrabold text-emerald-400">
+              {offlineBooks?.length || 0} 💾
             </span>
           </div>
         </div>
@@ -94,6 +95,7 @@ export const LibraryView = ({ onSelectBook, onGoToDiscover }) => {
       <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
         {[
           { id: 'all', label: '✨ Tout', count: libraryBooks.length },
+          { id: 'offline', label: '💾 Hors-ligne', count: libraryBooks.filter(b => isAudioOffline(b.chapters?.[0]?.audio_url || b.preview_url)).length },
           { id: 'audiobook', label: '📚 Livres Audio', count: libraryBooks.filter(b => !b.content_type || b.content_type === 'audiobook').length },
           { id: 'podcast', label: '🎙️ Podcasts', count: libraryBooks.filter(b => b.content_type === 'podcast').length },
           { id: 'music', label: '🎵 Musique & Lofi', count: libraryBooks.filter(b => b.content_type === 'music').length },

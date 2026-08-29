@@ -558,6 +558,10 @@ export const AdminStudioView = ({ onBookCreated }) => {
     setStep(4);
     await loadBooks();
     await checkStatus();
+    
+    // Déclencher la notification push réelle pour les utilisateurs
+    window.dispatchEvent(new CustomEvent('rg_new_content_published', { detail: newBook }));
+    
     if (onBookCreated) onBookCreated(newBook);
   };
 
