@@ -433,11 +433,41 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                 </div>
               )}
 
-              {/* Erreur d'initiation */}
+              {/* Erreur d'initiation avec solutions immédiates */}
               {initError && (
-                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 flex items-start gap-2.5">
-                  <AlertCircle size={16} className="text-red-400 flex-shrink-0 mt-0.5" />
-                  <p className="text-red-300 text-sm">{initError}</p>
+                <div className="p-3.5 rounded-2xl bg-red-500/10 border border-red-500/30 space-y-2.5">
+                  <div className="flex items-start gap-2.5">
+                    <AlertCircle size={16} className="text-red-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-red-300 text-sm leading-snug">{initError}</p>
+                  </div>
+
+                  {!isCard && (
+                    <div className="pt-2 border-t border-red-500/20 flex flex-col sm:flex-row gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPaymentMethod('card');
+                          setInitError('');
+                        }}
+                        className="flex-1 py-2 px-3 rounded-xl bg-blue-600/80 hover:bg-blue-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-md"
+                      >
+                        <CreditCard size={14} />
+                        <span>Essayer par Carte Bancaire</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStep('pending');
+                          setTxId(`RGP-MANUAL-${Date.now()}`);
+                        }}
+                        className="py-2 px-3 rounded-xl bg-white/10 hover:bg-white/20 text-slate-200 text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
+                      >
+                        <Lock size={13} />
+                        <span>Validation PIN manuelle</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 

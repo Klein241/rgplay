@@ -1144,7 +1144,9 @@ export async function onRequest(context) {
             await env.KV_BINDING.delete(key.name);
           }
         } catch (_) {}
-        await env.KV_BINDING.delete(`book_${bookId}`);
+        await env.KV_BINDING.delete(`book_${bookId}`).catch(() => {});
+        await env.KV_BINDING.delete('books_all_all_false').catch(() => {});
+        await env.KV_BINDING.delete('books_all_all_true').catch(() => {});
       }
 
       return jsonResponse({
@@ -1161,22 +1163,54 @@ export async function onRequest(context) {
       const bookId = body.id || `book-${Date.now()}`;
       const contentType = body.content_type || 'audiobook';
       const isPinned = body.is_pinned !== undefined ? (body.is_pinned ? 1 : 0) : 0;
+      const isFeatured = body.is_featured !== undefined ? (body.is_featured ? 1 : 0) : 1;
+      const isBestseller = body.is_bestseller !== undefined ? (body.is_bestseller ? 1 : 0) : 0;
+      const rating = Number(body.rating || 5.0);
+      const ratingCount = Number(body.rating_count || 1);
 
       if (env.DB) {
         try {
+          // Créer la colonne is_pinned si elle n'existe pas encore
+          try {
+            await env.DB.prepare('ALTER TABLE audiobooks ADD COLUMN is_pinned INTEGER DEFAULT 0').run();
+          } catch (_) {}
+
           await env.DB.prepare(`
-            INSERT OR REPLACE INTO audiobooks (
+            INSERT INTO audiobooks (
               id, title, author, narrator, description, synopsis,
               price, discount_price, category_id, content_type, cover_url, cover_r2_key,
               preview_url, preview_r2_key, duration_seconds, rating, rating_count, 
               is_featured, is_bestseller, is_pinned, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 5.0, 1, 1, 0, ?, CURRENT_TIMESTAMP)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(id) DO UPDATE SET
+              title = excluded.title,
+              author = excluded.author,
+              narrator = excluded.narrator,
+              description = excluded.description,
+              synopsis = excluded.synopsis,
+              price = excluded.price,
+              discount_price = excluded.discount_price,
+              category_id = excluded.category_id,
+              content_type = excluded.content_type,
+              cover_url = excluded.cover_url,
+              cover_r2_key = excluded.cover_r2_key,
+              preview_url = excluded.preview_url,
+              preview_r2_key = excluded.preview_r2_key,
+              duration_seconds = excluded.duration_seconds,
+              rating = excluded.rating,
+              rating_count = excluded.rating_count,
+              is_featured = excluded.is_featured,
+              is_bestseller = excluded.is_bestseller,
+              is_pinned = excluded.is_pinned
           `).bind(
             bookId, body.title, body.author, body.narrator, body.description, body.synopsis || '',
-            body.price, body.discount_price || null, body.category_id, contentType,
+            Number(body.price || 0), body.discount_price ? Number(body.discount_price) : null,
+            body.category_id, contentType,
             body.cover_url, body.cover_r2_key || null,
             body.preview_url, body.preview_r2_key || null,
-            body.duration_seconds || 0,
+            Number(body.duration_seconds || 0),
+            rating, ratingCount,
+            isFeatured, isBestseller,
             isPinned
           ).run();
 
@@ -1194,34 +1228,34 @@ export async function onRequest(context) {
                 chapId, bookId, i + 1,
                 chap.title || `Chapitre ${i + 1}`,
                 chap.audio_r2_key || `audiobooks/${bookId}/ch${i + 1}.mp3`,
-                chap.audio_url || '',
-                chap.duration_seconds || 1800
+                chap.audio_url || chap.uploadData?.public_url || '',
+                Number(chap.duration_seconds || 1800)
               ).run();
             }
           }
 
-          // Invalider les caches KV catalogue
+          // Invalider TOUS les caches KV catalogue
           if (env.KV_BINDING) {
             try {
               const list = await env.KV_BINDING.list({ prefix: 'books_' });
               for (const key of list.keys) {
                 await env.KV_BINDING.delete(key.name);
               }
-            } catch (_) {
-              await env.KV_BINDING.delete('books_all_false');
-              await env.KV_BINDING.delete('books_all_true');
-            }
-            await env.KV_BINDING.delete('categories_v1');
-            await env.KV_BINDING.delete(`book_${bookId}`);
+            } catch (_) {}
+            await env.KV_BINDING.delete('books_all_all_false').catch(() => {});
+            await env.KV_BINDING.delete('books_all_all_true').catch(() => {});
+            await env.KV_BINDING.delete('categories_v1').catch(() => {});
+            await env.KV_BINDING.delete(`book_${bookId}`).catch(() => {});
           }
 
           return jsonResponse({
             success: true,
             book_id: bookId,
             stored_in: ['cloudflare_d1', 'cloudflare_r2'],
-            message: 'Livre audio enregistré avec succès dans Cloudflare D1 !'
+            message: 'Livre audio enregistré et synchronisé avec succès dans Cloudflare D1 !'
           }, corsHeaders);
         } catch (dbErr) {
+          console.error('[Admin Books] Erreur D1:', dbErr);
           return jsonResponse({
             success: false,
             error: `Erreur D1: ${dbErr.message}`,

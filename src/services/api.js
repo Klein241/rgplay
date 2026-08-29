@@ -61,7 +61,7 @@ export const apiClient = {
       const res = await fetch(`${API_BASE}/audiobooks?${params.toString()}`);
       if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           books = data;
           // Mettre en cache local pour mode hors-ligne
           try {
@@ -393,7 +393,7 @@ export const apiClient = {
     return { success: true, serverResult };
   },
 
-  // Publier un nouveau livre audio (Admin Studio) -> Enregistre dans la base de données
+  // Publier ou Modifier un livre audio (Admin Studio) -> Enregistre dans la base de données
   async createAudiobook(bookData) {
     const bookId = bookData.id || `book-${Date.now()}`;
     const newBook = {
@@ -401,9 +401,10 @@ export const apiClient = {
       id: bookId,
       rating: bookData.rating || 5.0,
       rating_count: bookData.rating_count || 1,
-      is_featured: bookData.is_featured ?? 1,
-      is_bestseller: bookData.is_bestseller ?? 0,
-      created_at: new Date().toISOString(),
+      is_featured: bookData.is_featured !== undefined ? (bookData.is_featured ? 1 : 0) : 1,
+      is_bestseller: bookData.is_bestseller !== undefined ? (bookData.is_bestseller ? 1 : 0) : 0,
+      is_pinned: bookData.is_pinned !== undefined ? (bookData.is_pinned ? 1 : 0) : 0,
+      created_at: bookData.created_at || new Date().toISOString(),
     };
 
     // 1. Envoyer à la base de données / serveur (/api/admin/books)
@@ -463,7 +464,6 @@ export const apiClient = {
       localStorage.setItem('rg_cached_books', JSON.stringify(updated));
     } catch (_) {}
 
-    window.dispatchEvent(new CustomEvent('rg:book-created', { detail: { id: bookId, is_pinned: isPinned } }));
     syncChannel?.postMessage({ type: 'book-updated', bookId, is_pinned: isPinned });
 
     return { success: true, is_pinned: isPinned, serverResult };

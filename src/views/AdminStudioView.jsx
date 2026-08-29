@@ -6,7 +6,8 @@ import {
   Star, Flame, Sparkles, RefreshCw, Eye, EyeOff, ShieldCheck, Download,
   Volume2, VolumeX, ArrowUp, ArrowDown, Layers, Smartphone, DollarSign,
   TrendingUp, Users, Clock, Edit3, Send, Check, HardDrive, Database, Headphones,
-  FileText, Scissors, Crop, Activity, Grid, FolderPlus, Share2, Zap
+  FileText, Scissors, Crop, Activity, Grid, FolderPlus, Share2, Zap,
+  LayoutGrid, List
 } from 'lucide-react';
 import { apiClient } from '../services/api';
 import { usePush } from '../context/PushContext';
@@ -338,6 +339,7 @@ export const AdminStudioView = ({ onBookCreated }) => {
   const [systemStatus, setSystemStatus] = useState(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
   const [editingBook, setEditingBook] = useState(null); // livre en cours d'édition
+  const [catalogViewMode, setCatalogViewMode] = useState('grid'); // 'grid' (petites cartes) | 'list'
 
   // ── État Formulaire Publication ──
   const [step, setStep] = useState(1);
@@ -1191,23 +1193,53 @@ export const AdminStudioView = ({ onBookCreated }) => {
               </button>
             </div>
 
-            {/* Barre de Recherche & Filtres */}
+            {/* Barre de Recherche & Filtres avec Switcher Cartes / Liste */}
             <div className="card-lg space-y-4">
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-400" />
-                <input
-                  type="text"
-                  value={catalogSearch}
-                  onChange={e => setCatalogSearch(e.target.value)}
-                  placeholder="Rechercher par titre ou auteur dans le catalogue..."
-                  className="rg-input pl-12 pr-4 py-3.5 rounded-2xl text-sm"
-                />
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-400" />
+                  <input
+                    type="text"
+                    value={catalogSearch}
+                    onChange={e => setCatalogSearch(e.target.value)}
+                    placeholder="Rechercher par titre ou auteur dans le catalogue..."
+                    className="rg-input pl-12 pr-4 py-3.5 rounded-2xl text-sm w-full"
+                  />
+                </div>
+                
+                {/* Switcher Mode Vue : Cartes vs Liste */}
+                <div className="flex items-center gap-1 bg-white/5 p-1.5 rounded-2xl border border-white/10 self-end sm:self-auto">
+                  <button
+                    onClick={() => setCatalogViewMode('grid')}
+                    className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                      catalogViewMode === 'grid'
+                        ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
+                        : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                    title="Affichage en petites cartes"
+                  >
+                    <LayoutGrid className="w-4 h-4" />
+                    <span>Petites Cartes</span>
+                  </button>
+                  <button
+                    onClick={() => setCatalogViewMode('list')}
+                    className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                      catalogViewMode === 'list'
+                        ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
+                        : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                    title="Affichage en liste détaillée"
+                  >
+                    <List className="w-4 h-4" />
+                    <span>Liste</span>
+                  </button>
+                </div>
               </div>
 
               {/* Table / Grille des Livres */}
               {loadingBooks ? (
-                <div className="space-y-3">
-                  {[1, 2, 3].map(n => <div key={n} className="skeleton h-24 rounded-2xl" />)}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3.5 sm:gap-4">
+                  {[1, 2, 3, 4, 5].map(n => <div key={n} className="skeleton h-60 rounded-2xl" />)}
                 </div>
               ) : filteredBooks.length === 0 ? (
                 <div className="text-center py-16 space-y-3">
@@ -1217,7 +1249,146 @@ export const AdminStudioView = ({ onBookCreated }) => {
                     Effacer la recherche
                   </button>
                 </div>
+              ) : catalogViewMode === 'grid' ? (
+                /* ── 1. AFFICHAGE EN PETITES CARTES (GRID) ── */
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3.5 sm:gap-4">
+                  {filteredBooks.map((book) => {
+                    const isPreviewing = previewingBookId === book.id;
+                    return (
+                      <div
+                        key={book.id}
+                        className="flex flex-col justify-between rounded-2xl p-3 transition-all duration-300 group relative overflow-hidden"
+                        style={{
+                          background: isPreviewing
+                            ? 'linear-gradient(135deg, rgba(124, 58, 237, 0.22), rgba(168, 85, 247, 0.15))'
+                            : 'rgba(255, 255, 255, 0.035)',
+                          border: isPreviewing
+                            ? '1px solid rgba(168, 85, 247, 0.50)'
+                            : '1px solid rgba(255, 255, 255, 0.08)',
+                          boxShadow: isPreviewing ? '0 8px 30px rgba(168, 85, 247, 0.25)' : 'none',
+                        }}
+                      >
+                        {/* Cover avec ratio carré et bouton preview */}
+                        <div className="relative aspect-square w-full rounded-xl overflow-hidden mb-2.5 bg-slate-900 border border-white/10">
+                          <img
+                            src={book.cover_url}
+                            alt={book.title}
+                            onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?w=400&q=80'; }}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+
+                          {/* Badges au-dessus de la cover */}
+                          <div className="absolute top-2 left-2 right-2 flex items-center justify-between pointer-events-none gap-1">
+                            {Boolean(book.is_pinned) ? (
+                              <span className="rg-badge bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-black shadow-md border border-amber-300/40 text-[10px] px-2 py-0.5">
+                                📌 Épinglé
+                              </span>
+                            ) : <span />}
+                            {Boolean(book.is_featured) && (
+                              <span className="rg-badge rg-badge--pink text-[10px] px-1.5 py-0.5">À la une</span>
+                            )}
+                          </div>
+
+                          {/* Play / Pause button overlay */}
+                          <button
+                            onClick={() => {
+                              if (isPreviewing) {
+                                catalogAudioRef.current?.pause();
+                                setPreviewingBookId(null);
+                              } else {
+                                setPreviewingBookId(book.id);
+                                if (catalogAudioRef.current) {
+                                  catalogAudioRef.current.src = book.preview_url || book.chapters?.[0]?.audio_url || '';
+                                  catalogAudioRef.current.play();
+                                }
+                              }
+                            }}
+                            className={`absolute bottom-2 right-2 p-2 rounded-xl border backdrop-blur-md transition-all duration-200 active:scale-90 ${
+                              isPreviewing
+                                ? 'bg-purple-600 text-white border-purple-400 shadow-lg shadow-purple-500/40'
+                                : 'bg-black/60 hover:bg-black/80 text-white border-white/20 opacity-90 group-hover:opacity-100'
+                            }`}
+                            title="Écouter l'extrait"
+                          >
+                            {isPreviewing ? <Pause className="w-3.5 h-3.5 fill-white" /> : <Play className="w-3.5 h-3.5 fill-white ml-0.5" />}
+                          </button>
+                        </div>
+
+                        {/* Détails du livre */}
+                        <div className="space-y-1 min-w-0 flex-1 flex flex-col justify-between">
+                          <div>
+                            <div className="flex items-center gap-1 mb-1">
+                              <span className="text-[10px] text-purple-300 font-bold uppercase tracking-wider truncate">
+                                {book.content_type === 'podcast' ? '🎙️ Podcast' :
+                                 book.content_type === 'music' ? '🎵 Musique' :
+                                 book.content_type === 'masterclass' ? '🎓 Masterclass' :
+                                 (book.category_name || 'Livre Audio')}
+                              </span>
+                            </div>
+                            <h3 className="text-xs sm:text-sm font-extrabold text-white truncate font-['Outfit'] group-hover:text-purple-300 transition-colors" title={book.title}>
+                              {book.title}
+                            </h3>
+                            <p className="text-[11px] text-slate-400 truncate" title={book.author}>
+                              {book.author}
+                            </p>
+                          </div>
+
+                          <div className="pt-2 mt-auto">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs text-emerald-400 font-extrabold">
+                                {book.discount_price || book.price} FCFA
+                              </span>
+                              <span className="text-[10px] text-slate-400">
+                                {book.chapters?.length || 1} ch.
+                              </span>
+                            </div>
+
+                            {/* Barre d'actions compacte */}
+                            <div className="grid grid-cols-3 gap-1 pt-1.5 border-t border-white/5">
+                              {/* Épingler */}
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  const newPinned = !book.is_pinned;
+                                  setBooks(prev => prev.map(b => b.id === book.id ? { ...b, is_pinned: newPinned ? 1 : 0 } : b));
+                                  await apiClient.togglePinAudiobook(book.id, newPinned);
+                                }}
+                                className={`p-1.5 rounded-lg border text-center font-bold text-xs transition-all active:scale-95 flex items-center justify-center ${
+                                  book.is_pinned
+                                    ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                                    : 'bg-white/5 hover:bg-amber-500/15 text-slate-400 hover:text-amber-300 border-white/10'
+                                }`}
+                                title={book.is_pinned ? 'Désépingler cet audio' : 'Épingler cet audio en tête'}
+                              >
+                                <span>📌</span>
+                              </button>
+
+                              {/* Éditer */}
+                              <button
+                                onClick={() => handleEditBook(book)}
+                                className="p-1.5 rounded-lg border bg-white/5 hover:bg-cyan-500/20 text-slate-300 hover:text-cyan-300 border-white/10 hover:border-cyan-500/40 transition-all active:scale-95 flex items-center justify-center"
+                                title="Modifier ce livre"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+
+                              {/* Supprimer */}
+                              <button
+                                onClick={() => handleDeleteBook(book.id, book.title)}
+                                className="p-1.5 rounded-lg border bg-white/5 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 border-white/10 hover:border-rose-500/40 transition-all active:scale-95 flex items-center justify-center"
+                                title="Supprimer ce livre"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               ) : (
+                /* ── 2. AFFICHAGE EN LISTE DÉTAILLÉE (LIST) ── */
                 <div className="space-y-3">
                   {filteredBooks.map((book) => {
                     const isPreviewing = previewingBookId === book.id;
@@ -1275,15 +1446,15 @@ export const AdminStudioView = ({ onBookCreated }) => {
                           </div>
                         </div>
 
-                        {/* Actions boutons avec espacements confortables */}
+                        {/* Actions boutons */}
                         <div className="flex items-center gap-2 self-end sm:self-center flex-shrink-0">
                           {/* Bouton Épingler */}
                           <button
                             onClick={async (e) => {
                               e.stopPropagation();
                               const newPinned = !book.is_pinned;
-                              await apiClient.togglePinAudiobook(book.id, newPinned);
                               setBooks(prev => prev.map(b => b.id === book.id ? { ...b, is_pinned: newPinned ? 1 : 0 } : b));
+                              await apiClient.togglePinAudiobook(book.id, newPinned);
                             }}
                             className={`px-3 py-2.5 rounded-xl border font-black text-xs transition-all duration-200 flex items-center gap-1.5 active:scale-95 ${
                               book.is_pinned
