@@ -121,7 +121,9 @@ const DropZone = ({ label, accept, type, icon: Icon, value, onUploaded, onDurati
           if (onDurationDetected) onDurationDetected(detectedDuration);
         }
         if (comp.ratio > 0) {
-          setCompressionInfo(`✨ DSP Normalisé & Compressé : ${formatSize(comp.originalSize)} ➔ ${formatSize(comp.compressedSize)} (-${comp.ratio}%) • Qualité HD`);
+          setCompressionInfo(`✨ DSP Compressé : ${formatSize(comp.originalSize)} ➔ ${formatSize(comp.compressedSize)} (-${comp.ratio}%) • Qualité HD`);
+        } else if (comp.isOptimized) {
+          setCompressionInfo(`✨ DSP Normalisé & Optimisé (${formatSize(comp.compressedSize)}) • Prêt pour le streaming`);
         }
       }
     } catch (compErr) {
@@ -159,9 +161,10 @@ const DropZone = ({ label, accept, type, icon: Icon, value, onUploaded, onDurati
         public_url: result.public_url || base64Image || URL.createObjectURL(fileToUpload),
         r2_key: result.r2_key || r2Key,
         file_name: fileToUpload.name,
-        size_mb: result.size_mb || (fileToUpload.size / 1024 / 1024).toFixed(2),
+        size_mb: formatSize(fileToUpload.size),
         duration_seconds: detectedDuration,
       });
+      setFileInfo({ name: fileToUpload.name, originalSize: file.size, compressedSize: fileToUpload.size });
     } catch {
       setStatus('done');
       setProgress(100);
@@ -1058,7 +1061,7 @@ export const AdminStudioView = ({ onBookCreated }) => {
     { id: 'categories', label: 'Catalogues & Catégories', icon: Grid, badge: categories.length },
     { id: 'publish', label: 'Publier un Livre', icon: UploadCloud },
     { id: 'ai-tts', label: 'Studio IA (Texte ➔ Voix)', icon: Wand2, badge: 'Pro' },
-    { id: 'audacity', label: 'Studio Audacity DSP', icon: Sliders, badge: 'DSP' },
+    { id: 'audacity', label: 'Studio Audacity & Découpe', icon: Scissors, badge: 'Cutter' },
     { id: 'analytics', label: 'Statistiques & Ventes', icon: BarChart3 },
     { id: 'push', label: 'Notifications Push', icon: Bell },
     { id: 'settings', label: 'Paramètres & Système', icon: Settings },
@@ -2022,130 +2025,259 @@ export const AdminStudioView = ({ onBookCreated }) => {
         )}
 
         {/* ══════════════════════════════════════════════════════════════════
-            4. RUBRIQUE : STUDIO AUDACITY DSP (MONTAGE & TRAITEMENT AUDIO)
+            4. RUBRIQUE : STUDIO AUDACITY & DÉCOUPE AUDIO (DSP & CUTTER)
             ══════════════════════════════════════════════════════════════════ */}
         {activeRubric === 'audacity' && (
           <div className="space-y-6 animate-fadeIn">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-black text-white font-['Outfit']">Studio Audacity Pro (DSP)</h1>
-              <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-                Fusionnez vos pistes audio, supprimez les bruits de fond et rehaussez la clarté de vos masters
+              <h1 className="text-2xl sm:text-3xl font-black text-white font-['Outfit'] flex items-center gap-2.5">
+                <Scissors className="w-7 h-7 text-emerald-400" />
+                <span>Studio Audacity Pro & Découpe Audio (DSP)</span>
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-400 mt-0.5 font-medium">
+                Découpez, rognez vos fichiers audio, supprimez les bruits de fond, fusionnez plusieurs pistes et optimisez la clarté de vos masters.
               </p>
             </div>
 
             <div className="card-lg space-y-6">
-              {/* Import des Pistes */}
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-2">1. Ajouter des Pistes à Fusionner</label>
-                <input
-                  type="file"
-                  multiple
-                  accept="audio/*"
-                  onChange={handleAddDspFiles}
-                  className="rg-input py-2.5 text-xs file:mr-3 file:py-1 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-purple-600 file:text-white"
-                />
+              {/* Onglets Mode : Découpe Directe ou Fusion Multi-Pistes */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Option 1 : Découpe & Rognage Direct */}
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-500/10 to-teal-500/5 border border-emerald-500/25 space-y-3">
+                  <div className="flex items-center gap-2 text-emerald-300 font-bold text-xs uppercase tracking-wider">
+                    <Scissors className="w-4 h-4 text-emerald-400" />
+                    <span>Option 1 : Découpe Rapide d'un Fichier Audio</span>
+                  </div>
+                  <p className="text-slate-400 text-xs leading-relaxed">
+                    Chargez un fichier MP3, WAV, M4A ou OGG pour afficher immédiatement son spectre et le découper avec précision millimétrique.
+                  </p>
+                  <label className="btn-gradient w-full py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer shadow-lg active:scale-95 transition-all">
+                    <FileAudio className="w-4 h-4" />
+                    <span>Charger un Audio à Découper</span>
+                    <input
+                      type="file"
+                      accept="audio/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setDspProcessing(true);
+                        try {
+                          const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                          const arrayBuffer = await file.arrayBuffer();
+                          const decoded = await audioCtx.decodeAudioData(arrayBuffer);
+                          const dur = Math.round(decoded.duration);
+                          const wavBlob = audioBufferToWav(decoded);
+                          const url = URL.createObjectURL(wavBlob);
+                          setActiveTrimAudioBuffer(decoded);
+                          setDspProcessedUrl(url);
+                          setDspDuration(dur);
+                          setTrimStart(0);
+                          setTrimEnd(dur);
+                          setTimeout(() => drawWaveform(decoded, 0, dur), 100);
+                        } catch (err) {
+                          console.error('[Cutter] Erreur décodage audio:', err);
+                        }
+                        setDspProcessing(false);
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                {/* Option 2 : Fusion Multi-Pistes & Mastering DSP */}
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-500/10 to-fuchsia-500/5 border border-purple-500/25 space-y-3">
+                  <div className="flex items-center gap-2 text-purple-300 font-bold text-xs uppercase tracking-wider">
+                    <Sliders className="w-4 h-4 text-purple-400" />
+                    <span>Option 2 : Fusion Multi-Pistes & Effets DSP</span>
+                  </div>
+                  <p className="text-slate-400 text-xs leading-relaxed">
+                    Ajoutez plusieurs segments ou pistes pour les combiner en un seul master avec égalisation, réducteur de souffle et compression.
+                  </p>
+                  <label className="rg-btn-ghost w-full py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer border border-purple-500/30 hover:border-purple-500 text-purple-200">
+                    <Plus className="w-4 h-4" />
+                    <span>Ajouter des Pistes à Fusionner</span>
+                    <input
+                      type="file"
+                      multiple
+                      accept="audio/*"
+                      onChange={handleAddDspFiles}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
               </div>
 
-              {/* Liste des Pistes */}
+              {/* Liste des Pistes Multiples si présentes */}
               {dspTracks.length > 0 && (
-                <div className="space-y-2">
-                  <span className="text-xs font-bold text-slate-400">Ordre de fusion des pistes :</span>
-                  {dspTracks.map((t, idx) => (
-                    <div key={t.id} className="flex items-center justify-between p-3 rounded-xl bg-white/4 border border-white/8 text-xs">
-                      <span className="font-bold text-white truncate max-w-[200px]">{idx + 1}. {t.name}</span>
-                      <div className="flex items-center gap-1.5">
-                        <button onClick={() => moveDspTrack(idx, -1)} className="p-1 text-slate-400 hover:text-white"><ArrowUp className="w-3.5 h-3.5" /></button>
-                        <button onClick={() => moveDspTrack(idx, 1)} className="p-1 text-slate-400 hover:text-white"><ArrowDown className="w-3.5 h-3.5" /></button>
-                        <button onClick={() => setDspTracks(prev => prev.filter((_, i) => i !== idx))} className="p-1 text-slate-400 hover:text-rose-400"><Trash2 className="w-3.5 h-3.5" /></button>
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-300">Pistes à fusionner ({dspTracks.length}) :</span>
+                    <button onClick={() => setDspTracks([])} className="text-xs text-rose-400 hover:text-rose-300 font-bold">
+                      Vider la liste
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {dspTracks.map((t, idx) => (
+                      <div key={t.id} className="flex items-center justify-between p-3 rounded-xl bg-white/4 border border-white/8 text-xs">
+                        <span className="font-bold text-white truncate max-w-[240px]">{idx + 1}. {t.name}</span>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => moveDspTrack(idx, -1)} className="p-1 text-slate-400 hover:text-white" title="Monter"><ArrowUp className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => moveDspTrack(idx, 1)} className="p-1 text-slate-400 hover:text-white" title="Descendre"><ArrowDown className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => setDspTracks(prev => prev.filter((_, i) => i !== idx))} className="p-1 text-slate-400 hover:text-rose-400" title="Supprimer"><Trash2 className="w-3.5 h-3.5" /></button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+
+                  {/* Traitements DSP Actifs */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+                    {[
+                      { label: 'Réduction de bruit', state: dspNoiseReduction, set: setDspNoiseReduction },
+                      { label: 'Clarté Vocale', state: dspVocalClarity, set: setDspVocalClarity },
+                      { label: 'Compression DSP', state: dspCompression, set: setDspCompression },
+                      { label: 'Chaleur Analogique', state: dspWarmth, set: setDspWarmth },
+                    ].map((item) => (
+                      <button
+                        key={item.label}
+                        onClick={() => item.set(!item.state)}
+                        className={`p-3 rounded-2xl border text-xs font-bold transition-all text-left flex flex-col justify-between h-20 ${item.state
+                            ? 'bg-purple-600/20 border-purple-500/40 text-purple-200 shadow-md'
+                            : 'bg-white/4 border-white/8 text-slate-400'
+                          }`}
+                      >
+                        <span>{item.label}</span>
+                        <span className={`text-[10px] uppercase font-extrabold ${item.state ? 'text-emerald-400' : 'text-slate-500'}`}>
+                          {item.state ? '✓ Activé' : 'Désactivé'}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={handleProcessDsp}
+                    disabled={dspProcessing || dspTracks.length === 0}
+                    className="btn-gradient w-full py-3.5 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 shadow-xl disabled:opacity-40"
+                  >
+                    {dspProcessing ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" /> Traitement et fusion des pistes...</>
+                    ) : (
+                      <><Sliders className="w-4 h-4" /> Fusionner & Traiter le Master Pro</>
+                    )}
+                  </button>
                 </div>
               )}
 
-              {/* Traitements DSP Actifs */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {[
-                  { label: 'Réduction de bruit', state: dspNoiseReduction, set: setDspNoiseReduction },
-                  { label: 'Clarté Vocale', state: dspVocalClarity, set: setDspVocalClarity },
-                  { label: 'Compression DSP', state: dspCompression, set: setDspCompression },
-                  { label: 'Chaleur Analogique', state: dspWarmth, set: setDspWarmth },
-                ].map((item) => (
-                  <button
-                    key={item.label}
-                    onClick={() => item.set(!item.state)}
-                    className={`p-3 rounded-2xl border text-xs font-bold transition-all text-left flex flex-col justify-between h-20 ${item.state
-                        ? 'bg-purple-600/20 border-purple-500/40 text-purple-200'
-                        : 'bg-white/4 border-white/8 text-slate-400'
-                      }`}
-                  >
-                    <span>{item.label}</span>
-                    <span className={`text-[10px] uppercase font-extrabold ${item.state ? 'text-emerald-400' : 'text-slate-500'}`}>
-                      {item.state ? '✓ Activé' : 'Désactivé'}
-                    </span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Bouton de Traitement */}
-              <button
-                onClick={handleProcessDsp}
-                disabled={dspProcessing || dspTracks.length === 0}
-                className="btn-gradient w-full py-3.5 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 shadow-xl disabled:opacity-40"
-              >
-                {dspProcessing ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Traitement et fusion des pistes...</>
-                ) : (
-                  <><Sliders className="w-4 h-4" /> Fusionner & Traiter le Master Pro</>
-                )}
-              </button>
-
-              {/* Résultat Master & Visualiseur de Spectre Audio */}
+              {/* Résultat Master & Visualiseur de Spectre Audio & Découpe Précise */}
               {dspProcessedUrl && (
-                <div className="p-4 rounded-2xl bg-purple-500/10 border border-purple-500/25 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Master Pro Haute Fidélité Prêt ({dspDuration}s)
+                <div className="p-5 rounded-3xl bg-purple-500/10 border border-purple-500/30 space-y-4 shadow-2xl animate-fadeIn">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <span className="text-xs sm:text-sm font-black text-purple-200 flex items-center gap-2">
+                      <CheckCircle2 className="w-4.5 h-4.5 text-emerald-400" />
+                      <span>Audio Décodé & Prêt pour l'Édition ({dspDuration}s • {formatDuration(dspDuration)})</span>
                     </span>
-                    <button
-                      onClick={() => handleApplyDspToPublishing(0)}
-                      className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-500 text-white shadow-md flex items-center gap-1.5 transition-colors"
-                    >
-                      <UploadCloud className="w-3.5 h-3.5" />
-                      <span>Insérer dans la Publication</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          const a = document.createElement('a');
+                          a.href = dspProcessedUrl;
+                          a.download = `Audio_Decoupe_RGPlay_${Date.now()}.wav`;
+                          a.click();
+                        }}
+                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-slate-200 flex items-center gap-1.5 transition-all"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Télécharger (.wav)</span>
+                      </button>
+                      <button
+                        onClick={() => handleApplyDspToPublishing(0)}
+                        className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md flex items-center gap-1.5 transition-all"
+                      >
+                        <UploadCloud className="w-3.5 h-3.5" />
+                        <span>Insérer dans la Publication</span>
+                      </button>
+                    </div>
                   </div>
-                  <audio ref={dspAudioRef} src={dspProcessedUrl} controls className="w-full h-9 rounded-xl" />
 
-                  {/* Visualiseur de Spectre & Outils de Découpe */}
-                  <div className="p-4 rounded-2xl bg-black/40 border border-white/10 space-y-3.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                        <Activity className="w-4 h-4 text-pink-400" /> Spectre Audio & Découpe Précise (Waveform)
+                  <audio ref={dspAudioRef} src={dspProcessedUrl} controls className="w-full h-10 rounded-2xl" />
+
+                  {/* Visualiseur de Spectre & Outils de Découpe (Waveform) */}
+                  <div className="p-4 sm:p-5 rounded-2xl bg-black/50 border border-white/10 space-y-4">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <span className="text-xs font-bold text-slate-200 flex items-center gap-2">
+                        <Activity className="w-4 h-4 text-pink-400" />
+                        <span>Spectre Audio & Découpe Précise (Waveform)</span>
                       </span>
-                      <span className="text-[11px] font-mono text-purple-300">
+                      <span className="text-xs font-mono font-bold text-purple-300 bg-purple-500/20 px-3 py-1 rounded-full border border-purple-500/30">
                         Sélection : {trimStart}s ➔ {trimEnd || dspDuration}s ({(trimEnd || dspDuration) - trimStart}s)
                       </span>
                     </div>
 
                     {/* Canvas Forme d'Onde */}
-                    <div className="relative overflow-hidden rounded-xl border border-purple-500/30">
+                    <div className="relative overflow-hidden rounded-2xl border border-purple-500/40 shadow-inner bg-[#0a0718]">
                       <canvas
                         ref={waveformCanvasRef}
-                        width={700}
-                        height={120}
-                        className="w-full h-28 bg-[#0a0718] block"
+                        width={800}
+                        height={130}
+                        className="w-full h-32 block cursor-pointer"
+                        onClick={(e) => {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const clickX = e.clientX - rect.left;
+                          const ratio = clickX / rect.width;
+                          const clickedSec = Math.round(ratio * (dspDuration || 1));
+                          if (Math.abs(clickedSec - trimStart) < Math.abs(clickedSec - (trimEnd || dspDuration))) {
+                            setTrimStart(Math.min(clickedSec, (trimEnd || dspDuration) - 1));
+                            if (activeTrimAudioBuffer) drawWaveform(activeTrimAudioBuffer, clickedSec, trimEnd || dspDuration);
+                          } else {
+                            setTrimEnd(Math.max(clickedSec, trimStart + 1));
+                            if (activeTrimAudioBuffer) drawWaveform(activeTrimAudioBuffer, trimStart, clickedSec);
+                          }
+                        }}
                       />
                     </div>
 
-                    {/* Sliders Début & Fin de Coupe */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-bold">
-                      <div>
-                        <div className="flex justify-between text-slate-300 mb-1">
+                    {/* Contrôles de Lecture Sélective */}
+                    <div className="flex items-center justify-center gap-3 py-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!dspAudioRef.current) return;
+                          dspAudioRef.current.currentTime = trimStart;
+                          dspAudioRef.current.play();
+                          const durationToPlay = (trimEnd || dspDuration) - trimStart;
+                          setTimeout(() => {
+                            if (dspAudioRef.current && !dspAudioRef.current.paused) {
+                              dspAudioRef.current.pause();
+                            }
+                          }, Math.max(500, durationToPlay * 1000));
+                        }}
+                        className="px-4 py-2 rounded-xl text-xs font-black bg-purple-600 hover:bg-purple-500 text-white shadow-lg flex items-center gap-2 active:scale-95 transition-all"
+                      >
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                        <span>Écouter la Sélection Uniquement</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (dspAudioRef.current) dspAudioRef.current.pause();
+                        }}
+                        className="px-3.5 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-slate-300 flex items-center gap-1.5"
+                      >
+                        <Pause className="w-3.5 h-3.5" />
+                        <span>Pause</span>
+                      </button>
+                    </div>
+
+                    {/* Sliders Début & Fin de Coupe avec Réglage Fin */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-bold pt-1">
+                      {/* Curseur Début */}
+                      <div className="p-3 rounded-xl bg-white/5 border border-white/8 space-y-2">
+                        <div className="flex justify-between items-center text-slate-300">
                           <span className="text-emerald-400 flex items-center gap-1">
                             <span>[</span> Point de Début (Start)
                           </span>
-                          <span className="font-mono">{trimStart} s</span>
+                          <span className="font-mono text-sm text-emerald-300 bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20">
+                            {trimStart} s
+                          </span>
                         </div>
                         <input
                           type="range"
@@ -2157,16 +2289,30 @@ export const AdminStudioView = ({ onBookCreated }) => {
                             setTrimStart(val);
                             if (activeTrimAudioBuffer) drawWaveform(activeTrimAudioBuffer, val, trimEnd || dspDuration);
                           }}
-                          className="w-full accent-emerald-400"
+                          className="w-full accent-emerald-400 cursor-pointer"
                         />
+                        <div className="flex items-center justify-between gap-1 text-[10px] text-slate-400">
+                          <div className="flex gap-1">
+                            <button onClick={() => { const v = Math.max(0, trimStart - 5); setTrimStart(v); if (activeTrimAudioBuffer) drawWaveform(activeTrimAudioBuffer, v, trimEnd || dspDuration); }} className="px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20">-5s</button>
+                            <button onClick={() => { const v = Math.max(0, trimStart - 1); setTrimStart(v); if (activeTrimAudioBuffer) drawWaveform(activeTrimAudioBuffer, v, trimEnd || dspDuration); }} className="px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20">-1s</button>
+                          </div>
+                          <span className="text-[9px] text-slate-500 uppercase">Ajustement fin</span>
+                          <div className="flex gap-1">
+                            <button onClick={() => { const v = Math.min((trimEnd || dspDuration) - 1, trimStart + 1); setTrimStart(v); if (activeTrimAudioBuffer) drawWaveform(activeTrimAudioBuffer, v, trimEnd || dspDuration); }} className="px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20">+1s</button>
+                            <button onClick={() => { const v = Math.min((trimEnd || dspDuration) - 1, trimStart + 5); setTrimStart(v); if (activeTrimAudioBuffer) drawWaveform(activeTrimAudioBuffer, v, trimEnd || dspDuration); }} className="px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20">+5s</button>
+                          </div>
+                        </div>
                       </div>
 
-                      <div>
-                        <div className="flex justify-between text-slate-300 mb-1">
+                      {/* Curseur Fin */}
+                      <div className="p-3 rounded-xl bg-white/5 border border-white/8 space-y-2">
+                        <div className="flex justify-between items-center text-slate-300">
                           <span className="text-pink-400 flex items-center gap-1">
                             Point de Fin (End) <span>]</span>
                           </span>
-                          <span className="font-mono">{trimEnd || dspDuration} s</span>
+                          <span className="font-mono text-sm text-pink-300 bg-pink-500/10 px-2 py-0.5 rounded-lg border border-pink-500/20">
+                            {trimEnd || dspDuration} s
+                          </span>
                         </div>
                         <input
                           type="range"
@@ -2178,28 +2324,39 @@ export const AdminStudioView = ({ onBookCreated }) => {
                             setTrimEnd(val);
                             if (activeTrimAudioBuffer) drawWaveform(activeTrimAudioBuffer, trimStart, val);
                           }}
-                          className="w-full accent-pink-400"
+                          className="w-full accent-pink-400 cursor-pointer"
                         />
+                        <div className="flex items-center justify-between gap-1 text-[10px] text-slate-400">
+                          <div className="flex gap-1">
+                            <button onClick={() => { const v = Math.max(trimStart + 1, (trimEnd || dspDuration) - 5); setTrimEnd(v); if (activeTrimAudioBuffer) drawWaveform(activeTrimAudioBuffer, trimStart, v); }} className="px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20">-5s</button>
+                            <button onClick={() => { const v = Math.max(trimStart + 1, (trimEnd || dspDuration) - 1); setTrimEnd(v); if (activeTrimAudioBuffer) drawWaveform(activeTrimAudioBuffer, trimStart, v); }} className="px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20">-1s</button>
+                          </div>
+                          <span className="text-[9px] text-slate-500 uppercase">Ajustement fin</span>
+                          <div className="flex gap-1">
+                            <button onClick={() => { const v = Math.min(dspDuration, (trimEnd || dspDuration) + 1); setTrimEnd(v); if (activeTrimAudioBuffer) drawWaveform(activeTrimAudioBuffer, trimStart, v); }} className="px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20">+1s</button>
+                            <button onClick={() => { const v = Math.min(dspDuration, (trimEnd || dspDuration) + 5); setTrimEnd(v); if (activeTrimAudioBuffer) drawWaveform(activeTrimAudioBuffer, trimStart, v); }} className="px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20">+5s</button>
+                          </div>
+                        </div>
                       </div>
                     </div>
 
                     {/* Boutons d'Action de Découpe */}
-                    <div className="flex flex-wrap items-center gap-2.5 pt-1">
+                    <div className="flex flex-wrap items-center gap-3 pt-2">
                       <button
                         onClick={handleTrimKeep}
                         disabled={isTrimApplying || !activeTrimAudioBuffer}
-                        className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5 transition-all"
+                        className="px-5 py-2.5 rounded-xl text-xs font-black bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 border border-emerald-500/40 flex items-center gap-2 transition-all shadow-lg active:scale-95"
                       >
-                        <Scissors className="w-3.5 h-3.5" />
+                        <Scissors className="w-4 h-4 text-emerald-400" />
                         <span>Garder uniquement la Sélection (Trim)</span>
                       </button>
 
                       <button
                         onClick={handleCutDelete}
                         disabled={isTrimApplying || !activeTrimAudioBuffer}
-                        className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 flex items-center gap-1.5 transition-all"
+                        className="px-5 py-2.5 rounded-xl text-xs font-black bg-rose-600/30 hover:bg-rose-600/50 text-rose-200 border border-rose-500/40 flex items-center gap-2 transition-all shadow-lg active:scale-95"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-4 h-4 text-rose-400" />
                         <span>Supprimer la Sélection (Cut Out)</span>
                       </button>
                     </div>

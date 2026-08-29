@@ -13,6 +13,7 @@
     "cf:deploy": "wrangler pages deploy dist --project-name=rg-play"
   },
   "dependencies": {
+    "@breezystack/lamejs": "^1.2.7",
     "@tailwindcss/vite": "^4.3.3",
     "canvas-confetti": "^1.9.4",
     "lucide-react": "^1.16.0",
