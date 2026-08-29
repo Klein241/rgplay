@@ -528,13 +528,11 @@ export async function onRequest(context) {
             currency: 'XAF',
             merchant_invoice_id: txId,
             merchant_callback_url: WEBHOOK_URL,
-            merchant_return_url: `${RETURN_URL}?tx=${txId}`,
-            description: `Achat livre audio ${audiobook_id}`,
+            merchant_return_url: `${RETURN_URL}?tx=${txId}&status=success`,
             source: 'api',
           };
           if (!isCardPayment && cleanPhone) {
             cpBody.customer_phone = cleanPhone;
-            cpBody.phone = cleanPhone;
           }
 
           const cpRes = await fetch('https://camerpay.biz/api/payment/initiate', {
@@ -552,39 +550,52 @@ export async function onRequest(context) {
           const text = await cpRes.text();
           try { camerpayData = JSON.parse(text); } catch { camerpayData = { raw: text }; }
 
-          if (cpRes.ok) { camerpayError = null; break; }
+          if (cpRes.ok) {
+            camerpayError = null;
+            break;
+          }
 
+          // Si 5xx, patienter plus longtemps (1s, 2s)
           if (cpRes.status >= 500 && attempt < MAX_RETRIES) {
-            console.warn(`[PAYMENT] CamerPay ${cpRes.status} — tentative ${attempt}/${MAX_RETRIES}`);
-            await new Promise(r => setTimeout(r, 700 * attempt));
+            console.warn(`[PAYMENT] CamerPay HTTP ${cpRes.status} — tentative ${attempt}/${MAX_RETRIES}...`);
+            await new Promise(r => setTimeout(r, 1000 * attempt));
             continue;
           }
-          camerpayError = camerpayData?.message || camerpayData?.error || `CamerPay HTTP ${cpRes.status}`;
+
+          // Message précis retourné par CamerPay
+          camerpayError = camerpayData?.message || camerpayData?.error || camerpayData?.description || `Erreur passerelle (HTTP ${cpRes.status})`;
           break;
         } catch (fetchErr) {
-          console.warn(`[PAYMENT] Réseau - tentative ${attempt}:`, fetchErr.message);
-          if (attempt < MAX_RETRIES) { await new Promise(r => setTimeout(r, 700 * attempt)); continue; }
-          camerpayError = 'Le service de paiement est momentanément inaccessible. Réessayez dans quelques instants.';
+          console.warn(`[PAYMENT] Erreur réseau tentative ${attempt}:`, fetchErr.message);
+          if (attempt < MAX_RETRIES) {
+            await new Promise(r => setTimeout(r, 1000 * attempt));
+            continue;
+          }
+          camerpayError = 'Service de paiement momentanément inaccessible. Veuillez réessayer dans quelques instants.';
         }
       }
 
-      // ── Si toutes les tentatives ont échoué
+      // ── Si échec après toutes les tentatives
       if (camerpayError) {
         if (env.DB) await env.DB.prepare(`UPDATE purchases SET status = 'failed' WHERE transaction_id = ?`).bind(txId).run().catch(() => {});
         if (env.KV_BINDING) await env.KV_BINDING.put(`tx_${txId}`, JSON.stringify({
           userId, audiobook_id, status: 'failed', error: camerpayError, updated_at: Date.now()
         }), { expirationTtl: 3600 });
 
-        const msg = lastStatus >= 500
-          ? 'Le réseau de paiement CamerPay / Opérateur a rencontré une indisponibilité temporaire (5xx). Veuillez réessayer ou utiliser une autre méthode (Carte / MTN / Orange).'
-          : camerpayError;
+        const detailMsg = camerpayData?.message || camerpayData?.error || '';
+        const userMsg = detailMsg
+          ? `CamerPay : ${detailMsg}`
+          : (lastStatus >= 500
+              ? 'L\'opérateur mobile ou CamerPay est temporairement indisponible pour cette méthode. Essayez avec la Carte Bancaire ou réessayez dans 30 secondes.'
+              : camerpayError);
 
         return jsonResponse({
           success: false,
           transaction_id: txId,
           status: 'failed',
-          error: msg,
-          camerpay_raw: camerpayData,
+          error: userMsg,
+          raw_error: camerpayError,
+          camerpay_response: camerpayData,
           http_status: lastStatus,
         }, corsHeaders, 402);
       }
