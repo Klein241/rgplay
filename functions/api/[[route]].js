@@ -424,8 +424,6 @@ export async function onRequest(context) {
       const { audiobook_id, chapter_id, position_seconds, completed_percentage, is_completed } = body;
 
       if (env.DB) {
-        const id = `prog-${userId.slice(0, 8)}-${audiobook_id}`;
-        await env.DB.prepare(`
         await env.DB.prepare(`
           INSERT INTO user_progress (user_id, audiobook_id, current_chapter_id, position_seconds, completed_percentage, is_completed, last_listened_at)
           VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
