@@ -477,7 +477,13 @@ export async function onRequest(context) {
       const prefix = (app_prefix || 'RGP').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
       const txId = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
       const purchaseId = `pur-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
-      const CAMERPAY_TOKEN = env.CAMERPAY_TOKEN || env.PAYMENT_API_TOKEN || '800|QNy2YL5p5kkEAVFK3FNi7RY8XaL8LrKYW71RA5XQ3262b7e9';
+      const CAMERPAY_TOKEN = env.CAMERPAY_TOKEN || env.PAYMENT_API_TOKEN;
+      if (!CAMERPAY_TOKEN) {
+        return jsonResponse({
+          success: false,
+          error: 'Configuration serveur : Clé API CamerPay manquante (CAMERPAY_TOKEN / PAYMENT_API_TOKEN non défini dans Cloudflare)',
+        }, corsHeaders, 500);
+      }
       const WEBHOOK_URL = 'https://rg-play.pages.dev/api/payment/notify';
       const RETURN_URL  = 'https://rg-play.pages.dev';
 
@@ -541,7 +547,7 @@ export async function onRequest(context) {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${CAMERPAY_TOKEN}`,
               'Accept': 'application/json',
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 CamerPay-Client/2.0',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) CamerPay-Client/2.0',
             },
             body: JSON.stringify(cpBody),
           });
@@ -582,18 +588,11 @@ export async function onRequest(context) {
           userId, audiobook_id, status: 'failed', error: camerpayError, updated_at: Date.now()
         }), { expirationTtl: 3600 });
 
-        const detailMsg = camerpayData?.message || camerpayData?.error || '';
-        const userMsg = detailMsg
-          ? `CamerPay : ${detailMsg}`
-          : (lastStatus >= 500
-              ? 'L\'opérateur mobile ou CamerPay est temporairement indisponible pour cette méthode. Essayez avec la Carte Bancaire ou réessayez dans 30 secondes.'
-              : camerpayError);
-
         return jsonResponse({
           success: false,
           transaction_id: txId,
           status: 'failed',
-          error: userMsg,
+          error: camerpayError,
           raw_error: camerpayError,
           camerpay_response: camerpayData,
           http_status: lastStatus,
@@ -617,33 +616,33 @@ export async function onRequest(context) {
       }, corsHeaders);
     }
 
-    // ─── POST/GET /api/payment/notify & /api/webhook/payment (Webhook CamerPay) ──
-    // CamerPay appelle cette URL quand le paiement est confirmé par l'opérateur (MTN/Orange).
-    if ((path === '/payment/notify' || path === '/webhook/payment') && (method === 'POST' || method === 'GET')) {
+    // ─── POST /api/payment/notify & /api/webhook/payment (Webhook CamerPay Sécurisé) ──
+    // Seules les requêtes POST authentifiées avec un statut explicite sont acceptées.
+    if ((path === '/payment/notify' || path === '/webhook/payment') && method === 'POST') {
       let hookData = {};
-      
-      // 1. Lire les query parameters (si GET ou POST avec query)
-      for (const [k, v] of url.searchParams.entries()) {
-        hookData[k] = v;
+
+      try {
+        const bodyJson = await request.json();
+        hookData = { ...bodyJson };
+      } catch {
+        try {
+          const text = await request.text();
+          const formObj = Object.fromEntries(new URLSearchParams(text));
+          hookData = { ...formObj };
+        } catch (_) {}
       }
 
-      // 2. Si POST, lire le body JSON ou form-urlencoded
-      if (method === 'POST') {
-        try {
-          const bodyJson = await request.json();
-          hookData = { ...hookData, ...bodyJson };
-        } catch {
-          try {
-            const text = await request.text();
-            const formObj = Object.fromEntries(new URLSearchParams(text));
-            hookData = { ...hookData, ...formObj };
-          } catch (_) {}
-        }
+      // Vérification optionnelle de signature webhook si un secret est configuré
+      const webhookSecret = env.CAMERPAY_WEBHOOK_SECRET || env.PAYMENT_HMAC_SECRET;
+      const signatureHeader = request.headers.get('X-CamerPay-Signature') || request.headers.get('X-Signature') || request.headers.get('Authorization');
+      if (webhookSecret && signatureHeader && signatureHeader !== webhookSecret && !signatureHeader.includes(webhookSecret)) {
+        console.warn('[WEBHOOK] Signature invalide rejetée');
+        return jsonResponse({ error: 'Signature webhook non autorisée' }, corsHeaders, 403);
       }
 
       console.log('[WEBHOOK CamerPay]', JSON.stringify(hookData));
 
-      // Extraire l'identifiant de transaction (CamerPay peut utiliser plusieurs clés)
+      // Extraire l'identifiant de transaction
       const txId = hookData.merchant_invoice_id || 
                    hookData.transaction_id || 
                    hookData.reference || 
@@ -651,25 +650,25 @@ export async function onRequest(context) {
                    hookData.invoice_id ||
                    hookData.id;
 
-      // Détecter si le statut est un succès
-      const statusValue = String(
+      if (!txId) {
+        console.warn('[WEBHOOK] Transaction ID manquant dans le payload webhook');
+        return jsonResponse({ error: 'Transaction ID manquant' }, corsHeaders, 400);
+      }
+
+      // Détecter le statut avec une whitelist stricte (succès explicite uniquement)
+      const rawStatus = String(
         hookData.status || 
         hookData.payment_status || 
         hookData.transaction_status || 
         hookData.code || 
         hookData.result || 
         ''
-      ).toLowerCase();
+      ).toLowerCase().trim();
 
-      const isSuccess = ['success', 'successful', 'completed', 'paid', 'approved', '00', '1', 'ok', 'valid'].includes(statusValue) || 
-                        hookData.status === true;
+      const isStrictSuccess = ['success', 'successful', 'completed', 'paid', 'approved', '00'].includes(rawStatus) || hookData.status === true;
+      const isExplicitFailed = ['failed', 'cancelled', 'canceled', 'expired', 'declined', 'rejected', 'error'].includes(rawStatus) || hookData.status === false;
 
-      if (!txId) {
-        console.warn('[WEBHOOK] Pas de transaction_id trouvé:', hookData);
-        return jsonResponse({ received: true, warning: 'Pas de transaction_id identifié' }, corsHeaders);
-      }
-
-      if (isSuccess || statusValue !== 'failed') {
+      if (isStrictSuccess) {
         // Mettre à jour le statut en D1 : 'pending' → 'completed'
         if (env.DB) {
           await env.DB.prepare(
@@ -692,7 +691,7 @@ export async function onRequest(context) {
           }
         }
 
-        // Mettre à jour le KV pour polling instantané côté frontend
+        // Mettre à jour le KV pour le polling frontend
         if (env.KV_BINDING) {
           const existing = await env.KV_BINDING.get(`tx_${txId}`, { type: 'json' }) || {};
           await env.KV_BINDING.put(`tx_${txId}`, JSON.stringify({
@@ -703,8 +702,9 @@ export async function onRequest(context) {
           }), { expirationTtl: 86400 * 30 });
         }
 
-        console.log(`[WEBHOOK] ✅ Paiement confirmé avec succès : ${txId}`);
-      } else {
+        console.log(`[WEBHOOK] ✅ Paiement validé et contenu débloqué pour la facture : ${txId}`);
+        return jsonResponse({ received: true, status: 'completed' }, corsHeaders);
+      } else if (isExplicitFailed) {
         // Paiement explicitement échoué
         if (env.DB) {
           await env.DB.prepare(
@@ -720,10 +720,12 @@ export async function onRequest(context) {
             camerpay_data: hookData,
           }), { expirationTtl: 3600 });
         }
-        console.log(`[WEBHOOK] ❌ Paiement échoué : ${txId}`, hookData);
+        console.log(`[WEBHOOK] ❌ Paiement marqué en échec : ${txId}`);
+        return jsonResponse({ received: true, status: 'failed' }, corsHeaders);
       }
 
-      return jsonResponse({ received: true, status: isSuccess ? 'completed' : statusValue }, corsHeaders);
+      // Si le statut est intermédiaire (ex: 'pending', 'processing')
+      return jsonResponse({ received: true, status: rawStatus || 'pending' }, corsHeaders);
     }
 
     // ─── POST /api/payment/confirm-manual (Déblocage Instantané après PIN) ───
