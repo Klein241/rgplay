@@ -31,9 +31,13 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
   const [audiobooks, setAudiobooks] = useState(() => {
     try {
       const cached = localStorage.getItem('rg_cached_books');
+      const delCached = localStorage.getItem('rg_deleted_books');
+      const deletedIds = new Set(delCached ? JSON.parse(delCached) : []);
       if (cached) {
         const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.filter(b => !deletedIds.has(b.id));
+        }
       }
     } catch (_) {}
     return [];
@@ -41,10 +45,13 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
   const [featuredBook, setFeaturedBook] = useState(() => {
     try {
       const cached = localStorage.getItem('rg_cached_books');
+      const delCached = localStorage.getItem('rg_deleted_books');
+      const deletedIds = new Set(delCached ? JSON.parse(delCached) : []);
       if (cached) {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.find(b => Boolean(b.is_featured)) || parsed[0];
+          const valid = parsed.filter(b => !deletedIds.has(b.id));
+          return valid.find(b => Boolean(b.is_featured)) || valid[0] || null;
         }
       }
     } catch (_) {}

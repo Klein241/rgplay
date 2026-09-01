@@ -8,7 +8,7 @@ export async function shareAudioWithCover(book) {
 
   const url = `${window.location.origin}/?book=${encodeURIComponent(book.id)}`;
   const shareTitle = `${book.title} — RG Play`;
-  const shareText = `🎧 Écoutez "${book.title}" par ${book.author} sur RG Play :\n${url}`;
+  const shareText = `🎧 Écoutez "${book.title}" par ${book.author} sur RG Play`;
 
   // 1. Tenter le partage natif avec fichier image (si supporté par le navigateur/mobile)
   if (typeof navigator !== 'undefined' && navigator.share) {
