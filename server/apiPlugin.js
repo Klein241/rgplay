@@ -489,8 +489,7 @@ export function viteApiPlugin() {
 
             const prefix = (app_prefix || 'RGP').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
             const txId = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
-            const purchaseId = `pur-${Date.now()}`;
-            const CAMERPAY_TOKEN = process.env.CAMERPAY_TOKEN || process.env.PAYMENT_API_TOKEN || '800|QNy2YL5p5kkEAVFK3FNi7RY8XaL8LrKYW71RA5XQ3262b7e9';
+            const CAMERPAY_TOKEN = process.env.CAMERPAY_TOKEN || process.env.PAYMENT_API_TOKEN || '806|Y6xka7Vc3tftBDcOiRQSo8FHAckcy1OEYDO1jeGF1c70b8d6';
             const cleanPhone = (customer_phone || '').replace(/\D/g, '');
             const isCardPayment = ['card', 'visa', 'mastercard'].includes(payment_method);
 

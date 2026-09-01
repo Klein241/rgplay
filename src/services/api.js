@@ -49,8 +49,8 @@ export const apiClient = {
 
   // Liste des livres audio (Source de vérité = Serveur / Base de données)
   async getAudiobooks({ category = 'all', search = '', featured = false, type = 'all' } = {}) {
-    // Synchroniser d'abord le registre des suppressions depuis le serveur
-    await this.syncDeletedBooks();
+    // Synchroniser le registre des suppressions en tâche de fond (non bloquant)
+    this.syncDeletedBooks().catch(() => {});
 
     let books = null;
     const getDeletedSet = () => {
@@ -145,8 +145,8 @@ export const apiClient = {
 
   // Bibliothèque de l'utilisateur
   async getLibrary() {
-    // Synchroniser d'abord les suppressions pour purger les livres supprimés
-    await this.syncDeletedBooks();
+    // Synchroniser les suppressions en tâche de fond (non bloquant)
+    this.syncDeletedBooks().catch(() => {});
 
     const getDeletedSet = () => {
       try { return new Set(JSON.parse(localStorage.getItem('rg_deleted_book_ids') || '[]')); }
@@ -570,10 +570,7 @@ export const apiClient = {
 
       // Si un livre de la bibliothèque a été retiré, notifier les vues
       if (cleanedAny) {
-        // Émettre des événements discrets pour chaque ID supprimé trouvé dans les caches
-        for (const id of serverIds) {
-          window.dispatchEvent(new CustomEvent('rg:book-deleted', { detail: { id } }));
-        }
+        window.dispatchEvent(new CustomEvent('rg:library-updated'));
       }
     } catch (e) {
       // Silencieux: serveur peut être indisponible (mode hors-ligne)

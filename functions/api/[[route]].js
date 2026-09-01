@@ -696,13 +696,10 @@ export async function onRequest(context) {
       const prefix = (app_prefix || 'RGP').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
       const txId = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
       const purchaseId = `pur-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
-      const CAMERPAY_TOKEN = env.CAMERPAY_TOKEN || env.PAYMENT_API_TOKEN;
-      if (!CAMERPAY_TOKEN) {
-        return jsonResponse({
-          success: false,
-          error: 'Configuration serveur : Clé API CamerPay manquante (CAMERPAY_TOKEN / PAYMENT_API_TOKEN non défini dans Cloudflare)',
-        }, corsHeaders, 500);
-      }
+      const ACTIVE_CAMERPAY_TOKEN = '806|Y6xka7Vc3tftBDcOiRQSo8FHAckcy1OEYDO1jeGF1c70b8d6';
+      const CAMERPAY_TOKEN = (env.CAMERPAY_TOKEN && !env.CAMERPAY_TOKEN.startsWith('800|'))
+        ? env.CAMERPAY_TOKEN
+        : ACTIVE_CAMERPAY_TOKEN;
       const WEBHOOK_URL = 'https://rg-play.pages.dev/api/payment/notify';
       const RETURN_URL  = 'https://rg-play.pages.dev';
 
@@ -1624,9 +1621,12 @@ export async function onRequest(context) {
               if (!headers.get('Content-Type') || headers.get('Content-Type') === 'application/octet-stream') {
                 headers.set('Content-Type', inferredType);
               }
+              const actualEnd = end !== undefined ? Math.min(end, obj.size - 1) : (obj.size - 1);
+              const chunkLen = actualEnd - start + 1;
               headers.set('Accept-Ranges', 'bytes');
-              headers.set('Cache-Control', 'public, max-age=604800, immutable');
-              headers.set('Content-Range', `bytes ${start}-${end ?? (obj.size - 1)}/${obj.size}`);
+              headers.set('Content-Length', String(chunkLen));
+              headers.set('Content-Range', `bytes ${start}-${actualEnd}/${obj.size}`);
+              headers.set('Cache-Control', 'public, max-age=31536000, immutable');
               return new Response(obj.body, { status: 206, headers });
             }
           }
@@ -1640,7 +1640,8 @@ export async function onRequest(context) {
             headers.set('Content-Type', inferredType);
           }
           headers.set('Accept-Ranges', 'bytes');
-          headers.set('Cache-Control', 'public, max-age=604800, immutable');
+          headers.set('Content-Length', String(obj.size));
+          headers.set('Cache-Control', 'public, max-age=31536000, immutable');
           return new Response(obj.body, { status: 200, headers });
         }
       }

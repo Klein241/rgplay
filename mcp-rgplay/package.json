@@ -1,0 +1,26 @@
+{
+  "name": "mcp-rgplay",
+  "version": "1.0.0",
+  "description": "Serveur Model Context Protocol (MCP) officiel pour la plateforme audio RG Play",
+  "main": "index.js",
+  "type": "module",
+  "bin": {
+    "mcp-rgplay": "./index.js"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "rg-play",
+    "audiobooks",
+    "camerpay",
+    "cloudflare-d1",
+    "cloudflare-r2",
+    "ai-agent"
+  ],
+  "author": "RG Play Team",
+  "license": "MIT"
+}

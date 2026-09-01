@@ -72,7 +72,7 @@ export const AudioProvider = ({ children }) => {
   const sleepTimerOptionRef = useRef(sleepTimerOption);
   useEffect(() => { sleepTimerOptionRef.current = sleepTimerOption; }, [sleepTimerOption]);
 
-  // Synchronisation initiale de l'élément audio (montage uniquement)
+  // Synchronisation de l'élément audio (montage uniquement)
   useEffect(() => {
     const audio = audioRef.current;
     audio.preload = 'auto';
@@ -89,15 +89,22 @@ export const AudioProvider = ({ children }) => {
       setIsLoading(false);
     };
 
+    const onCanPlay = () => {
+      setIsLoading(false);
+    };
+
+    const onLoadedData = () => {
+      setIsLoading(false);
+    };
+
     const onWaiting = () => setIsLoading(true);
     const onPlaying = () => {
       setIsLoading(false);
       setIsPlaying(true);
     };
     const onPause = () => setIsPlaying(false);
-    const onError = async (e) => {
+    const onError = async () => {
       console.warn('Erreur audio réseau, tentative de fallback hors-ligne :', audio.src);
-      // Tentative de récupération depuis le cache hors-ligne si erreur réseau
       if (audio.src && !audio.src.startsWith('blob:')) {
         const offlineUrl = await getOfflineAudioUrl(audio.src);
         if (offlineUrl && offlineUrl !== audio.src) {
@@ -110,7 +117,6 @@ export const AudioProvider = ({ children }) => {
     };
 
     const onEnded = () => {
-      // ── Auto-téléchargement et mise en cache hors-connexion dès que l'audio est terminé
       if (currentBookRef.current) {
         const book = currentBookRef.current;
         const chap = book.chapters?.[currentChapterIndexRef.current];
@@ -128,6 +134,8 @@ export const AudioProvider = ({ children }) => {
 
     audio.addEventListener('timeupdate', onTimeUpdate);
     audio.addEventListener('loadedmetadata', onLoadedMetadata);
+    audio.addEventListener('canplay', onCanPlay);
+    audio.addEventListener('loadeddata', onLoadedData);
     audio.addEventListener('waiting', onWaiting);
     audio.addEventListener('playing', onPlaying);
     audio.addEventListener('pause', onPause);
@@ -137,6 +145,8 @@ export const AudioProvider = ({ children }) => {
     return () => {
       audio.removeEventListener('timeupdate', onTimeUpdate);
       audio.removeEventListener('loadedmetadata', onLoadedMetadata);
+      audio.removeEventListener('canplay', onCanPlay);
+      audio.removeEventListener('loadeddata', onLoadedData);
       audio.removeEventListener('waiting', onWaiting);
       audio.removeEventListener('playing', onPlaying);
       audio.removeEventListener('pause', onPause);
@@ -191,7 +201,7 @@ export const AudioProvider = ({ children }) => {
     return () => clearInterval(progressSaveTimerRef.current);
   }, [currentBook, currentChapterIndex, currentTime, duration, isPlaying]);
 
-  // Lancer la lecture d'un livre complet (démarrage immédiat 0ms)
+  // Lancer la lecture d'un livre complet (démarrage ultra-rapide 0ms)
   const playBook = (book, chapterIdx = 0, startTime = 0) => {
     setCurrentBook(book);
     setCurrentChapterIndex(chapterIdx);
@@ -201,22 +211,48 @@ export const AudioProvider = ({ children }) => {
     const chapter = book.chapters?.[chapterIdx];
     const rawAudioSrc = chapter?.audio_url || book.preview_url || 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3';
 
-    // Démarrer la lecture immédiatement
-    audioRef.current.src = rawAudioSrc;
-    audioRef.current.playbackRate = playbackRate;
-    audioRef.current.currentTime = startTime || 0;
-    audioRef.current.play().catch(e => console.warn('Lecture restreinte:', e));
+    const audio = audioRef.current;
+    audio.preload = 'auto';
+
+    // Ne recharger le src que si la piste a changé
+    const currentSrcNormalized = audio.src.replace(window.location.origin, '');
+    const targetSrcNormalized = rawAudioSrc.replace(window.location.origin, '');
+    const isSameSource = audio.src === rawAudioSrc || currentSrcNormalized === targetSrcNormalized;
+
+    if (!isSameSource) {
+      audio.src = rawAudioSrc;
+      audio.playbackRate = playbackRate;
+      if (startTime > 0) {
+        const onMetadata = () => {
+          audio.currentTime = startTime;
+          audio.removeEventListener('loadedmetadata', onMetadata);
+        };
+        audio.addEventListener('loadedmetadata', onMetadata);
+      }
+      audio.load();
+    } else if (startTime > 0 && Math.abs(audio.currentTime - startTime) > 1) {
+      audio.currentTime = startTime;
+    }
+
+    audio.play().then(() => {
+      setIsPlaying(true);
+      setIsLoading(false);
+    }).catch(e => {
+      console.warn('Lecture restreinte par le navigateur:', e);
+      setIsLoading(false);
+    });
+
     setIsPlaying(true);
 
-    // Vérifier en arrière-plan si une version hors-ligne plus rapide existe
-    getOfflineAudioUrl(rawAudioSrc).then(cachedSrc => {
-      if (cachedSrc && cachedSrc !== rawAudioSrc && audioRef.current && audioRef.current.src === rawAudioSrc) {
-        const curTime = audioRef.current.currentTime;
-        audioRef.current.src = cachedSrc;
-        audioRef.current.currentTime = curTime;
-        audioRef.current.play().catch(() => {});
-      }
-    }).catch(() => {});
+    // Précharger discrètement le chapitre suivant en tâche de fond pour une transition instantanée
+    if (book.chapters && book.chapters[chapterIdx + 1]?.audio_url) {
+      const nextUrl = book.chapters[chapterIdx + 1].audio_url;
+      const prefetchLink = document.createElement('link');
+      prefetchLink.rel = 'prefetch';
+      prefetchLink.href = nextUrl;
+      prefetchLink.as = 'fetch';
+      document.head.appendChild(prefetchLink);
+    }
   };
 
   // Télécharger explicitement un livre pour lecture hors-ligne
@@ -224,7 +260,7 @@ export const AudioProvider = ({ children }) => {
     return await cacheAudioForOffline(book);
   };
 
-  // Lancer la lecture d'un extrait gratuit (démarrage immédiat)
+  // Lancer la lecture d'un extrait gratuit (démarrage ultra-rapide)
   const playPreview = (book) => {
     setCurrentBook(book);
     setCurrentChapterIndex(0);
@@ -233,18 +269,28 @@ export const AudioProvider = ({ children }) => {
 
     const rawAudioSrc = book.preview_url || 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3';
 
-    audioRef.current.src = rawAudioSrc;
-    audioRef.current.playbackRate = playbackRate;
-    audioRef.current.currentTime = 0;
-    audioRef.current.play().catch(e => console.warn('Lecture restreinte:', e));
-    setIsPlaying(true);
+    const audio = audioRef.current;
+    audio.preload = 'auto';
 
-    getOfflineAudioUrl(rawAudioSrc).then(cachedSrc => {
-      if (cachedSrc && cachedSrc !== rawAudioSrc && audioRef.current && audioRef.current.src === rawAudioSrc) {
-        audioRef.current.src = cachedSrc;
-        audioRef.current.play().catch(() => {});
-      }
-    }).catch(() => {});
+    const currentSrcNormalized = audio.src.replace(window.location.origin, '');
+    const targetSrcNormalized = rawAudioSrc.replace(window.location.origin, '');
+    const isSameSource = audio.src === rawAudioSrc || currentSrcNormalized === targetSrcNormalized;
+
+    if (!isSameSource) {
+      audio.src = rawAudioSrc;
+      audio.playbackRate = playbackRate;
+      audio.load();
+    }
+
+    audio.play().then(() => {
+      setIsPlaying(true);
+      setIsLoading(false);
+    }).catch(e => {
+      console.warn('Lecture restreinte par le navigateur:', e);
+      setIsLoading(false);
+    });
+
+    setIsPlaying(true);
   };
 
   // Basculer Play / Pause

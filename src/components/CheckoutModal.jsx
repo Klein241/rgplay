@@ -64,6 +64,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
   const [transactionId, setTransactionId] = useState('');
   const [payUrl, setPayUrl] = useState('');
   const [elapsedSec, setElapsedSec] = useState(0);
+  const [isConfirming, setIsConfirming] = useState(false);
 
   // ── Refs pour le nettoyage ────────────────────────────────────────────────
   const pollIntervalRef = useRef(null);
@@ -93,6 +94,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
       setTransactionId('');
       setPayUrl('');
       setElapsedSec(0);
+      setIsConfirming(false);
       setPaymentMethod('orange_money');
     }
   }, [isOpen]);
