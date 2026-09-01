@@ -173,14 +173,16 @@ export const Header = ({
               <Sparkles className={`w-4 h-4 ${theme === 'purple' ? 'text-amber-400' : 'text-purple-400'}`} />
             </button>
 
-            {/* Solde Portefeuille */}
-            <div className="hidden lg:flex flex-col items-end px-3 py-1.5 rounded-xl"
-              style={{ background: 'rgba(30,24,64,0.70)', border: '1px solid rgba(255,255,255,0.08)' }}>
-              <span className="rg-section-label" style={{ fontSize: '9px' }}>Solde</span>
-              <span className="text-xs font-black" style={{ color: 'var(--color-rg-emerald)' }}>
-                {(user.solde || 15000).toLocaleString('fr-FR')} FCFA
-              </span>
-            </div>
+            {/* Solde Portefeuille — affiché uniquement si défini */}
+            {user.solde != null && user.solde > 0 && (
+              <div className="hidden lg:flex flex-col items-end px-3 py-1.5 rounded-xl"
+                style={{ background: 'rgba(30,24,64,0.70)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <span className="rg-section-label" style={{ fontSize: '9px' }}>Solde</span>
+                <span className="text-xs font-black" style={{ color: 'var(--color-rg-emerald)' }}>
+                  {user.solde.toLocaleString('fr-FR')} FCFA
+                </span>
+              </div>
+            )}
 
             {/* Profil Avatar */}
             <button

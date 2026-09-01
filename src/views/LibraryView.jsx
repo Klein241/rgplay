@@ -27,8 +27,19 @@ export const LibraryView = ({ onSelectBook, onGoToDiscover }) => {
 
   useEffect(() => {
     loadLibrary();
-    window.addEventListener('rg:library-updated', loadLibrary);
-    return () => window.removeEventListener('rg:library-updated', loadLibrary);
+    const onLibraryUpdated = () => loadLibrary();
+    const onBookDeleted = (e) => {
+      const deletedId = e.detail?.id;
+      if (deletedId) {
+        setLibraryBooks(prev => prev.filter(b => b.id !== deletedId));
+      }
+    };
+    window.addEventListener('rg:library-updated', onLibraryUpdated);
+    window.addEventListener('rg:book-deleted', onBookDeleted);
+    return () => {
+      window.removeEventListener('rg:library-updated', onLibraryUpdated);
+      window.removeEventListener('rg:book-deleted', onBookDeleted);
+    };
   }, []);
 
   const handleRemove = async (e, bookId, bookTitle) => {

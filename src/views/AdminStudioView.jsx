@@ -7,11 +7,12 @@ import {
   Volume2, VolumeX, ArrowUp, ArrowDown, Layers, Smartphone, DollarSign,
   TrendingUp, Users, Clock, Edit3, Send, Check, HardDrive, Database, Headphones,
   FileText, Scissors, Crop, Activity, Grid, FolderPlus, Share2, Zap,
-  LayoutGrid, List
+  LayoutGrid, List, Key, Copy, Terminal, Code2, Shield, Lock, Cpu
 } from 'lucide-react';
 import { apiClient } from '../services/api';
 import { usePush } from '../context/PushContext';
-import { compressImage, compressAndOptimizeAudio } from '../utils/mediaCompressor';
+import { compressImage, compressAndOptimizeAudio, audioBufferToWav } from '../utils/mediaCompressor';
+import { getAnalyticsData } from '../services/tracker';
 
 // ── Formate la taille du fichier ─────────────────────────────────────────────
 const formatSize = (bytes) => {
@@ -328,6 +329,122 @@ const DropZone = ({ label, accept, type, icon: Icon, value, onUploaded, onDurati
   );
 };
 
+// ── Configuration Dynamique par Type de Contenu ─────────────────────────────
+export const CONTENT_TYPE_CONFIG = {
+  audiobook: {
+    id: 'audiobook',
+    label: 'Livre Audio',
+    icon: '📚',
+    color: 'border-purple-500 bg-purple-500/10 text-purple-300',
+    titleLabel: 'Titre du Livre Audio *',
+    titlePlaceholder: 'Ex : L\'Art de la Stratégie Gagnante',
+    creatorLabel: 'Auteur *',
+    creatorPlaceholder: 'Ex : Dr. Paul Kemajou',
+    performerLabel: 'Narrateur / Voix',
+    performerPlaceholder: 'Ex : Voix Française (Studio RG) / Sarah N.',
+    pricePlaceholder: '3500',
+    discountPricePlaceholder: '2900',
+    descriptionLabel: 'Résumé Court *',
+    descriptionPlaceholder: 'Un résumé accrocheur pour la boutique et la découverte...',
+    synopsisLabel: 'Synopsis Complet / Quatrième de couverture',
+    synopsisPlaceholder: 'Détails complets de l\'œuvre, thématiques, table des matières...',
+    coverLabel: '🖼️ Pochette du Livre (JPG, PNG, WebP — Carré max 10 Mo)',
+    previewLabel: '🎙️ Extrait Gratuit du Livre (MP3 / WAV — 2 à 5 min)',
+    itemSingular: 'Chapitre',
+    itemPlural: 'Chapitres',
+    defaultItemTitle: (idx) => `Chapitre ${idx} : Introduction`,
+    defaultItemDuration: 1800,
+    trackDropLabel: (idx) => `🎧 Fichier Audio — Chapitre ${idx}`,
+    publishSuccessTitle: 'Livre Audio Publié avec Succès !',
+    publishSuccessSubtitle: (title) => `"${title}" est maintenant actif et disponible dans le catalogue des livres audio.`,
+    anotherButtonText: '+ Publier un Autre Livre',
+  },
+  podcast: {
+    id: 'podcast',
+    label: 'Podcast',
+    icon: '🎙️',
+    color: 'border-amber-500 bg-amber-500/10 text-amber-300',
+    titleLabel: 'Titre de l\'Émission / Épisode *',
+    titlePlaceholder: 'Ex : Tech Pulse Afrique #14 — L\'essor de l\'IA',
+    creatorLabel: 'Hôte / Présentateur *',
+    creatorPlaceholder: 'Ex : Alain Foka & Équipe RG',
+    performerLabel: 'Invités / Co-animateurs',
+    performerPlaceholder: 'Ex : Dr. Aminata Traoré, Yannick Noah',
+    pricePlaceholder: '1500',
+    discountPricePlaceholder: '900',
+    descriptionLabel: 'Description de l\'Épisode *',
+    descriptionPlaceholder: 'Dans cet épisode, nous décryptons les enjeux de la tech...',
+    synopsisLabel: 'Notes de l\'Émission (Show Notes & Liens)',
+    synopsisPlaceholder: 'Horodatage (00:00 Intro, 05:30 Débat...), liens des invités...',
+    coverLabel: '🎙️ Vignette du Podcast (JPG, PNG, WebP — Carré HD)',
+    previewLabel: '⚡ Teaser / Bande-annonce de l\'Épisode (30s à 2 min)',
+    itemSingular: 'Épisode',
+    itemPlural: 'Épisodes',
+    defaultItemTitle: (idx) => `Épisode ${idx} : Discussion Principale`,
+    defaultItemDuration: 1200,
+    trackDropLabel: (idx) => `🎙️ Audio de l'Épisode ${idx}`,
+    publishSuccessTitle: 'Podcast Publié avec Succès !',
+    publishSuccessSubtitle: (title) => `"${title}" est maintenant en ligne sur les ondes RG Play.`,
+    anotherButtonText: '+ Publier un Autre Podcast',
+  },
+  music: {
+    id: 'music',
+    label: 'Musique & Lofi',
+    icon: '🎵',
+    color: 'border-emerald-500 bg-emerald-500/10 text-emerald-300',
+    titleLabel: 'Titre de la Piste / Album *',
+    titlePlaceholder: 'Ex : Midnight Lofi Afrobeat Vol. 1',
+    creatorLabel: 'Artiste / Compositeur *',
+    creatorPlaceholder: 'Ex : Manu Dibango & RG Studio Beats',
+    performerLabel: 'Featuring / Musiciens / Producteur',
+    performerPlaceholder: 'Ex : feat. Stanley Enow / Prod. Master RG',
+    pricePlaceholder: '2000',
+    discountPricePlaceholder: '1500',
+    descriptionLabel: 'Description / Ambiance Musicale *',
+    descriptionPlaceholder: 'Une sélection de rythmes relaxants pour travailler et se détendre...',
+    synopsisLabel: 'Crédits, Paroles & Tracklist',
+    synopsisPlaceholder: 'Composition, arrangements, mastering, paroles...',
+    coverLabel: '🎵 Pochette d\'Album / Single (JPG, PNG, WebP — Carré HD)',
+    previewLabel: '🎶 Extrait Musical / Teaser (30s à 1 min)',
+    itemSingular: 'Piste',
+    itemPlural: 'Pistes',
+    defaultItemTitle: (idx) => `Piste ${idx} : Intro & Rythmes`,
+    defaultItemDuration: 240,
+    trackDropLabel: (idx) => `🎵 Piste Audio ${idx}`,
+    publishSuccessTitle: 'Titre Musical Publié avec Succès !',
+    publishSuccessSubtitle: (title) => `"${title}" est maintenant prêt pour l'écoute en streaming.`,
+    anotherButtonText: '+ Publier une Autre Piste',
+  },
+  masterclass: {
+    id: 'masterclass',
+    label: 'Masterclass',
+    icon: '🎓',
+    color: 'border-cyan-500 bg-cyan-500/10 text-cyan-300',
+    titleLabel: 'Titre de la Masterclass / Formation *',
+    titlePlaceholder: 'Ex : Masterclass : Vendre avec Succès en Afrique',
+    creatorLabel: 'Formateur / Expert *',
+    creatorPlaceholder: 'Ex : Stanislas Zézé (Président Bloomfield)',
+    performerLabel: 'Intervenants / Mentors Invités',
+    performerPlaceholder: 'Ex : Experts du panel exécutif',
+    pricePlaceholder: '5000',
+    discountPricePlaceholder: '3900',
+    descriptionLabel: 'Objectifs Pédagogiques *',
+    descriptionPlaceholder: 'Ce que vous allez apprendre concrètement dans cette formation audio...',
+    synopsisLabel: 'Programme Détaillé de la Masterclass',
+    synopsisPlaceholder: 'Plan d\'action, exercices pratiques, plan des modules...',
+    coverLabel: '🎓 Visuel de la Masterclass (JPG, PNG, WebP — Carré Pro)',
+    previewLabel: '🎬 Extrait / Introduction Gratuite (3 à 5 min)',
+    itemSingular: 'Module',
+    itemPlural: 'Modules',
+    defaultItemTitle: (idx) => `Module ${idx} : Fondations & Méthodologie`,
+    defaultItemDuration: 900,
+    trackDropLabel: (idx) => `🎓 Audio du Module ${idx}`,
+    publishSuccessTitle: 'Masterclass Publiée avec Succès !',
+    publishSuccessSubtitle: (title) => `"${title}" est maintenant disponible pour les apprenants.`,
+    anotherButtonText: '+ Publier une Autre Masterclass',
+  },
+};
+
 // ══════════════════════════════════════════════════════════════════════════════
 //  COMPOSANT PRINCIPAL : ADMIN STUDIO DASHBOARD (MULTI-RUBRIQUES)
 // ══════════════════════════════════════════════════════════════════════════════
@@ -339,6 +456,7 @@ export const AdminStudioView = ({ onBookCreated }) => {
   const [books, setBooks] = useState([]);
   const [loadingBooks, setLoadingBooks] = useState(true);
   const [catalogSearch, setCatalogSearch] = useState('');
+  const [catalogTypeFilter, setCatalogTypeFilter] = useState('all'); // 'all' | 'audiobook' | 'podcast' | 'music' | 'masterclass'
   const [systemStatus, setSystemStatus] = useState(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
   const [editingBook, setEditingBook] = useState(null); // livre en cours d'édition
@@ -351,6 +469,7 @@ export const AdminStudioView = ({ onBookCreated }) => {
   const [publishResult, setPublishResult] = useState(null);
 
   const [contentType, setContentType] = useState('audiobook');
+  const activeTypeConfig = CONTENT_TYPE_CONFIG[contentType] || CONTENT_TYPE_CONFIG.audiobook;
   const [title, setTitle] = useState('');
   const [author, setAuthor] = useState('');
   const [narrator, setNarrator] = useState('');
@@ -371,6 +490,7 @@ export const AdminStudioView = ({ onBookCreated }) => {
   const [ttsSpeed, setTtsSpeed] = useState(1.0);
   const [ttsPitch, setTtsPitch] = useState(1.0);
   const [isTtsGenerating, setIsTtsGenerating] = useState(false);
+  const [isSpeechSpeaking, setIsSpeechSpeaking] = useState(false);
   const [ttsAudioUrl, setTtsAudioUrl] = useState(null);
   const [ttsDuration, setTtsDuration] = useState(0);
   const [isTtsPlaying, setIsTtsPlaying] = useState(false);
@@ -395,8 +515,18 @@ export const AdminStudioView = ({ onBookCreated }) => {
   const [activeTrimAudioBuffer, setActiveTrimAudioBuffer] = useState(null);
   const [isTrimApplying, setIsTrimApplying] = useState(false);
   const waveformCanvasRef = useRef(null);
+  const trimPlayTimeoutRef = useRef(null);
 
   // ── État Gestionnaire de Catalogues & Catégories ──
+  const [categories, setCategories] = useState([
+    { id: 'cat-1', name: 'Business & Finance', slug: 'business-finance', icon: 'TrendingUp', color: '#9d4edd' },
+    { id: 'cat-2', name: 'Développement Personnel', slug: 'dev-perso', icon: 'Sparkles', color: '#c77dff' },
+    { id: 'cat-3', name: 'Intelligence Artificielle & Tech', slug: 'tech-ia', icon: 'Cpu', color: '#3a86ff' },
+    { id: 'cat-4', name: 'Psychologie & Mental', slug: 'psychologie', icon: 'Brain', color: '#ff006e' },
+    { id: 'cat-5', name: 'Histoire & Stratégie', slug: 'strategie', icon: 'Shield', color: '#fb5607' },
+    { id: 'cat-6', name: 'Romans & Fiction', slug: 'fiction', icon: 'BookOpen', color: '#ffbe0b' },
+  ]);
+  const [loadingCategories, setLoadingCategories] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [newCatSlug, setNewCatSlug] = useState('');
   const [newCatIcon, setNewCatIcon] = useState('Sparkles');
@@ -413,6 +543,256 @@ export const AdminStudioView = ({ onBookCreated }) => {
   const [previewingBookId, setPreviewingBookId] = useState(null);
   const catalogAudioRef = useRef(null);
 
+  // ── État Effet de Masse (Social Proof) ──
+  const [socialModalBook, setSocialModalBook] = useState(null);
+  const [socialPlays, setSocialPlays] = useState(0);
+  const [socialReviews, setSocialReviews] = useState(0);
+  const [socialRating, setSocialRating] = useState(4.9);
+  const [isSavingSocial, setIsSavingSocial] = useState(false);
+
+  // ── État Analytics Visiteurs (Inscrits & Anonymes) ──
+  const [analyticsData, setAnalyticsData] = useState(() => getAnalyticsData());
+  const [selectedVisitorDetail, setSelectedVisitorDetail] = useState(null);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+
+  const loadLiveAnalytics = async () => {
+    setLoadingAnalytics(true);
+    try {
+      const serverData = await apiClient.getAdminAnalytics();
+      const localData = getAnalyticsData();
+      if (serverData && serverData.uniqueVisitors > 0) {
+        setAnalyticsData({
+          ...localData,
+          ...serverData,
+          sources: serverData.sources?.length > 0 ? serverData.sources : localData.sources,
+          topAudios: serverData.topAudios?.length > 0 ? serverData.topAudios : localData.topAudios,
+          recentVisitors: serverData.recentVisitors?.length > 0 ? serverData.recentVisitors : localData.recentVisitors,
+        });
+      } else {
+        setAnalyticsData(localData);
+      }
+    } catch (_) {
+      setAnalyticsData(getAnalyticsData());
+    } finally {
+      setLoadingAnalytics(false);
+    }
+  };
+
+  // ── État Générateur d'API & Clés MCP IA ──
+  const API_AVAILABLE_SCOPES = [
+    {
+      id: 'catalog_read',
+      label: 'Lecture du Catalogue',
+      desc: 'Consulter tous les livres, podcasts, musiques et chapitres',
+      icon: BookOpen,
+      tag: 'GET /api/audiobooks',
+      method: 'GET',
+      endpoint: '/api/audiobooks',
+      fullUrl: 'https://rg-play.pages.dev/api/audiobooks',
+      doc: 'Lister et rechercher dans le catalogue (?type=all|audiobook|podcast|music, ?category=id, ?search=titre)',
+      sampleQuery: '?type=all'
+    },
+    {
+      id: 'catalog_write',
+      label: 'Création & Modification',
+      desc: 'Ajouter ou mettre à jour des titres et chapitres dans Cloudflare D1',
+      icon: Plus,
+      tag: 'POST /api/admin/books',
+      method: 'POST',
+      endpoint: '/api/admin/books',
+      fullUrl: 'https://rg-play.pages.dev/api/admin/books',
+      doc: 'Créer ou mettre à jour un livre audio et ses chapitres dans la base Cloudflare D1',
+      sampleBody: {
+        title: "Prie puis agis",
+        author: "RGPlay",
+        price: 2500,
+        category_name: "Motivations Chrétiennes",
+        description: "Une motivation chrétienne directe...",
+        chapters: [{ title: "Chapitre 1 : Introduction", audio_url: "https://...", duration_seconds: 1800 }]
+      }
+    },
+    {
+      id: 'catalog_pin',
+      label: 'Épinglage Catalogue',
+      desc: 'Épingler ou désépingler des livres en tête de vitrine',
+      icon: Flame,
+      tag: 'POST /api/admin/books/:id/toggle-pin',
+      method: 'POST',
+      endpoint: '/api/admin/books/{id}/toggle-pin',
+      fullUrl: 'https://rg-play.pages.dev/api/admin/books/{book_id}/toggle-pin',
+      doc: 'Mettre en avant ou retirer un contenu de la tête du catalogue',
+      sampleBody: { is_pinned: true }
+    },
+    {
+      id: 'catalog_delete',
+      label: 'Suppression Contenus',
+      desc: 'Supprimer définitivement un livre audio et ses chapitres',
+      icon: Trash2,
+      tag: 'DELETE /api/admin/books/:id',
+      method: 'DELETE',
+      endpoint: '/api/admin/books/{id}',
+      fullUrl: 'https://rg-play.pages.dev/api/admin/books/{book_id}',
+      doc: 'Supprimer définitivement un livre audio et ses chapitres'
+    },
+    {
+      id: 'social_metrics',
+      label: 'Effet de Masse (Social Proof)',
+      desc: 'Personnaliser les écoutes, avis et notes affichés aux clients',
+      icon: Sparkles,
+      tag: 'POST /api/admin/books/:id/social-metrics',
+      method: 'POST',
+      endpoint: '/api/admin/books/{id}/social-metrics',
+      fullUrl: 'https://rg-play.pages.dev/api/admin/books/{book_id}/social-metrics',
+      doc: 'Mettre à jour les métriques sociales affichées aux visiteurs',
+      sampleBody: { display_plays_count: 28000, display_reviews_count: 5600, display_rating: 4.95 }
+    },
+    {
+      id: 'categories_manage',
+      label: 'Gestion des Catégories',
+      desc: 'Créer, modifier et supprimer des univers et thématiques',
+      icon: Grid,
+      tag: 'GET/POST /api/admin/categories',
+      method: 'POST',
+      endpoint: '/api/admin/categories',
+      fullUrl: 'https://rg-play.pages.dev/api/admin/categories',
+      doc: 'Créer ou mettre à jour des catégories',
+      sampleBody: { name: "Investissement & Finance", slug: "investissement-finance", icon: "TrendingUp" }
+    },
+    {
+      id: 'payments_initiate',
+      label: 'Passerelle CamerPay',
+      desc: 'Déclencher des paiements réels Orange Money, MTN et Carte',
+      icon: Smartphone,
+      tag: 'POST /api/payment/initiate',
+      method: 'POST',
+      endpoint: '/api/payment/initiate',
+      fullUrl: 'https://rg-play.pages.dev/api/payment/initiate',
+      doc: 'Initier un paiement mobile money ou carte bancaire',
+      sampleBody: { audiobook_id: "book-1", payment_method: "orange_money", customer_phone: "699456779", amount: 200 }
+    },
+    {
+      id: 'payments_sync',
+      label: 'Vérification & Synchro Paiements',
+      desc: 'Consulter et synchroniser les transactions en attente',
+      icon: RefreshCw,
+      tag: 'GET /api/payment/status/:id',
+      method: 'GET',
+      endpoint: '/api/payment/status/{transaction_id}',
+      fullUrl: 'https://rg-play.pages.dev/api/payment/status/{transaction_id}',
+      doc: 'Vérifier l\'état en temps réel d\'une transaction CamerPay'
+    },
+    {
+      id: 'analytics_read',
+      label: 'Statistiques & Trafic',
+      desc: 'Consulter les métriques de fréquentation, visiteurs et sources',
+      icon: BarChart3,
+      tag: 'GET /api/admin/analytics',
+      method: 'GET',
+      endpoint: '/api/admin/analytics',
+      fullUrl: 'https://rg-play.pages.dev/api/admin/analytics',
+      doc: 'Consulter les statistiques de visites, écoutes et rétention'
+    },
+    {
+      id: 'system_status',
+      label: 'Santé Infrastructure Cloudflare',
+      desc: 'Consulter l\'état en direct de Cloudflare D1, R2 et KV',
+      icon: Database,
+      tag: 'GET /api/status',
+      method: 'GET',
+      endpoint: '/api/status',
+      fullUrl: 'https://rg-play.pages.dev/api/status',
+      doc: 'Vérifier l\'état opérationnel de la base Cloudflare D1, R2 et KV'
+    },
+  ];
+
+  const [apiName, setApiName] = useState('Manus IA Production');
+  const [apiExpiration, setApiExpiration] = useState('never');
+  const [apiRateLimit, setApiRateLimit] = useState('120');
+  const [selectedScopes, setSelectedScopes] = useState([
+    'catalog_read', 'catalog_write', 'catalog_pin', 'social_metrics', 'categories_manage', 'analytics_read', 'system_status'
+  ]);
+  const [generatedKey, setGeneratedKey] = useState(null);
+  const [activeCodeTab, setActiveCodeTab] = useState('manus'); // 'manus', 'mcp', 'curl', 'fetch', 'python'
+  const [copiedField, setCopiedField] = useState(null);
+  const [savedKeys, setSavedKeys] = useState(() => {
+    try {
+      const stored = localStorage.getItem('rgplay_api_keys');
+      if (stored) return JSON.parse(stored);
+    } catch (_) {}
+    return [
+      {
+        id: 'key_manus_default',
+        name: 'Manus IA Assistant',
+        keyMasked: 'rgp_live_806f9a...3c21',
+        fullKey: 'rgp_live_806f9a7b2c4e1d3a5f8b9c0d2e4f6a8b1c3c21',
+        createdAt: new Date().toLocaleDateString('fr-FR'),
+        scopes: ['catalog_read', 'catalog_write', 'catalog_pin', 'social_metrics', 'categories_manage', 'analytics_read', 'system_status'],
+        status: 'active'
+      }
+    ];
+  });
+
+  const toggleScope = (scopeId) => {
+    setSelectedScopes(prev =>
+      prev.includes(scopeId) ? prev.filter(s => s !== scopeId) : [...prev, scopeId]
+    );
+  };
+
+  const selectPreset = (presetType) => {
+    if (presetType === 'all') {
+      setSelectedScopes(API_AVAILABLE_SCOPES.map(s => s.id));
+    } else if (presetType === 'readonly') {
+      setSelectedScopes(['catalog_read', 'analytics_read', 'system_status']);
+    } else if (presetType === 'ai_agent') {
+      setSelectedScopes(['catalog_read', 'catalog_write', 'catalog_pin', 'social_metrics', 'categories_manage', 'analytics_read', 'system_status']);
+    } else if (presetType === 'payments') {
+      setSelectedScopes(['catalog_read', 'payments_initiate', 'payments_sync']);
+    }
+  };
+
+  const handleGenerateKey = () => {
+    const randomHex = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+      .map(b => b.toString(16).padStart(2, '0')).join('');
+    const fullKey = `rgp_live_${randomHex}`;
+    const masked = `rgp_live_${randomHex.slice(0, 6)}...${randomHex.slice(-4)}`;
+
+    const newKeyObj = {
+      id: `key_${Date.now()}`,
+      name: apiName.trim() || 'Intégration RG Play',
+      fullKey,
+      keyMasked: masked,
+      createdAt: new Date().toLocaleDateString('fr-FR'),
+      expiration: apiExpiration,
+      rateLimit: apiRateLimit,
+      scopes: [...selectedScopes],
+      status: 'active'
+    };
+
+    const updatedList = [newKeyObj, ...savedKeys];
+    setSavedKeys(updatedList);
+    setGeneratedKey(newKeyObj);
+
+    try {
+      localStorage.setItem('rgplay_api_keys', JSON.stringify(updatedList));
+    } catch (_) {}
+  };
+
+  const handleCopyText = (text, fieldName) => {
+    navigator.clipboard?.writeText(text);
+    setCopiedField(fieldName);
+    setTimeout(() => setCopiedField(null), 2500);
+  };
+
+  const handleRevokeKey = (keyId) => {
+    if (!window.confirm('Voulez-vous vraiment révoquer cette clé API ?')) return;
+    const updated = savedKeys.filter(k => k.id !== keyId);
+    setSavedKeys(updated);
+    if (generatedKey?.id === keyId) setGeneratedKey(null);
+    try {
+      localStorage.setItem('rgplay_api_keys', JSON.stringify(updated));
+    } catch (_) {}
+  };
+
   // Vérifier le statut système D1 / R2 / KV
   const checkStatus = async () => {
     setCheckingStatus(true);
@@ -422,6 +802,23 @@ export const AdminStudioView = ({ onBookCreated }) => {
     } catch (_) { }
     finally {
       setCheckingStatus(false);
+    }
+  };
+
+  // Chargement des catégories depuis Cloudflare D1 / API
+  const loadCategories = async () => {
+    setLoadingCategories(true);
+    try {
+      const data = await apiClient.getCategories();
+      if (Array.isArray(data) && data.length > 0) {
+        // Filtrer la pseudo-catégorie 'all' pour la gestion admin
+        const filtered = data.filter(c => c.id !== 'all');
+        setCategories(filtered);
+      }
+    } catch (err) {
+      console.error('Erreur chargement catégories:', err);
+    } finally {
+      setLoadingCategories(false);
     }
   };
 
@@ -441,12 +838,23 @@ export const AdminStudioView = ({ onBookCreated }) => {
   // Suppression d'un livre
   const handleDeleteBook = async (bookId, bookTitle) => {
     if (!window.confirm(`Confirmer la suppression du livre "${bookTitle}" ?`)) return;
+
+    // ── 1. Retrait optimiste IMMÉDIAT de l'interface ──────────────
+    setBooks(prev => prev.filter(b => b.id !== bookId));
+
     try {
+      // ── 2. Suppression persistante (serveur D1 + cache KV + localStorage) ──
       await apiClient.deleteAudiobook(bookId);
-      window.dispatchEvent(new Event('rg:book-deleted'));
+      window.dispatchEvent(new CustomEvent('rg:book-deleted', { detail: { id: bookId } }));
+
+      // ── 3. Rechargement depuis le serveur pour vérifier la cohérence ──
+      // Petit délai pour laisser le temps au KV d'être purgé côté Cloudflare
+      await new Promise(r => setTimeout(r, 500));
       await loadBooks();
     } catch (err) {
-      console.error(err);
+      console.error('[handleDeleteBook] Erreur:', err);
+      // En cas d'erreur réseau, recharger quand même (le filtre localStorage protège)
+      await loadBooks();
     }
   };
 
@@ -478,29 +886,59 @@ export const AdminStudioView = ({ onBookCreated }) => {
 
   useEffect(() => {
     loadBooks();
+    loadCategories();
     checkStatus();
+
     const handleBookCreated = () => { loadBooks(); checkStatus(); };
     const handleBookDeleted = () => { loadBooks(); checkStatus(); };
+    const handleCategoryChanged = () => { loadCategories(); };
+
     window.addEventListener('rg:book-created', handleBookCreated);
     window.addEventListener('rg:book-deleted', handleBookDeleted);
+    window.addEventListener('rg:category-updated', handleCategoryChanged);
+    window.addEventListener('rg:category-deleted', handleCategoryChanged);
+
     return () => {
       window.removeEventListener('rg:book-created', handleBookCreated);
       window.removeEventListener('rg:book-deleted', handleBookDeleted);
+      window.removeEventListener('rg:category-updated', handleCategoryChanged);
+      window.removeEventListener('rg:category-deleted', handleCategoryChanged);
+      if (trimPlayTimeoutRef.current) clearTimeout(trimPlayTimeoutRef.current);
     };
   }, []);
 
-  const categories = [
-    { id: 'cat-1', name: 'Business & Finance' },
-    { id: 'cat-2', name: 'Développement Personnel' },
-    { id: 'cat-3', name: 'Intelligence Artificielle & Tech' },
-    { id: 'cat-4', name: 'Psychologie & Mental' },
-    { id: 'cat-5', name: 'Histoire & Stratégie' },
-    { id: 'cat-6', name: 'Romans & Fiction' },
-  ];
+  useEffect(() => {
+    if (activeRubric === 'analytics') {
+      loadLiveAnalytics();
+    }
+  }, [activeRubric]);
 
-  // Gestion des chapitres
-  const addChapter = () =>
-    setChapters(prev => [...prev, { title: `Chapitre ${prev.length + 1}`, duration_seconds: 1800, uploadData: null }]);
+  // Gestion du Changement de Type de Contenu
+  const handleSelectContentType = (newType) => {
+    setContentType(newType);
+    const cfg = CONTENT_TYPE_CONFIG[newType] || CONTENT_TYPE_CONFIG.audiobook;
+    // Si l'utilisateur n'a pas encore téléversé de chapitres et que le titre est par défaut, réadapter le 1er chapitre
+    if (chapters.length === 1 && !chapters[0].uploadData) {
+      setChapters([{
+        title: cfg.defaultItemTitle(1),
+        duration_seconds: cfg.defaultItemDuration,
+        uploadData: null,
+      }]);
+    }
+  };
+
+  // Gestion des chapitres / pistes / épisodes / modules
+  const addChapter = () => {
+    const cfg = CONTENT_TYPE_CONFIG[contentType] || CONTENT_TYPE_CONFIG.audiobook;
+    setChapters(prev => [
+      ...prev,
+      {
+        title: cfg.defaultItemTitle(prev.length + 1),
+        duration_seconds: cfg.defaultItemDuration,
+        uploadData: null,
+      }
+    ]);
+  };
 
   const removeChapter = (i) => setChapters(prev => prev.filter((_, idx) => idx !== i));
   const updateChapter = (i, field, value) =>
@@ -511,7 +949,7 @@ export const AdminStudioView = ({ onBookCreated }) => {
       n[i] = {
         ...n[i],
         uploadData: data,
-        duration_seconds: data?.duration_seconds || n[i].duration_seconds || 1800,
+        duration_seconds: data?.duration_seconds || n[i].duration_seconds || (CONTENT_TYPE_CONFIG[contentType]?.defaultItemDuration || 1800),
       };
       return n;
     });
@@ -519,7 +957,8 @@ export const AdminStudioView = ({ onBookCreated }) => {
   // Publication / Mise à Jour
   const handlePublish = async () => {
     setIsSubmitting(true);
-    const totalDuration = chapters.reduce((s, c) => s + Number(c.duration_seconds || 0), 0) || 1800;
+    const cfg = CONTENT_TYPE_CONFIG[contentType] || CONTENT_TYPE_CONFIG.audiobook;
+    const totalDuration = chapters.reduce((s, c) => s + Number(c.duration_seconds || 0), 0) || cfg.defaultItemDuration;
     const bookId = editingBook?.id || `book-${Date.now()}`;
 
     const newBook = {
@@ -545,7 +984,7 @@ export const AdminStudioView = ({ onBookCreated }) => {
         id: c.id || `chap-${bookId}-${idx + 1}`,
         chapter_number: idx + 1,
         title: c.title,
-        duration_seconds: Number(c.duration_seconds || 1800),
+        duration_seconds: Number(c.duration_seconds || cfg.defaultItemDuration),
         audio_url: c.uploadData?.public_url || c.audio_url || previewData?.public_url || '',
         audio_r2_key: c.uploadData?.r2_key || c.audio_r2_key || `audiobooks/${bookId}/ch${idx + 1}.mp3`,
         audio_stream_url: `/api/chapters/${c.id || `chap-${bookId}-${idx + 1}`}/stream`,
@@ -570,11 +1009,20 @@ export const AdminStudioView = ({ onBookCreated }) => {
     if (onBookCreated) onBookCreated(newBook);
   };
 
-  const resetPublishForm = () => {
-    setStep(1); setContentType('audiobook'); setTitle(''); setAuthor(''); setNarrator('');
-    setPrice('3500'); setDiscountPrice('2900'); setDescription(''); setSynopsis('');
-    setCoverData(null); setPreviewData(null);
-    setChapters([{ title: 'Chapitre 1 : Introduction', duration_seconds: 1800, uploadData: null }]);
+  const resetPublishForm = (targetType = 'audiobook') => {
+    const cfg = CONTENT_TYPE_CONFIG[targetType] || CONTENT_TYPE_CONFIG.audiobook;
+    setStep(1);
+    setContentType(targetType);
+    setTitle('');
+    setAuthor('');
+    setNarrator('');
+    setPrice(cfg.pricePlaceholder);
+    setDiscountPrice(cfg.discountPricePlaceholder);
+    setDescription('');
+    setSynopsis('');
+    setCoverData(null);
+    setPreviewData(null);
+    setChapters([{ title: cfg.defaultItemTitle(1), duration_seconds: cfg.defaultItemDuration, uploadData: null }]);
     setPublishedBook(null);
     setEditingBook(null);
   };
@@ -595,9 +1043,41 @@ export const AdminStudioView = ({ onBookCreated }) => {
     reader.readAsText(file);
   };
 
+  const handleLiveSpeechToggle = () => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    if (isSpeechSpeaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeechSpeaking(false);
+      return;
+    }
+    if (!ttsText.trim()) return;
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(ttsText);
+    utterance.rate = ttsSpeed;
+    utterance.pitch = ttsPitch;
+
+    const voices = window.speechSynthesis.getVoices() || [];
+    const isEn = ttsVoice.startsWith('en-');
+    const langPrefix = isEn ? 'en' : 'fr';
+    const targetVoice = voices.find(v => v.lang.toLowerCase().startsWith(langPrefix)) || voices[0];
+    if (targetVoice) utterance.voice = targetVoice;
+
+    utterance.onstart = () => setIsSpeechSpeaking(true);
+    utterance.onend = () => setIsSpeechSpeaking(false);
+    utterance.onerror = () => setIsSpeechSpeaking(false);
+
+    window.speechSynthesis.speak(utterance);
+  };
+
   const handleGenerateTTS = async () => {
     if (!ttsText.trim()) return;
     setIsTtsGenerating(true);
+
+    // Révocation de l'ancien buffer Blob pour éviter les fuites mémoire
+    if (ttsAudioUrl && ttsAudioUrl.startsWith('blob:')) {
+      try { URL.revokeObjectURL(ttsAudioUrl); } catch (_) {}
+    }
     setTtsAudioUrl(null);
 
     const words = ttsText.trim().split(/\s+/).length;
@@ -903,6 +1383,9 @@ export const AdminStudioView = ({ onBookCreated }) => {
       }
 
       const wavBlob = audioBufferToWav(newBuffer);
+      if (dspProcessedUrl && dspProcessedUrl.startsWith('blob:')) {
+        try { URL.revokeObjectURL(dspProcessedUrl); } catch (_) {}
+      }
       const url = URL.createObjectURL(wavBlob);
       const roundedDur = Math.round(newDur);
 
@@ -951,6 +1434,9 @@ export const AdminStudioView = ({ onBookCreated }) => {
       }
 
       const wavBlob = audioBufferToWav(newBuffer);
+      if (dspProcessedUrl && dspProcessedUrl.startsWith('blob:')) {
+        try { URL.revokeObjectURL(dspProcessedUrl); } catch (_) {}
+      }
       const url = URL.createObjectURL(wavBlob);
       const roundedDur = Math.round(newBuffer.duration);
 
@@ -970,26 +1456,35 @@ export const AdminStudioView = ({ onBookCreated }) => {
   const handleSaveCategory = async () => {
     if (!newCatName.trim()) return;
     setIsSavingCat(true);
-    const catData = {
-      id: editingCat?.id || `cat-${Date.now()}`,
-      name: newCatName.trim(),
-      slug: newCatSlug.trim() || newCatName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-      icon: newCatIcon,
-      color: newCatColor,
-      display_order: categories.length + 1,
-    };
-    await apiClient.createCategory(catData);
-    await loadCategories();
-    setNewCatName('');
-    setNewCatSlug('');
-    setEditingCat(null);
-    setIsSavingCat(false);
+    try {
+      const catData = {
+        id: editingCat?.id || `cat-${Date.now()}`,
+        name: newCatName.trim(),
+        slug: newCatSlug.trim() || newCatName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        icon: newCatIcon,
+        color: newCatColor,
+        display_order: categories.length + 1,
+      };
+      await apiClient.createCategory(catData);
+      await loadCategories();
+      setNewCatName('');
+      setNewCatSlug('');
+      setEditingCat(null);
+    } catch (err) {
+      console.error('Erreur enregistrement catégorie:', err);
+    } finally {
+      setIsSavingCat(false);
+    }
   };
 
   const handleDeleteCategory = async (catId) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer cette catégorie ?')) return;
-    await apiClient.deleteCategory(catId);
-    await loadCategories();
+    if (!window.confirm('Êtes-vous sûr de vouloir supprimer cette catégorie ?')) return;
+    try {
+      await apiClient.deleteCategory(catId);
+      await loadCategories();
+    } catch (err) {
+      console.error('Erreur suppression catégorie:', err);
+    }
   };
 
   const handleApplyDspToPublishing = (chapterIndex = 0) => {
@@ -1017,60 +1512,26 @@ export const AdminStudioView = ({ onBookCreated }) => {
     setStep(3);
   };
 
-  // Helper WAV encoder (16-bit PCM)
-  function audioBufferToWav(buffer) {
-    const numChannels = buffer.numberOfChannels;
-    const sampleRate = buffer.sampleRate;
-    const numSamples = buffer.length;
-    const bytesPerSample = 2;
-    const blockAlign = numChannels * bytesPerSample;
-    const byteRate = sampleRate * blockAlign;
-    const dataSize = numSamples * blockAlign;
-    const wavBuffer = new ArrayBuffer(44 + dataSize);
-    const view = new DataView(wavBuffer);
-
-    const writeStr = (offset, str) => { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); };
-    writeStr(0, 'RIFF');
-    view.setUint32(4, 36 + dataSize, true);
-    writeStr(8, 'WAVE');
-    writeStr(12, 'fmt ');
-    view.setUint32(16, 16, true);
-    view.setUint16(20, 1, true); // PCM
-    view.setUint16(22, numChannels, true);
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, byteRate, true);
-    view.setUint16(32, blockAlign, true);
-    view.setUint16(34, 16, true); // bits per sample
-    writeStr(36, 'data');
-    view.setUint32(40, dataSize, true);
-
-    let offset = 44;
-    for (let i = 0; i < numSamples; i++) {
-      for (let ch = 0; ch < numChannels; ch++) {
-        const sample = Math.max(-1, Math.min(1, buffer.getChannelData(ch)[i]));
-        view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
-        offset += 2;
-      }
-    }
-    return new Blob([wavBuffer], { type: 'audio/wav' });
-  }
-
   // ── Navigation Tabs ──
   const RUBRICS = [
     { id: 'catalog', label: 'Catalogue & Livres', icon: BookOpen, badge: books.length },
     { id: 'categories', label: 'Catalogues & Catégories', icon: Grid, badge: categories.length },
-    { id: 'publish', label: 'Publier un Livre', icon: UploadCloud },
+    { id: 'publish', label: 'Publier un Contenu', icon: UploadCloud },
     { id: 'ai-tts', label: 'Studio IA (Texte ➔ Voix)', icon: Wand2, badge: 'Pro' },
     { id: 'audacity', label: 'Studio Audacity & Découpe', icon: Scissors, badge: 'Cutter' },
     { id: 'analytics', label: 'Statistiques & Ventes', icon: BarChart3 },
     { id: 'push', label: 'Notifications Push', icon: Bell },
+    { id: 'api-generator', label: 'Générateur d\'API & IA', icon: Key, badge: 'MCP / IA' },
     { id: 'settings', label: 'Paramètres & Système', icon: Settings },
   ];
 
-  const filteredBooks = books.filter(b =>
-    b.title?.toLowerCase().includes(catalogSearch.toLowerCase()) ||
-    b.author?.toLowerCase().includes(catalogSearch.toLowerCase())
-  );
+  const filteredBooks = books.filter(b => {
+    const matchSearch =
+      b.title?.toLowerCase().includes(catalogSearch.toLowerCase()) ||
+      b.author?.toLowerCase().includes(catalogSearch.toLowerCase());
+    const matchType = catalogTypeFilter === 'all' || (b.content_type || 'audiobook') === catalogTypeFilter;
+    return matchSearch && matchType;
+  });
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 min-h-[calc(100vh-120px)] animate-fadeIn">
@@ -1136,30 +1597,34 @@ export const AdminStudioView = ({ onBookCreated }) => {
             })}
           </nav>
 
-          {/* Statut Base de données & Stockage */}
-          <div className="pt-4 mt-4 border-t border-white/8 px-2 space-y-2.5">
-            <div className="flex items-center justify-between text-[11px]">
-              <span className="text-slate-400 flex items-center gap-1.5 font-medium">
-                <Database className="w-3.5 h-3.5 text-emerald-400" /> Base de Données
-              </span>
-              <span className="text-emerald-300 font-bold flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#10b981]"></span>
-                {systemStatus?.mode === 'vite_shared_dev_server' ? 'Serveur Local' : (systemStatus?.bindings?.d1?.connected ? 'Cloudflare D1' : 'Connectée')}
-              </span>
-            </div>
-            <div className="flex items-center justify-between text-[11px]">
-              <span className="text-slate-400 flex items-center gap-1.5 font-medium">
-                <HardDrive className="w-3.5 h-3.5 text-cyan-400" /> Stockage Audio
-              </span>
-              <span className="text-cyan-300 font-bold">R2 / Actif</span>
-            </div>
-            <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1">
-              <span>{books.length} titres au catalogue</span>
+          {/* Statut Système & Cloudflare D1 en Direct */}
+          <div className="pt-3 border-t border-white/10 space-y-2">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block px-1">
+              Infrastructure & Base SQL
+            </span>
+            <div className="p-3 rounded-2xl bg-white/4 border border-white/8 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-300 font-semibold flex items-center gap-1.5">
+                  <Database className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Cloudflare D1</span>
+                </span>
+                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${systemStatus?.d1 === 'connected'
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                    : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                  }`}>
+                  {systemStatus?.d1 === 'connected' ? 'En ligne' : 'Local'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-[11px] text-slate-400">
+                <span>Stockage R2</span>
+                <span className="text-purple-300 font-bold">Actif (WebP/MP3)</span>
+              </div>
               <button
                 onClick={checkStatus}
-                title="Rafraîchir statut BD"
-                className="p-1 hover:text-emerald-400 transition-colors"
+                disabled={checkingStatus}
+                className="w-full mt-1 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-[10px] font-bold flex items-center justify-center gap-1.5 transition-all"
               >
+                <span>Vérifier Connexion</span>
                 <RefreshCw className={`w-3.5 h-3.5 ${checkingStatus ? 'animate-spin text-emerald-400' : ''}`} />
               </button>
             </div>
@@ -1186,7 +1651,7 @@ export const AdminStudioView = ({ onBookCreated }) => {
                 </p>
               </div>
               <button
-                onClick={() => { resetPublishForm(); setActiveRubric('publish'); }}
+                onClick={() => { resetPublishForm('audiobook'); setActiveRubric('publish'); }}
                 className="btn-gradient px-6 py-3.5 rounded-2xl text-xs sm:text-sm font-black flex items-center gap-2 shadow-2xl active:scale-95 transition-all"
               >
                 <Plus className="w-4.5 h-4.5" />
@@ -1233,6 +1698,30 @@ export const AdminStudioView = ({ onBookCreated }) => {
                     <span>Liste</span>
                   </button>
                 </div>
+              </div>
+
+              {/* Filtres par Type de Contenu (Pills) */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+                {[
+                  { id: 'all', label: 'Tous', icon: '🌟', count: books.length },
+                  { id: 'audiobook', label: 'Livres Audio', icon: '📚', count: books.filter(b => !b.content_type || b.content_type === 'audiobook').length },
+                  { id: 'podcast', label: 'Podcasts', icon: '🎙️', count: books.filter(b => b.content_type === 'podcast').length },
+                  { id: 'music', label: 'Musique & Lofi', icon: '🎵', count: books.filter(b => b.content_type === 'music').length },
+                  { id: 'masterclass', label: 'Masterclasses', icon: '🎓', count: books.filter(b => b.content_type === 'masterclass').length },
+                ].map(f => (
+                  <button
+                    key={f.id}
+                    onClick={() => setCatalogTypeFilter(f.id)}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${catalogTypeFilter === f.id
+                        ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30 border border-purple-400'
+                        : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-white/8'
+                      }`}
+                  >
+                    <span>{f.icon}</span>
+                    <span>{f.label}</span>
+                    <span className="text-[10px] opacity-70 px-1.5 py-0.2 rounded-full bg-black/30 font-mono">{f.count}</span>
+                  </button>
+                ))}
               </div>
 
               {/* Table / Grille des Livres */}
@@ -1341,8 +1830,8 @@ export const AdminStudioView = ({ onBookCreated }) => {
                               </span>
                             </div>
 
-                            {/* Barre d'actions compacte */}
-                            <div className="grid grid-cols-3 gap-1 pt-1.5 border-t border-white/5">
+                            {/* Barre d'actions compacte (4 boutons) */}
+                            <div className="grid grid-cols-4 gap-1 pt-1.5 border-t border-white/5">
                               {/* Épingler */}
                               <button
                                 onClick={async (e) => {
@@ -1358,6 +1847,21 @@ export const AdminStudioView = ({ onBookCreated }) => {
                                 title={book.is_pinned ? 'Désépingler cet audio' : 'Épingler cet audio en tête'}
                               >
                                 <span>📌</span>
+                              </button>
+
+                              {/* Effet de masse / Social Proof */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSocialModalBook(book);
+                                  setSocialPlays(book.display_plays_count || (book.rating_count ? book.rating_count * 8 : 12500));
+                                  setSocialReviews(book.display_reviews_count || (book.rating_count ? book.rating_count : 2400));
+                                  setSocialRating(book.display_rating || book.rating || 4.9);
+                                }}
+                                className="p-1.5 rounded-lg border bg-white/5 hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border-white/10 hover:border-amber-500/40 transition-all active:scale-95 flex items-center justify-center"
+                                title="Personnaliser l'effet de masse (Écoutes & Avis affichés)"
+                              >
+                                <Flame className="w-3.5 h-3.5 text-amber-400" />
                               </button>
 
                               {/* Éditer */}
@@ -1463,6 +1967,21 @@ export const AdminStudioView = ({ onBookCreated }) => {
                             <span className="hidden sm:inline">
                               {book.is_pinned ? 'Épinglé' : 'Épingler'}
                             </span>
+                          </button>
+
+                          {/* Bouton Effet de masse */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSocialModalBook(book);
+                              setSocialPlays(book.display_plays_count || (book.rating_count ? book.rating_count * 8 : 12500));
+                              setSocialReviews(book.display_reviews_count || (book.rating_count ? book.rating_count : 2400));
+                              setSocialRating(book.display_rating || book.rating || 4.9);
+                            }}
+                            className="p-2.5 rounded-xl border bg-white/5 hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border-white/10 hover:border-amber-500/40 transition-all duration-200 active:scale-95"
+                            title="Personnaliser l'effet de masse (Écoutes & Avis affichés)"
+                          >
+                            <Flame className="w-4.5 h-4.5 text-amber-400" />
                           </button>
 
                           {/* Bouton Pré-écoute */}
@@ -1597,9 +2116,9 @@ export const AdminStudioView = ({ onBookCreated }) => {
                       <button
                         key={t.id}
                         type="button"
-                        onClick={() => setContentType(t.id)}
-                        className={`p-3 rounded-2xl border text-xs font-bold flex flex-col items-center gap-1.5 transition-all ${contentType === t.id
-                            ? `${t.color} border-2 shadow-lg`
+                        onClick={() => handleSelectContentType(t.id)}
+                        className={`p-3 rounded-2xl border text-xs font-bold flex flex-col items-center gap-1.5 transition-all cursor-pointer ${contentType === t.id
+                            ? `${t.color} border-2 shadow-lg scale-[1.02]`
                             : 'border-white/10 bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
                           }`}
                       >
@@ -1613,43 +2132,39 @@ export const AdminStudioView = ({ onBookCreated }) => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="sm:col-span-2">
                     <label className="text-xs font-bold text-slate-300 block mb-1.5">
-                      {contentType === 'podcast' ? 'Titre de l\'Épisode / Émission *' :
-                        contentType === 'music' ? 'Titre de la Piste / Album *' :
-                          contentType === 'masterclass' ? 'Titre de la Masterclass *' :
-                            'Titre de l\'œuvre *'}
+                      {activeTypeConfig.titleLabel}
                     </label>
                     <input
                       type="text"
                       value={title}
                       onChange={e => setTitle(e.target.value)}
-                      placeholder={
-                        contentType === 'podcast' ? 'Ex : Tech Pulse Afrique #12' :
-                          contentType === 'music' ? 'Ex : Lofi Midnight Focus' :
-                            contentType === 'masterclass' ? 'Ex : Masterclass IA Générative' :
-                              'Ex : L\'Art de la Stratégie Gagnante'
-                      }
+                      placeholder={activeTypeConfig.titlePlaceholder}
                       className="rg-input"
                     />
                   </div>
 
                   <div>
-                    <label className="text-xs font-bold text-slate-300 block mb-1.5">Auteur *</label>
+                    <label className="text-xs font-bold text-slate-300 block mb-1.5">
+                      {activeTypeConfig.creatorLabel}
+                    </label>
                     <input
                       type="text"
                       value={author}
                       onChange={e => setAuthor(e.target.value)}
-                      placeholder="Ex : Dr. Paul Kemajou"
+                      placeholder={activeTypeConfig.creatorPlaceholder}
                       className="rg-input"
                     />
                   </div>
 
                   <div>
-                    <label className="text-xs font-bold text-slate-300 block mb-1.5">Narrateur / Voix</label>
+                    <label className="text-xs font-bold text-slate-300 block mb-1.5">
+                      {activeTypeConfig.performerLabel}
+                    </label>
                     <input
                       type="text"
                       value={narrator}
                       onChange={e => setNarrator(e.target.value)}
-                      placeholder="Ex : Sarah N. / Voix IA Denise"
+                      placeholder={activeTypeConfig.performerPlaceholder}
                       className="rg-input"
                     />
                   </div>
@@ -1672,7 +2187,7 @@ export const AdminStudioView = ({ onBookCreated }) => {
                       type="number"
                       value={price}
                       onChange={e => setPrice(e.target.value)}
-                      placeholder="3500"
+                      placeholder={activeTypeConfig.pricePlaceholder}
                       className="rg-input"
                     />
                   </div>
@@ -1683,29 +2198,33 @@ export const AdminStudioView = ({ onBookCreated }) => {
                       type="number"
                       value={discountPrice}
                       onChange={e => setDiscountPrice(e.target.value)}
-                      placeholder="2900"
+                      placeholder={activeTypeConfig.discountPricePlaceholder}
                       className="rg-input"
                     />
                   </div>
 
                   <div className="sm:col-span-2">
-                    <label className="text-xs font-bold text-slate-300 block mb-1.5">Description Courte *</label>
+                    <label className="text-xs font-bold text-slate-300 block mb-1.5">
+                      {activeTypeConfig.descriptionLabel}
+                    </label>
                     <textarea
                       rows={2}
                       value={description}
                       onChange={e => setDescription(e.target.value)}
-                      placeholder="Un résumé accrocheur pour la boutique..."
+                      placeholder={activeTypeConfig.descriptionPlaceholder}
                       className="rg-input resize-none"
                     />
                   </div>
 
                   <div className="sm:col-span-2">
-                    <label className="text-xs font-bold text-slate-300 block mb-1.5">Synopsis Complet</label>
+                    <label className="text-xs font-bold text-slate-300 block mb-1.5">
+                      {activeTypeConfig.synopsisLabel}
+                    </label>
                     <textarea
                       rows={4}
                       value={synopsis}
                       onChange={e => setSynopsis(e.target.value)}
-                      placeholder="Détails complets de l'œuvre..."
+                      placeholder={activeTypeConfig.synopsisPlaceholder}
                       className="rg-input resize-none"
                     />
                   </div>
@@ -1717,7 +2236,7 @@ export const AdminStudioView = ({ onBookCreated }) => {
                     disabled={!title.trim() || !author.trim() || !price}
                     className="btn-gradient px-8 py-3 rounded-2xl text-sm font-bold flex items-center gap-2 disabled:opacity-40"
                   >
-                    <span>Suivant : Médias</span>
+                    <span>Suivant : Médias & Extraits</span>
                     <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -1729,7 +2248,7 @@ export const AdminStudioView = ({ onBookCreated }) => {
               <div className="card-lg space-y-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <DropZone
-                    label="🖼️ Pochette Carrée (JPG, PNG, WebP — max 10 Mo)"
+                    label={activeTypeConfig.coverLabel}
                     accept="image/jpeg,image/png,image/webp"
                     type="cover"
                     icon={ImageIcon}
@@ -1737,13 +2256,13 @@ export const AdminStudioView = ({ onBookCreated }) => {
                     onUploaded={setCoverData}
                   />
                   <DropZone
-                    label="🎙️ Extrait Gratuit (MP3 / WAV — 2 à 5 min)"
+                    label={activeTypeConfig.previewLabel}
                     accept="audio/mpeg,audio/mp3,audio/wav,audio/*"
                     type="preview"
                     icon={Mic}
                     value={previewData?.public_url || ''}
                     onDurationDetected={(dur) => {
-                      if (chapters[0]?.duration_seconds === 1800) {
+                      if (chapters[0]?.duration_seconds === activeTypeConfig.defaultItemDuration) {
                         updateChapter(0, 'duration_seconds', dur);
                       }
                     }}
@@ -1756,20 +2275,22 @@ export const AdminStudioView = ({ onBookCreated }) => {
                     ← Retour
                   </button>
                   <button onClick={() => setStep(3)} className="btn-gradient px-8 py-3 rounded-2xl text-sm font-bold flex items-center gap-2">
-                    <span>Suivant : Chapitres</span>
+                    <span>Suivant : {activeTypeConfig.itemPlural}</span>
                     <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
               </div>
             )}
 
-            {/* ÉTAPE 3 : Chapitres */}
+            {/* ÉTAPE 3 : Chapitres / Épisodes / Pistes / Modules */}
             {step === 3 && (
               <div className="card-lg space-y-6">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-base font-bold text-white">Chapitres Audio ({chapters.length})</h2>
+                  <h2 className="text-base font-bold text-white">
+                    {activeTypeConfig.itemPlural} Audio ({chapters.length})
+                  </h2>
                   <button onClick={addChapter} className="rg-btn-ghost px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5">
-                    <Plus className="w-3.5 h-3.5" /> Ajouter un chapitre
+                    <Plus className="w-3.5 h-3.5" /> Ajouter un {activeTypeConfig.itemSingular.toLowerCase()}
                   </button>
                 </div>
 
@@ -1778,7 +2299,7 @@ export const AdminStudioView = ({ onBookCreated }) => {
                     <div key={i} className="p-4 rounded-2xl bg-white/4 border border-white/8 space-y-3">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-purple-300 flex items-center gap-2">
-                          <Music className="w-4 h-4" /> Chapitre {i + 1}
+                          <Music className="w-4 h-4" /> {activeTypeConfig.itemSingular} {i + 1}
                         </span>
                         {chapters.length > 1 && (
                           <button onClick={() => removeChapter(i)} className="text-slate-400 hover:text-rose-400 p-1">
@@ -1789,7 +2310,9 @@ export const AdminStudioView = ({ onBookCreated }) => {
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                          <label className="text-[11px] font-semibold text-slate-300 block mb-1">Titre du chapitre</label>
+                          <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                            Titre du {activeTypeConfig.itemSingular.toLowerCase()}
+                          </label>
                           <input
                             type="text"
                             value={chap.title}
@@ -1816,7 +2339,7 @@ export const AdminStudioView = ({ onBookCreated }) => {
                       </div>
 
                       <DropZone
-                        label={`🎧 Fichier Audio — Chapitre ${i + 1}`}
+                        label={activeTypeConfig.trackDropLabel(i + 1)}
                         accept="audio/mpeg,audio/mp3,audio/wav,audio/*"
                         type="audio"
                         icon={FileAudio}
@@ -1859,8 +2382,12 @@ export const AdminStudioView = ({ onBookCreated }) => {
                   <CheckCircle2 className="w-8 h-8 text-emerald-400" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-black text-white font-['Outfit']">Livre Audio Publié avec Succès !</h2>
-                  <p className="text-xs text-slate-300 mt-1">"{publishedBook.title}" est maintenant actif et enregistré dans la base de données.</p>
+                  <h2 className="text-2xl font-black text-white font-['Outfit']">
+                    {activeTypeConfig.publishSuccessTitle}
+                  </h2>
+                  <p className="text-xs text-slate-300 mt-1">
+                    {activeTypeConfig.publishSuccessSubtitle(publishedBook.title)}
+                  </p>
                 </div>
 
                 {/* Carte récapitulative & statut BD */}
@@ -1875,22 +2402,24 @@ export const AdminStudioView = ({ onBookCreated }) => {
                       <span className="text-[10px] text-purple-300 font-semibold">{publishedBook.category_name}</span>
                     </div>
                     <h3 className="text-sm font-bold text-white truncate mt-1">{publishedBook.title}</h3>
-                    <p className="text-xs text-slate-400">Par {publishedBook.author} • {publishedBook.chapters?.length || 1} chapitre(s)</p>
+                    <p className="text-xs text-slate-400">
+                      Par {publishedBook.author} • {publishedBook.chapters?.length || 1} {publishedBook.chapters?.length > 1 ? activeTypeConfig.itemPlural.toLowerCase() : activeTypeConfig.itemSingular.toLowerCase()}
+                    </p>
                     <p className="text-xs font-bold text-emerald-400 mt-0.5">{publishedBook.discount_price || publishedBook.price} FCFA</p>
                   </div>
                 </div>
 
                 <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 flex items-center justify-center gap-2">
                   <Check className="w-4 h-4 text-emerald-400" />
-                  <span>Synchronisé : tous les utilisateurs, mobiles et visiteurs voient désormais ce livre en boutique.</span>
+                  <span>Synchronisé : tous les utilisateurs, mobiles et visiteurs voient désormais ce contenu en direct.</span>
                 </div>
 
                 <div className="flex justify-center gap-3 pt-2">
                   <button onClick={() => setActiveRubric('catalog')} className="rg-btn-ghost px-6 py-2.5 rounded-2xl text-sm">
                     Voir dans le Catalogue
                   </button>
-                  <button onClick={resetPublishForm} className="btn-gradient px-6 py-2.5 rounded-2xl text-sm font-bold">
-                    + Publier un Autre Livre
+                  <button onClick={() => resetPublishForm(contentType)} className="btn-gradient px-6 py-2.5 rounded-2xl text-sm font-bold">
+                    {activeTypeConfig.anotherButtonText}
                   </button>
                 </div>
               </div>
@@ -1989,18 +2518,40 @@ export const AdminStudioView = ({ onBookCreated }) => {
                 </div>
               </div>
 
-              {/* Bouton de Synthèse */}
-              <button
-                onClick={handleGenerateTTS}
-                disabled={isTtsGenerating || !ttsText.trim()}
-                className="btn-gradient w-full py-3.5 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 shadow-xl disabled:opacity-40"
-              >
-                {isTtsGenerating ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Synthèse vocale en cours...</>
-                ) : (
-                  <><Wand2 className="w-4 h-4" /> Générer la Voix Humaine par IA</>
-                )}
-              </button>
+              {/* Boutons d'Action TTS */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* 1. Écoute Directe Voix Système */}
+                <button
+                  type="button"
+                  onClick={handleLiveSpeechToggle}
+                  disabled={!ttsText.trim()}
+                  className={`py-3.5 px-4 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 border transition-all cursor-pointer ${
+                    isSpeechSpeaking
+                      ? 'bg-rose-500/20 border-rose-500/40 text-rose-300 animate-pulse'
+                      : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-200 hover:text-white'
+                  }`}
+                >
+                  {isSpeechSpeaking ? (
+                    <><VolumeX className="w-4 h-4 text-rose-400" /><span>Arrêter la Voix Live</span></>
+                  ) : (
+                    <><Volume2 className="w-4 h-4 text-purple-400" /><span>Écouter en Voix Système (Web Speech)</span></>
+                  )}
+                </button>
+
+                {/* 2. Génération Audio Fichier pour Catalogue */}
+                <button
+                  type="button"
+                  onClick={handleGenerateTTS}
+                  disabled={isTtsGenerating || !ttsText.trim()}
+                  className="btn-gradient py-3.5 px-4 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 shadow-xl disabled:opacity-40"
+                >
+                  {isTtsGenerating ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Synthèse vocale en cours...</>
+                  ) : (
+                    <><Wand2 className="w-4 h-4" /> Générer Fichier Audio IA</>
+                  )}
+                </button>
+              </div>
 
               {/* Résultat & Pré-écoute */}
               {ttsAudioUrl && (
@@ -2241,14 +2792,15 @@ export const AdminStudioView = ({ onBookCreated }) => {
                         type="button"
                         onClick={() => {
                           if (!dspAudioRef.current) return;
+                          if (trimPlayTimeoutRef.current) clearTimeout(trimPlayTimeoutRef.current);
                           dspAudioRef.current.currentTime = trimStart;
-                          dspAudioRef.current.play();
-                          const durationToPlay = (trimEnd || dspDuration) - trimStart;
-                          setTimeout(() => {
+                          dspAudioRef.current.play().catch(() => {});
+                          const durationToPlay = Math.max(0.5, (trimEnd || dspDuration) - trimStart);
+                          trimPlayTimeoutRef.current = setTimeout(() => {
                             if (dspAudioRef.current && !dspAudioRef.current.paused) {
                               dspAudioRef.current.pause();
                             }
-                          }, Math.max(500, durationToPlay * 1000));
+                          }, durationToPlay * 1000);
                         }}
                         className="px-4 py-2 rounded-xl text-xs font-black bg-purple-600 hover:bg-purple-500 text-white shadow-lg flex items-center gap-2 active:scale-95 transition-all"
                       >
@@ -2258,6 +2810,7 @@ export const AdminStudioView = ({ onBookCreated }) => {
                       <button
                         type="button"
                         onClick={() => {
+                          if (trimPlayTimeoutRef.current) clearTimeout(trimPlayTimeoutRef.current);
                           if (dspAudioRef.current) dspAudioRef.current.pause();
                         }}
                         className="px-3.5 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-slate-300 flex items-center gap-1.5"
@@ -2531,85 +3084,312 @@ export const AdminStudioView = ({ onBookCreated }) => {
         )}
 
         {/* ══════════════════════════════════════════════════════════════════
-            5. RUBRIQUE : STATISTIQUES & VENTES
+            5. RUBRIQUE : STATISTIQUES & ANALYTICS VISITEURS
             ══════════════════════════════════════════════════════════════════ */}
         {activeRubric === 'analytics' && (() => {
           const totalBooks = books.length;
-          const totalDuration = books.reduce((s, b) => s + (b.duration_seconds || 0), 0);
-          const avgPrice = totalBooks > 0 ? Math.round(books.reduce((s, b) => s + (b.discount_price || b.price || 0), 0) / totalBooks) : 0;
-          const featuredCount = books.filter(b => Boolean(b.is_featured)).length;
-          const bestsellerCount = books.filter(b => Boolean(b.is_bestseller)).length;
+          const {
+            uniqueVisitors = 0,
+            todayVisitors = 0,
+            sources = [],
+            topAudios = [],
+            recentVisitors = [],
+            convRate = '0.0',
+          } = analyticsData || {};
+
           return (
             <div className="space-y-6 animate-fadeIn">
-              <div>
-                <h1 className="text-2xl sm:text-3xl font-black text-white font-['Outfit']">Statistiques & Ventes</h1>
-                <p className="text-xs sm:text-sm text-slate-400 mt-0.5">Suivi des performances du catalogue en temps réel</p>
+              {/* Header avec bouton rafraîchir */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h1 className="text-2xl sm:text-3xl font-black text-white font-['Outfit'] flex items-center gap-2.5">
+                    <Activity className="w-7 h-7 text-emerald-400" />
+                    <span>Statistiques & Visiteurs en Direct</span>
+                  </h1>
+                  <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+                    Suivi précis de tous les visiteurs (inscrits & anonymes), sources d'acquisition et audios écoutés
+                  </p>
+                </div>
+                <button
+                  onClick={loadLiveAnalytics}
+                  disabled={loadingAnalytics}
+                  className="rg-btn-ghost px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 self-start sm:self-auto"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${loadingAnalytics ? 'animate-spin text-emerald-400' : ''}`} />
+                  <span>Actualiser</span>
+                </button>
               </div>
 
-              {/* KPIs réels */}
+              {/* ── 1. KPIs VISITEURS & CONVERSION EN DIRECT ── */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                {[
-                  { label: 'Livres dans le Catalogue', value: totalBooks, icon: BookOpen, color: 'text-purple-400' },
-                  { label: 'Durée Totale du Catalogue', value: `${Math.round(totalDuration / 3600)}h`, icon: Clock, color: 'text-cyan-400' },
-                  { label: 'Prix Moyen', value: `${avgPrice} FCFA`, icon: DollarSign, color: 'text-emerald-400' },
-                  { label: 'Bestsellers', value: bestsellerCount, icon: Star, color: 'text-amber-400' },
-                ].map(({ label, value, icon: Icon, color }) => (
-                  <div key={label} className="card-md space-y-2">
-                    <Icon className={`w-5 h-5 ${color}`} />
-                    <p className="text-lg sm:text-xl font-black text-white">{value}</p>
-                    <p className="text-xs text-slate-400">{label}</p>
+                <div className="card-md space-y-1.5 border border-purple-500/20 bg-purple-950/10">
+                  <div className="flex items-center justify-between">
+                    <Users className="w-5 h-5 text-purple-400" />
+                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300">Total</span>
                   </div>
-                ))}
-              </div>
+                  <p className="text-2xl sm:text-3xl font-black text-white font-['Outfit']">{uniqueVisitors}</p>
+                  <p className="text-xs text-slate-400">Visiteurs Uniques Détectés</p>
+                </div>
 
-              {/* Catalogue par catégorie */}
-              <div className="card-lg space-y-4">
-                <h2 className="text-sm font-bold text-white">Répartition par Catégorie</h2>
-                <div className="space-y-2">
-                  {categories.map(cat => {
-                    const count = books.filter(b => b.category_id === cat.id).length;
-                    const pct = totalBooks > 0 ? Math.round((count / totalBooks) * 100) : 0;
-                    if (count === 0) return null;
-                    return (
-                      <div key={cat.id} className="flex items-center gap-3 text-xs">
-                        <span className="text-slate-300 w-40 truncate">{cat.name}</span>
-                        <div className="flex-1 h-2 rounded-full bg-white/10 overflow-hidden">
-                          <div className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
-                        </div>
-                        <span className="text-slate-400 font-mono w-14 text-right">{count} livre{count > 1 ? 's' : ''}</span>
-                      </div>
-                    );
-                  })}
+                <div className="card-md space-y-1.5 border border-emerald-500/20 bg-emerald-950/10">
+                  <div className="flex items-center justify-between">
+                    <Zap className="w-5 h-5 text-emerald-400" />
+                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300">Aujourd'hui</span>
+                  </div>
+                  <p className="text-2xl sm:text-3xl font-black text-emerald-400 font-['Outfit']">{todayVisitors}</p>
+                  <p className="text-xs text-slate-400">Visites du Jour</p>
+                </div>
+
+                <div className="card-md space-y-1.5 border border-cyan-500/20 bg-cyan-950/10">
+                  <div className="flex items-center justify-between">
+                    <Headphones className="w-5 h-5 text-cyan-400" />
+                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300">Écoutes</span>
+                  </div>
+                  <p className="text-2xl sm:text-3xl font-black text-cyan-300 font-['Outfit']">
+                    {topAudios.reduce((s, a) => s + (a.plays || 0), 0)}
+                  </p>
+                  <p className="text-xs text-slate-400">Lectures Réelles Déclenchées</p>
+                </div>
+
+                <div className="card-md space-y-1.5 border border-amber-500/20 bg-amber-950/10">
+                  <div className="flex items-center justify-between">
+                    <TrendingUp className="w-5 h-5 text-amber-400" />
+                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300">Conversion</span>
+                  </div>
+                  <p className="text-2xl sm:text-3xl font-black text-amber-300 font-['Outfit']">{convRate}%</p>
+                  <p className="text-xs text-slate-400">Clics d'Achat / Visiteur</p>
                 </div>
               </div>
 
-              {/* Catalogue complet */}
-              <div className="card-lg space-y-3">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-bold text-white">Tous les Titres du Catalogue</h2>
-                  <span className="text-xs text-slate-400">{totalBooks} titre{totalBooks > 1 ? 's' : ''}</span>
-                </div>
-                <div className="space-y-2 max-h-80 overflow-y-auto pr-1 no-scrollbar">
-                  {books.map((book, idx) => (
-                    <div key={book.id} className="flex items-center gap-3 p-2.5 rounded-xl bg-white/4 border border-white/6 text-xs">
-                      <span className="text-slate-500 font-mono w-5">{idx + 1}</span>
-                      <img src={book.cover_url} alt={book.title}
-                        onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?w=100&q=60'; }}
-                        className="w-10 h-10 rounded-lg object-cover border border-white/10 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-white truncate">{book.title}</p>
-                        <p className="text-slate-400 truncate">Par {book.author} • {book.chapters?.length || 1} ch.</p>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <p className="font-black text-emerald-400">{book.discount_price || book.price} F</p>
-                        <div className="flex items-center gap-1 justify-end mt-0.5">
-                          <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                          <span className="text-amber-300">{book.rating || 5.0}</span>
-                        </div>
-                      </div>
+              {/* ── 2. SOURCES DE TRAFIC & AUDIOS RÉELLEMENT ÉCOUTÉS ── */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                {/* Sources d'acquisition */}
+                <div className="card-lg space-y-4">
+                  <h2 className="text-sm font-bold text-white flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <Share2 className="w-4 h-4 text-purple-400" />
+                      <span>Origine du Trafic (D'où viennent vos visiteurs ?)</span>
+                    </span>
+                    <span className="text-xs text-slate-400 font-normal">WhatsApp, Réseaux, Direct</span>
+                  </h2>
+
+                  {sources.length === 0 ? (
+                    <p className="text-xs text-slate-400 py-6 text-center">Aucune source enregistrée pour l'instant.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {sources.map(src => {
+                        const iconColor =
+                          src.source === 'WhatsApp' ? 'text-emerald-400' :
+                          src.source === 'Facebook' ? 'text-blue-400' :
+                          src.source === 'TikTok' ? 'text-pink-400' :
+                          src.source === 'Instagram' ? 'text-fuchsia-400' :
+                          src.source === 'Google' ? 'text-amber-400' : 'text-slate-400';
+                        return (
+                          <div key={src.source} className="space-y-1 text-xs">
+                            <div className="flex items-center justify-between font-bold">
+                              <span className={`flex items-center gap-1.5 ${iconColor}`}>
+                                {src.source === 'WhatsApp' ? '💬' :
+                                 src.source === 'Facebook' ? '📘' :
+                                 src.source === 'TikTok' ? '🎵' :
+                                 src.source === 'Instagram' ? '📸' :
+                                 src.source === 'Google' ? '🔍' : '🌐'} {src.source}
+                              </span>
+                              <span className="text-slate-300 font-mono">{src.count} visites ({src.pct}%)</span>
+                            </div>
+                            <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                              <div
+                                className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-emerald-400 rounded-full transition-all duration-700"
+                                style={{ width: `${src.pct}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  ))}
+                  )}
                 </div>
+
+                {/* Top Audios écoutés en direct */}
+                <div className="card-lg space-y-4">
+                  <h2 className="text-sm font-bold text-white flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <Headphones className="w-4 h-4 text-emerald-400" />
+                      <span>Audios les Plus Écoutés (Statistiques Réelles)</span>
+                    </span>
+                    <span className="text-xs text-emerald-400 font-bold">Privé Admin</span>
+                  </h2>
+
+                  {topAudios.length === 0 ? (
+                    <p className="text-xs text-slate-400 py-6 text-center">Aucune écoute enregistrée pour l'instant.</p>
+                  ) : (
+                    <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1 no-scrollbar">
+                      {topAudios.map((aud, idx) => (
+                        <div key={aud.id || idx} className="p-3 rounded-2xl bg-white/4 border border-white/6 flex items-center justify-between gap-3 text-xs">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="w-6 h-6 rounded-lg bg-purple-500/20 text-purple-300 font-bold flex items-center justify-center text-[11px] flex-shrink-0 font-mono">
+                              {idx + 1}
+                            </span>
+                            <div className="min-w-0">
+                              <p className="font-bold text-white truncate">{aud.title || aud.audiobook_title || 'Audiobook'}</p>
+                              <p className="text-[10px] text-slate-400">
+                                {aud.seconds || aud.total_seconds ? `~${Math.round((aud.seconds || aud.total_seconds) / 60)} min écoutées au total` : 'Écoutes en cours'}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <span className="px-2.5 py-1 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-black text-xs font-mono">
+                              {aud.plays} écoute{aud.plays > 1 ? 's' : ''}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* ── 3. JOURNAL DÉTAILLÉ DE TOUS LES VISITEURS (FEED EN DIRECT) ── */}
+              <div className="card-lg space-y-4">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                      <Users className="w-4 h-4 text-cyan-400" />
+                      <span>Flux des Visiteurs Récents ({recentVisitors.length})</span>
+                    </h2>
+                    <p className="text-xs text-slate-400">Cliquez sur un visiteur pour voir tous ses audios écoutés et interactions</p>
+                  </div>
+                  <span className="text-[11px] px-3 py-1 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-bold">
+                    Direct
+                  </span>
+                </div>
+
+                {recentVisitors.length === 0 ? (
+                  <div className="text-center py-10 space-y-2">
+                    <Users className="w-10 h-10 text-slate-600 mx-auto" />
+                    <p className="text-xs text-slate-400">Aucun visiteur enregistré dans la base pour le moment.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1 no-scrollbar">
+                    {recentVisitors.map((vis) => {
+                      const isSelected = selectedVisitorDetail === vis.visitor_id;
+                      const hasAudios = (vis.audios && vis.audios.length > 0) || (vis.events && vis.events.some(e => e.event_type === 'audio_play'));
+                      const hasPurchases = (vis.actions && vis.actions.some(a => a.action === 'buy_click')) || (vis.events && vis.events.some(e => e.action === 'buy_click'));
+                      const timeAgo = vis.started_at ? new Date(vis.started_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : 'récent';
+
+                      return (
+                        <div
+                          key={vis.visitor_id}
+                          className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-purple-950/30 border-purple-500/50 shadow-lg'
+                              : 'bg-white/4 border-white/6 hover:border-white/15'
+                          }`}
+                          onClick={() => setSelectedVisitorDetail(isSelected ? null : vis.visitor_id)}
+                        >
+                          <div className="flex items-center justify-between gap-3 flex-wrap">
+                            {/* Identifiant & Inscription */}
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-600 to-pink-600 flex items-center justify-center font-black text-xs text-white flex-shrink-0">
+                                {vis.user_name ? vis.user_name[0].toUpperCase() : '👤'}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <p className="text-xs font-bold text-white truncate font-['Outfit']">
+                                    {vis.user_name || `Visiteur #${vis.visitor_id.slice(-6)}`}
+                                  </p>
+                                  {vis.user_email ? (
+                                    <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold">Inscrit</span>
+                                  ) : (
+                                    <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-white/10 text-slate-400 font-bold">Anonyme</span>
+                                  )}
+                                </div>
+                                <p className="text-[10px] text-slate-400 truncate">
+                                  {vis.device || 'Mobile'} • {vis.landing_url ? new URL(vis.landing_url).pathname : '/'}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Source & Actions */}
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                vis.source === 'WhatsApp' ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' :
+                                vis.source === 'Facebook' ? 'bg-blue-500/15 text-blue-300 border-blue-500/30' :
+                                vis.source === 'TikTok' ? 'bg-pink-500/15 text-pink-300 border-pink-500/30' :
+                                'bg-white/8 text-slate-300 border-white/10'
+                              }`}>
+                                {vis.source || 'Direct'}
+                              </span>
+
+                              {hasAudios && (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 font-bold flex items-center gap-0.5">
+                                  <Headphones className="w-2.5 h-2.5" /> Écouté
+                                </span>
+                              )}
+
+                              {hasPurchases && (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
+                                  🛒 Clic Achat
+                                </span>
+                              )}
+
+                              <span className="text-[10px] text-slate-400 font-mono">{timeAgo}</span>
+                            </div>
+                          </div>
+
+                          {/* Tiroir d'interaction détaillé */}
+                          {isSelected && (
+                            <div className="mt-3 pt-3 border-t border-white/10 space-y-2 text-xs animate-fadeIn">
+                              <p className="font-bold text-purple-300 text-[11px] uppercase tracking-wider">
+                                Historique d'Écoute & Interactions de ce Visiteur :
+                              </p>
+
+                              {/* Audios écoutés */}
+                              {vis.audios && vis.audios.length > 0 ? (
+                                <div className="space-y-1">
+                                  {vis.audios.map((a, i) => (
+                                    <div key={i} className="flex items-center justify-between p-2 rounded-xl bg-white/4 text-slate-300 text-[11px]">
+                                      <span className="flex items-center gap-1.5 truncate">
+                                        <Headphones className="w-3 h-3 text-purple-400 flex-shrink-0" />
+                                        <span className="font-semibold text-white">{a.audiobook_title || 'Audio'}</span>
+                                      </span>
+                                      <span className="text-slate-400 font-mono">{a.seconds_listened || 0}s écoutées</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : vis.events && vis.events.filter(e => e.event_type === 'audio_play').length > 0 ? (
+                                <div className="space-y-1">
+                                  {vis.events.filter(e => e.event_type === 'audio_play').map((a, i) => (
+                                    <div key={i} className="flex items-center justify-between p-2 rounded-xl bg-white/4 text-slate-300 text-[11px]">
+                                      <span className="flex items-center gap-1.5 truncate">
+                                        <Headphones className="w-3 h-3 text-purple-400 flex-shrink-0" />
+                                        <span className="font-semibold text-white">{a.audiobook_title || 'Audio'}</span>
+                                      </span>
+                                      <span className="text-slate-400 font-mono">{a.seconds_listened || 0}s écoutées</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-[11px] text-slate-400 italic">Aucun extrait audio écouté lors de cette session.</p>
+                              )}
+
+                              {/* Clics & Actions */}
+                              {vis.actions && vis.actions.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5 pt-1">
+                                  {vis.actions.map((act, i) => (
+                                    <span key={i} className="text-[10px] px-2 py-0.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-300">
+                                      ⚡ Action : {act.action}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           );
@@ -2804,6 +3584,852 @@ export const AdminStudioView = ({ onBookCreated }) => {
                 >
                   <Download className="w-4 h-4" />
                   <span>Exporter le catalogue complet (JSON)</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════
+            8. RUBRIQUE : GÉNÉRATEUR D'API & INTÉGRATIONS IA (MCP / MANUS)
+            ══════════════════════════════════════════════════════════════════ */}
+        {activeRubric === 'api-generator' && (
+          <div className="space-y-6 animate-fadeIn">
+            {/* Header de la rubrique */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-extrabold mb-2">
+                  <Cpu className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Passerelle Développeur & Agents IA</span>
+                </div>
+                <h1 className="text-2xl sm:text-4xl font-black text-white font-['Outfit'] tracking-tight">
+                  Générateur d'API & MCP IA
+                </h1>
+                <p className="text-xs sm:text-sm text-slate-400 mt-1 font-medium max-w-2xl">
+                  Générez des clés d'accès sécurisées et des configurations prêtes à l'emploi (Manus IA, Claude Desktop, Cursor, Scripts cURL/Python) adaptées aux fonctionnalités sélectionnées.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => selectPreset('ai_agent')}
+                  className="px-4 py-2.5 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 text-purple-300 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Preset Manus IA</span>
+                </button>
+                <button
+                  onClick={() => selectPreset('all')}
+                  className="px-4 py-2.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Tout Cocher</span>
+                </button>
+              </div>
+            </div>
+
+            {/* ── BANDEAU POINT D'ENTRÉE API & BASE URL ── */}
+            <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-emerald-950/60 via-slate-900/80 to-purple-950/60 border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl backdrop-blur-xl">
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-300 flex-shrink-0 shadow-lg shadow-emerald-500/10">
+                  <Terminal className="w-6 h-6" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Point d'Entrée API (Base Endpoint)</span>
+                    <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">REST • HTTPS</span>
+                  </div>
+                  <code className="text-sm sm:text-base font-mono font-black text-emerald-300 block truncate mt-0.5">
+                    https://rg-play.pages.dev/api
+                  </code>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0 self-start sm:self-center">
+                <button
+                  type="button"
+                  onClick={() => handleCopyText('https://rg-play.pages.dev/api', 'base_url')}
+                  className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer"
+                >
+                  {copiedField === 'base_url' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedField === 'base_url' ? 'Copié !' : 'Copier le Base URL'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Formulaire de Configuration de la Clé */}
+            <div className="card-lg space-y-6">
+              <div className="border-b border-white/10 pb-4">
+                <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  <Key className="w-4 h-4 text-emerald-400" /> 1. Paramètres de l'Accès API
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">Identifiez l'assistant IA ou l'application qui utilisera cette clé</p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-1.5 sm:col-span-1">
+                  <label className="text-xs font-bold text-slate-300">Nom de l'Assistant / Client *</label>
+                  <input
+                    type="text"
+                    value={apiName}
+                    onChange={(e) => setApiName(e.target.value)}
+                    placeholder="Ex: Manus IA Prod, Agent Cursor..."
+                    className="rg-input text-xs w-full font-bold"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-300">Durée de Validité</label>
+                  <select
+                    value={apiExpiration}
+                    onChange={(e) => setApiExpiration(e.target.value)}
+                    className="rg-input text-xs w-full cursor-pointer"
+                    style={{ background: '#16112e' }}
+                  >
+                    <option value="never">Illimitée (Recommandé pour agents)</option>
+                    <option value="30d">30 Jours</option>
+                    <option value="90d">90 Jours</option>
+                    <option value="365d">1 An</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-300">Limite de Débit (Rate Limit)</label>
+                  <select
+                    value={apiRateLimit}
+                    onChange={(e) => setApiRateLimit(e.target.value)}
+                    className="rg-input text-xs w-full cursor-pointer"
+                    style={{ background: '#16112e' }}
+                  >
+                    <option value="120">120 requêtes / minute (Standard)</option>
+                    <option value="300">300 requêtes / minute (Haute cadence)</option>
+                    <option value="unlimited">Illimité (Mode Admin Total)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Sélection des Fonctionnalités / Scopes */}
+              <div className="space-y-3 pt-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-3">
+                  <div>
+                    <h2 className="text-base font-bold text-white flex items-center gap-2">
+                      <Sliders className="w-4 h-4 text-purple-400" /> 2. Fonctionnalités & Permissions Autorisées ({selectedScopes.length}/{API_AVAILABLE_SCOPES.length})
+                    </h2>
+                    <p className="text-xs text-slate-400 mt-0.5">Cochez uniquement les modules que l'IA ou l'application a le droit d'exécuter</p>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => selectPreset('readonly')}
+                      className="text-[11px] px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 transition-colors cursor-pointer"
+                    >
+                      Lecture Seule
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => selectPreset('payments')}
+                      className="text-[11px] px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 transition-colors cursor-pointer"
+                    >
+                      Paiements Seuls
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                  {API_AVAILABLE_SCOPES.map((scope) => {
+                    const isChecked = selectedScopes.includes(scope.id);
+                    const ScopeIcon = scope.icon;
+                    return (
+                      <div
+                        key={scope.id}
+                        onClick={() => toggleScope(scope.id)}
+                        className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-start gap-3.5 select-none ${
+                          isChecked
+                            ? 'bg-emerald-500/10 border-emerald-500/40 shadow-lg shadow-emerald-500/5 scale-[1.01]'
+                            : 'bg-white/4 border-white/8 hover:bg-white/8 text-slate-400 opacity-75 hover:opacity-100'
+                        }`}
+                      >
+                        <div className={`w-5 h-5 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 border transition-all ${
+                          isChecked
+                            ? 'bg-gradient-to-tr from-emerald-600 to-teal-500 border-emerald-400 text-white shadow-md'
+                            : 'bg-white/5 border-white/20 text-transparent'
+                        }`}>
+                          <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-bold text-white flex items-center gap-1.5 truncate">
+                              <ScopeIcon className={`w-3.5 h-3.5 ${isChecked ? 'text-emerald-400' : 'text-slate-400'}`} />
+                              {scope.label}
+                            </span>
+                            <span className="text-[9px] font-mono px-2 py-0.5 rounded-md bg-white/8 text-slate-300 flex-shrink-0 border border-white/6 font-bold">
+                              {scope.tag}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-1 leading-snug">
+                            {scope.desc}
+                          </p>
+                          <code className="text-[10px] text-cyan-300/80 font-mono block mt-1 truncate">
+                            {scope.fullUrl}
+                          </code>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Bouton de Génération */}
+              <div className="pt-3 border-t border-white/10 flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleGenerateKey}
+                  disabled={selectedScopes.length === 0}
+                  className="btn-gradient px-7 py-3.5 rounded-2xl text-xs sm:text-sm font-black flex items-center gap-2 shadow-2xl active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
+                >
+                  <Zap className="w-4 h-4 fill-white" />
+                  <span>Générer la Clé d'API & Config IA ({selectedScopes.length} permissions)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* ══════════════════════════════════════════════════════════════
+                RÉSULTAT : CLÉ GÉNÉRÉE & CODE SNIPPETS
+                ══════════════════════════════════════════════════════════════ */}
+            {generatedKey && (
+              <div className="card-lg space-y-5 border border-emerald-500/40 bg-emerald-950/20 animate-fadeIn">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-emerald-500/20 pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-500 flex items-center justify-center text-slate-950 shadow-lg flex-shrink-0">
+                      <Key className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-black text-white font-['Outfit']">
+                        Clé d'API Prête : {generatedKey.name}
+                      </h3>
+                      <p className="text-xs text-emerald-300">
+                        {generatedKey.scopes.length} fonctionnalités débloquées • Expiration : {generatedKey.expiration === 'never' ? 'Illimitée' : generatedKey.expiration}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-black flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                      Prêt à l'Emploi
+                    </span>
+                  </div>
+                </div>
+
+                {/* Double Carte : Base URL & Token Bearer */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {/* 1. Point d'Entrée Global (Base URL) */}
+                  <div className="p-4 rounded-2xl bg-black/50 border border-emerald-500/30 space-y-2">
+                    <div className="flex items-center justify-between text-xs text-slate-400">
+                      <span className="font-bold flex items-center gap-1.5 text-slate-300">
+                        <ExternalLink className="w-3.5 h-3.5 text-cyan-400" /> Endpoint Racine (Base URL)
+                      </span>
+                      <span className="text-[10px] text-cyan-300">URL Globale</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        value="https://rg-play.pages.dev/api"
+                        className="rg-input text-xs font-mono font-bold text-cyan-300 bg-slate-950/80 border-cyan-500/40 w-full select-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleCopyText('https://rg-play.pages.dev/api', 'res_base_url')}
+                        className="px-3.5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold flex items-center gap-1 transition-all flex-shrink-0 active:scale-95 cursor-pointer shadow-md"
+                      >
+                        {copiedField === 'res_base_url' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{copiedField === 'res_base_url' ? 'Copié !' : 'Copier'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 2. Token Bearer */}
+                  <div className="p-4 rounded-2xl bg-black/50 border border-emerald-500/30 space-y-2">
+                    <div className="flex items-center justify-between text-xs text-slate-400">
+                      <span className="font-bold flex items-center gap-1.5 text-slate-300">
+                        <Lock className="w-3.5 h-3.5 text-emerald-400" /> Clé Bearer (Token d'Authentification)
+                      </span>
+                      <span className="text-[10px] text-amber-300">Header: Authorization</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        value={generatedKey.fullKey}
+                        className="rg-input text-xs font-mono font-bold text-emerald-300 bg-slate-950/80 border-emerald-500/40 w-full select-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleCopyText(generatedKey.fullKey, 'key')}
+                        className="px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1 transition-all flex-shrink-0 active:scale-95 cursor-pointer shadow-md"
+                      >
+                        {copiedField === 'key' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{copiedField === 'key' ? 'Copié !' : 'Copier'}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Switcher d'Export & Endpoints Détaillés ── */}
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                    <span className="text-xs font-bold text-slate-300 flex items-center gap-2">
+                      <Terminal className="w-4 h-4 text-cyan-400" /> Choisissez votre mode d'intégration :
+                    </span>
+                    <div className="flex gap-1 overflow-x-auto no-scrollbar">
+                      {[
+                        { id: 'endpoints', label: `📡 Endpoints Détaillés (${generatedKey.scopes.length})` },
+                        { id: 'manus', label: '🤖 Prompt Manus IA' },
+                        { id: 'mcp', label: '🧩 Config MCP (Claude/Cursor)' },
+                        { id: 'curl', label: 'cURL' },
+                        { id: 'fetch', label: 'JavaScript' },
+                        { id: 'python', label: 'Python' },
+                      ].map(tab => (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => setActiveCodeTab(tab.id)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                            activeCodeTab === tab.id
+                              ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md'
+                              : 'bg-white/6 text-slate-400 hover:text-white border border-white/8'
+                          }`}
+                        >
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Contenu de l'onglet sélectionné */}
+                  <div className="relative">
+
+                    {/* TAB : ENDPOINTS DÉTAILLÉS & TABLEAU CLAIR */}
+                    {activeCodeTab === 'endpoints' && (
+                      <div className="space-y-3 animate-fadeIn">
+                        <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 flex items-center justify-between text-xs text-slate-300">
+                          <span>Liste complète de vos routes API débloquées avec cette clé :</span>
+                          <span className="text-[11px] font-bold text-emerald-300">{generatedKey.scopes.length} routes actives</span>
+                        </div>
+
+                        <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1">
+                          {API_AVAILABLE_SCOPES.filter(s => generatedKey.scopes.includes(s.id)).map(sc => (
+                            <div key={sc.id} className="p-3.5 rounded-2xl bg-slate-950/90 border border-white/10 space-y-2">
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase font-mono ${
+                                    sc.method === 'GET' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' :
+                                    sc.method === 'POST' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40' :
+                                    'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                                  }`}>
+                                    {sc.method}
+                                  </span>
+                                  <code className="text-xs font-mono font-bold text-white select-all">
+                                    {sc.fullUrl}
+                                  </code>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyText(sc.fullUrl, `ep_${sc.id}`)}
+                                  className="px-2.5 py-1 rounded-lg bg-white/8 hover:bg-white/15 text-slate-300 text-[10px] font-bold flex items-center gap-1 transition-all self-start sm:self-auto cursor-pointer"
+                                >
+                                  {copiedField === `ep_${sc.id}` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                                  <span>{copiedField === `ep_${sc.id}` ? 'Copié !' : 'Copier l\'URL'}</span>
+                                </button>
+                              </div>
+
+                              <p className="text-[11px] text-slate-400">
+                                <strong>Description :</strong> {sc.doc}
+                              </p>
+
+                              {sc.sampleBody && (
+                                <div className="p-2.5 rounded-xl bg-black/60 border border-white/6 font-mono text-[10px] text-slate-300 space-y-1">
+                                  <span className="text-slate-500 font-bold block">Body JSON attendu (POST) :</span>
+                                  <pre className="text-emerald-300 overflow-x-auto">{JSON.stringify(sc.sampleBody, null, 2)}</pre>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {/* TAB : PROMPT MANUS IA */}
+                    {activeCodeTab === 'manus' && (
+                      <div className="p-4 rounded-2xl bg-slate-950/90 border border-purple-500/30 space-y-3 font-mono text-xs text-slate-200">
+                        <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                          <span className="text-[11px] font-bold text-purple-300">Prompt Système Personnalisé pour Manus IA / ChatGPT</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const text = `Tu es l'agent IA officiel et administrateur de la plateforme audio RG Play.
+Pour exécuter tes actions, utilise l'API REST de production :
+Base URL : https://rg-play.pages.dev/api
+Clé d'autorisation : Bearer ${generatedKey.fullKey}
+
+Endpoints et fonctionnalités autorisées pour cette clé :
+${selectedScopes.includes('catalog_read') ? '- GET /audiobooks : Lister le catalogue (params: ?type=all|audiobook|podcast|music|masterclass, ?category=id, ?search=terme)\n- GET /audiobooks/:id : Récupérer la fiche complète d\'un livre et ses chapitres' : ''}
+${selectedScopes.includes('catalog_write') ? '- POST /admin/books : Créer ou mettre à jour un livre audio dans Cloudflare D1 (body: { title, author, price, chapters, ... })' : ''}
+${selectedScopes.includes('catalog_pin') ? '- POST /admin/books/:id/toggle-pin : Épingler ou désépingler en tête de boutique (body: { is_pinned: true })' : ''}
+${selectedScopes.includes('catalog_delete') ? '- DELETE /admin/books/:id : Supprimer un livre audio et ses chapitres' : ''}
+${selectedScopes.includes('social_metrics') ? '- POST /admin/books/:id/social-metrics : Appliquer l\'effet de masse (body: { display_plays_count: 15400, display_reviews_count: 2400, display_rating: 4.95 })' : ''}
+${selectedScopes.includes('categories_manage') ? '- GET /categories & POST /admin/categories & DELETE /admin/categories/:id : Gérer les univers et catégories' : ''}
+${selectedScopes.includes('payments_initiate') ? '- POST /payment/initiate : Déclencher un paiement Mobile Money (Orange Money, MTN) ou Carte (body: { audiobook_id, payment_method, customer_phone, amount })' : ''}
+${selectedScopes.includes('payments_sync') ? '- GET /payment/status/:id & POST /admin/payment/sync-pending : Vérifier et synchroniser les transactions' : ''}
+${selectedScopes.includes('analytics_read') ? '- GET /admin/analytics : Consulter les visiteurs uniques, sessions et tops écoutes' : ''}
+${selectedScopes.includes('system_status') ? '- GET /status : Vérifier la santé de Cloudflare D1, R2, KV et de la passerelle' : ''}
+
+Exécute la mission suivante : [VOTRE INSTRUCTION ICI]`;
+                              handleCopyText(text, 'prompt');
+                            }}
+                            className="px-3 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-[11px] font-bold flex items-center gap-1 transition-all"
+                          >
+                            {copiedField === 'prompt' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                            <span>{copiedField === 'prompt' ? 'Copié !' : 'Copier le Prompt'}</span>
+                          </button>
+                        </div>
+                        <pre className="whitespace-pre-wrap leading-relaxed max-h-72 overflow-y-auto text-slate-300 text-[11px]">
+{`Tu es l'agent IA officiel et administrateur de la plateforme audio RG Play.
+Pour exécuter tes actions, utilise l'API REST de production :
+Base URL : https://rg-play.pages.dev/api
+Clé d'autorisation : Bearer ${generatedKey.fullKey}
+
+Endpoints et fonctionnalités autorisées pour cette clé :
+${selectedScopes.includes('catalog_read') ? '• GET /audiobooks (Lister le catalogue avec ?type=, ?category=, ?search=)\n• GET /audiobooks/:id (Détails d\'un livre et ses chapitres)\n' : ''}${selectedScopes.includes('catalog_write') ? '• POST /admin/books (Créer ou modifier un livre audio dans D1)\n' : ''}${selectedScopes.includes('catalog_pin') ? '• POST /admin/books/:id/toggle-pin (Épingler/désépingler un livre)\n' : ''}${selectedScopes.includes('catalog_delete') ? '• DELETE /admin/books/:id (Supprimer un livre audio)\n' : ''}${selectedScopes.includes('social_metrics') ? '• POST /admin/books/:id/social-metrics (Appliquer l\'effet de masse : display_plays_count, display_reviews_count, display_rating)\n' : ''}${selectedScopes.includes('categories_manage') ? '• GET /categories & POST /admin/categories & DELETE /admin/categories/:id (Gérer les catégories)\n' : ''}${selectedScopes.includes('payments_initiate') ? '• POST /payment/initiate (Paiement CamerPay Mobile Money / Carte)\n' : ''}${selectedScopes.includes('payments_sync') ? '• GET /payment/status/:id & POST /admin/payment/sync-pending (Vérification et synchro)\n' : ''}${selectedScopes.includes('analytics_read') ? '• GET /admin/analytics (Statistiques de fréquentation)\n' : ''}${selectedScopes.includes('system_status') ? '• GET /status (Diagnostic santé D1/R2/KV)\n' : ''}
+Exécute la mission suivante : [VOTRE DEMANDE ICI]`}
+                        </pre>
+                      </div>
+                    )}
+
+                    {/* TAB : CONFIG MCP */}
+                    {activeCodeTab === 'mcp' && (
+                      <div className="p-4 rounded-2xl bg-slate-950/90 border border-emerald-500/30 space-y-3 font-mono text-xs text-slate-200">
+                        <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                          <span className="text-[11px] font-bold text-emerald-300">Fichier de Configuration MCP (claude_desktop_config.json / cursor.json)</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const json = JSON.stringify({
+                                mcpServers: {
+                                  rgplay: {
+                                    command: "node",
+                                    args: ["c:/Users/SYGMA-TECH/Documents/RG Play/mcp-rgplay/index.js"],
+                                    env: {
+                                      RGPLAY_API_BASE: "https://rg-play.pages.dev/api",
+                                      RGPLAY_API_KEY: generatedKey.fullKey
+                                    }
+                                  }
+                                }
+                              }, null, 2);
+                              handleCopyText(json, 'mcp_json');
+                            }}
+                            className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center gap-1 transition-all"
+                          >
+                            {copiedField === 'mcp_json' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                            <span>{copiedField === 'mcp_json' ? 'Copié !' : 'Copier le JSON'}</span>
+                          </button>
+                        </div>
+                        <pre className="whitespace-pre-wrap leading-relaxed text-emerald-300 text-[11px]">
+{JSON.stringify({
+  mcpServers: {
+    rgplay: {
+      command: "node",
+      args: ["c:/Users/SYGMA-TECH/Documents/RG Play/mcp-rgplay/index.js"],
+      env: {
+        RGPLAY_API_BASE: "https://rg-play.pages.dev/api",
+        RGPLAY_API_KEY: generatedKey.fullKey
+      }
+    }
+  }
+}, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+
+                    {/* TAB : CURL */}
+                    {activeCodeTab === 'curl' && (
+                      <div className="p-4 rounded-2xl bg-slate-950/90 border border-white/10 space-y-3 font-mono text-xs text-slate-200">
+                        <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                          <span className="text-[11px] font-bold text-slate-300">Exemple de Requête cURL</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const cmd = `curl -X GET "https://rg-play.pages.dev/api/audiobooks" \\\n  -H "Authorization: Bearer ${generatedKey.fullKey}" \\\n  -H "Content-Type: application/json"`;
+                              handleCopyText(cmd, 'curl');
+                            }}
+                            className="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] font-bold flex items-center gap-1 transition-all"
+                          >
+                            {copiedField === 'curl' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                            <span>{copiedField === 'curl' ? 'Copié !' : 'Copier'}</span>
+                          </button>
+                        </div>
+                        <pre className="whitespace-pre-wrap leading-relaxed text-cyan-300 text-[11px]">
+{`# 1. Lister les livres
+curl -X GET "https://rg-play.pages.dev/api/audiobooks" \\
+  -H "Authorization: Bearer ${generatedKey.fullKey}" \\
+  -H "Content-Type: application/json"
+
+# 2. Appliquer l'effet de masse sur un livre
+curl -X POST "https://rg-play.pages.dev/api/admin/books/book-1/social-metrics" \\
+  -H "Authorization: Bearer ${generatedKey.fullKey}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"display_plays_count": 18500, "display_reviews_count": 3200, "display_rating": 4.98}'`}
+                        </pre>
+                      </div>
+                    )}
+
+                    {/* TAB : JAVASCRIPT */}
+                    {activeCodeTab === 'fetch' && (
+                      <div className="p-4 rounded-2xl bg-slate-950/90 border border-white/10 space-y-3 font-mono text-xs text-slate-200">
+                        <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                          <span className="text-[11px] font-bold text-slate-300">JavaScript / Fetch (Node.js & Navigateur)</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const js = `const API_BASE = 'https://rg-play.pages.dev/api';\nconst API_KEY = '${generatedKey.fullKey}';\n\nasync function getBooks() {\n  const res = await fetch(\`\${API_BASE}/audiobooks\`, {\n    headers: { 'Authorization': \`Bearer \${API_KEY}\` }\n  });\n  return await res.json();\n}`;
+                              handleCopyText(js, 'js');
+                            }}
+                            className="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] font-bold flex items-center gap-1 transition-all"
+                          >
+                            {copiedField === 'js' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                            <span>{copiedField === 'js' ? 'Copié !' : 'Copier'}</span>
+                          </button>
+                        </div>
+                        <pre className="whitespace-pre-wrap leading-relaxed text-amber-300 text-[11px]">
+{`const API_BASE = 'https://rg-play.pages.dev/api';
+const API_KEY = '${generatedKey.fullKey}';
+
+// 1. Récupérer le catalogue
+const res = await fetch(\`\${API_BASE}/audiobooks\`, {
+  headers: { 'Authorization': \`Bearer \${API_KEY}\` }
+});
+const audiobooks = await res.json();
+
+// 2. Appliquer l'effet de masse
+await fetch(\`\${API_BASE}/admin/books/book-1/social-metrics\`, {
+  method: 'POST',
+  headers: {
+    'Authorization': \`Bearer \${API_KEY}\`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    display_plays_count: 24000,
+    display_reviews_count: 4500,
+    display_rating: 4.96
+  })
+});`}
+                        </pre>
+                      </div>
+                    )}
+
+                    {/* TAB : PYTHON */}
+                    {activeCodeTab === 'python' && (
+                      <div className="p-4 rounded-2xl bg-slate-950/90 border border-white/10 space-y-3 font-mono text-xs text-slate-200">
+                        <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                          <span className="text-[11px] font-bold text-slate-300">Python (requests)</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const py = `import requests\n\nAPI_BASE = "https://rg-play.pages.dev/api"\nAPI_KEY = "${generatedKey.fullKey}"\n\nheaders = { "Authorization": f"Bearer {API_KEY}" }\nres = requests.get(f"{API_BASE}/audiobooks", headers=headers)\nprint(res.json())`;
+                              handleCopyText(py, 'py');
+                            }}
+                            className="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] font-bold flex items-center gap-1 transition-all"
+                          >
+                            {copiedField === 'py' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                            <span>{copiedField === 'py' ? 'Copié !' : 'Copier'}</span>
+                          </button>
+                        </div>
+                        <pre className="whitespace-pre-wrap leading-relaxed text-emerald-300 text-[11px]">
+{`import requests
+
+API_BASE = "https://rg-play.pages.dev/api"
+API_KEY = "${generatedKey.fullKey}"
+
+headers = {
+    "Authorization": f"Bearer {API_KEY}",
+    "Content-Type": "application/json"
+}
+
+# 1. Lister les livres
+response = requests.get(f"{API_BASE}/audiobooks", headers=headers)
+print("Catalogue :", response.json())
+
+# 2. Appliquer l'effet de masse
+requests.post(
+    f"{API_BASE}/admin/books/book-1/social-metrics",
+    headers=headers,
+    json={"display_plays_count": 18500, "display_reviews_count": 3200, "display_rating": 4.98}
+)`}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ══════════════════════════════════════════════════════════════
+                HISTORIQUE / GESTION DES CLÉS EXISTANTES
+                ══════════════════════════════════════════════════════════════ */}
+            <div className="card-lg space-y-4">
+              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" /> Clés d'Accès Actives ({savedKeys.length})
+                </h2>
+                <span className="text-xs text-slate-400">Gérées et enregistrées localement</span>
+              </div>
+
+              {savedKeys.length === 0 ? (
+                <p className="text-xs text-slate-400 py-4 text-center">Aucune clé active. Utilisez le générateur ci-dessus pour en créer une.</p>
+              ) : (
+                <div className="space-y-3">
+                  {savedKeys.map((k) => (
+                    <div
+                      key={k.id}
+                      className="p-4 rounded-2xl bg-white/4 border border-white/8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-white/15 transition-all"
+                    >
+                      <div className="space-y-1.5 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-white truncate font-['Outfit']">{k.name}</span>
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-black">
+                            {k.status === 'active' ? 'Active' : 'Révoquée'}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 font-mono">
+                          <span className="text-slate-300 bg-white/6 px-2 py-0.5 rounded-md border border-white/8">{k.keyMasked || k.fullKey?.slice(0, 16) + '...'}</span>
+                          <span>• Créée le {k.createdAt}</span>
+                          <span>• {k.scopes?.length || 0} permissions</span>
+                        </div>
+
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {(k.scopes || []).map(sc => (
+                            <span key={sc} className="text-[9px] px-2 py-0.5 rounded-md bg-purple-500/10 border border-purple-500/20 text-purple-300">
+                              {sc}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-shrink-0 self-end sm:self-auto">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setGeneratedKey(k);
+                            handleCopyText(k.fullKey, `saved_${k.id}`);
+                          }}
+                          className="px-3 py-2 rounded-xl bg-white/6 hover:bg-white/10 text-slate-200 text-xs font-bold flex items-center gap-1.5 transition-all"
+                          title="Copier le token"
+                        >
+                          {copiedField === `saved_${k.id}` ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                          <span>{copiedField === `saved_${k.id}` ? 'Copié !' : 'Copier'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRevokeKey(k.id)}
+                          className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition-all"
+                          title="Révoquer cette clé"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════
+            MODALE : EFFET DE MASSE & SOCIAL PROOF PERSONNALISABLE
+            ══════════════════════════════════════════════════════════════════ */}
+        {socialModalBook && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 animate-fadeIn">
+            <div className="glass-card rounded-3xl w-full max-w-lg border border-amber-500/30 overflow-hidden shadow-2xl relative space-y-5 p-6">
+              {/* Header de la modale */}
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center text-slate-950 shadow-lg flex-shrink-0">
+                    <Flame className="w-5 h-5 fill-slate-950" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-white font-['Outfit']">Effet de Masse & Preuve Sociale</h3>
+                    <p className="text-xs text-slate-400">Personnalisez les compteurs affichés aux visiteurs</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSocialModalBook(null)}
+                  className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Aperçu du Livre Sélectionné */}
+              <div className="p-3 rounded-2xl bg-white/4 border border-white/8 flex items-center gap-3">
+                <img
+                  src={socialModalBook.cover_url}
+                  alt={socialModalBook.title}
+                  onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?w=100&q=60'; }}
+                  className="w-12 h-12 rounded-xl object-cover border border-white/10 flex-shrink-0"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-white truncate font-['Outfit']">{socialModalBook.title}</p>
+                  <p className="text-[11px] text-slate-400 truncate">Par {socialModalBook.author}</p>
+                </div>
+              </div>
+
+              {/* Comparatif : Métriques Réelles vs Affichées */}
+              <div className="grid grid-cols-2 gap-3">
+                {/* 1. Réel (Admin Only) */}
+                <div className="p-3 rounded-2xl bg-white/4 border border-white/6 space-y-1.5">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3 text-slate-400" /> Réel (Admin Seul)
+                  </span>
+                  <div className="text-xs space-y-1 text-slate-300">
+                    <p className="flex justify-between"><span>Vrais avis:</span> <strong className="text-white">{socialModalBook.rating_count || 0}</strong></p>
+                    <p className="flex justify-between"><span>Vraie note:</span> <strong className="text-amber-400">{socialModalBook.rating || 5.0}★</strong></p>
+                  </div>
+                </div>
+
+                {/* 2. Public (Effet de masse) */}
+                <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-1.5">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-300 block flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-amber-400" /> Affiché aux Clients
+                  </span>
+                  <div className="text-xs space-y-1 text-slate-200">
+                    <p className="flex justify-between"><span>Écoutes:</span> <strong className="text-amber-300">{Number(socialPlays).toLocaleString()}</strong></p>
+                    <p className="flex justify-between"><span>Avis:</span> <strong className="text-amber-300">{Number(socialReviews).toLocaleString()}</strong></p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Formulaire de Réglage des Chiffres Publics */}
+              <div className="space-y-3.5">
+                {/* Écoutes affichées */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                    <span>Nombre d'Écoutes / Lectures Affichées</span>
+                    <span className="text-[11px] text-purple-300 font-mono font-black">{Number(socialPlays).toLocaleString()} écoutes</span>
+                  </label>
+                  <input
+                    type="number"
+                    value={socialPlays}
+                    onChange={(e) => setSocialPlays(Math.max(0, parseInt(e.target.value) || 0))}
+                    placeholder="Ex: 14500"
+                    className="rg-input text-xs w-full font-mono font-bold"
+                  />
+                </div>
+
+                {/* Avis affichés */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                    <span>Nombre d'Avis Affichés</span>
+                    <span className="text-[11px] text-amber-300 font-mono font-black">{Number(socialReviews).toLocaleString()} avis</span>
+                  </label>
+                  <input
+                    type="number"
+                    value={socialReviews}
+                    onChange={(e) => setSocialReviews(Math.max(0, parseInt(e.target.value) || 0))}
+                    placeholder="Ex: 2800"
+                    className="rg-input text-xs w-full font-mono font-bold"
+                  />
+                </div>
+
+                {/* Note affichée */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                    <span>Note Globale Affichée (sur 5.0)</span>
+                    <span className="text-[11px] text-amber-300 font-mono font-black">{socialRating} / 5.0</span>
+                  </label>
+                  <input
+                    type="number"
+                    step="0.05"
+                    min="1"
+                    max="5"
+                    value={socialRating}
+                    onChange={(e) => setSocialRating(parseFloat(e.target.value) || 4.9)}
+                    className="rg-input text-xs w-full font-mono font-bold"
+                  />
+                </div>
+
+                {/* Presets rapides d'Effet de Masse */}
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                    ⚡ Remplissage Rapide en 1 Clic :
+                  </span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setSocialPlays(12500); setSocialReviews(2400); setSocialRating(4.9); }}
+                      className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-bold text-slate-300 text-left"
+                    >
+                      🌟 Populaire (12.5k / 2.4k avis)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setSocialPlays(28000); setSocialReviews(5600); setSocialRating(4.95); }}
+                      className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-bold text-slate-300 text-left"
+                    >
+                      🔥 Bestseller (28k / 5.6k avis)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setSocialPlays(65000); setSocialReviews(12800); setSocialRating(4.98); }}
+                      className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-bold text-slate-300 text-left"
+                    >
+                      🚀 Tendance Virale (65k / 12.8k avis)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setSocialPlays(140000); setSocialReviews(28000); setSocialRating(5.0); }}
+                      className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-bold text-slate-300 text-left"
+                    >
+                      👑 Culte (140k / 28k avis)
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bouton d'enregistrement */}
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setSocialModalBook(null)}
+                  className="rg-btn-ghost px-4 py-2 rounded-xl text-xs font-bold"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  disabled={isSavingSocial}
+                  onClick={async () => {
+                    setIsSavingSocial(true);
+                    try {
+                      const metrics = {
+                        display_plays_count: Number(socialPlays),
+                        display_reviews_count: Number(socialReviews),
+                        display_rating: Number(socialRating),
+                      };
+                      await apiClient.updateSocialMetrics(socialModalBook.id, metrics);
+                      setBooks(prev => prev.map(b => b.id === socialModalBook.id ? { ...b, ...metrics } : b));
+                      setSocialModalBook(null);
+                    } catch (e) {
+                      console.error('Erreur sauvegarde social metrics:', e);
+                    } finally {
+                      setIsSavingSocial(false);
+                    }
+                  }}
+                  className="btn-gradient px-5 py-2.5 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-xl shadow-amber-500/20"
+                >
+                  {isSavingSocial ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                  <span>Appliquer l'Effet de Masse</span>
                 </button>
               </div>
             </div>

@@ -47,6 +47,27 @@ export const AudioProvider = ({ children }) => {
     return () => window.removeEventListener('rg_offline_cache_updated', onCacheUpdate);
   }, []);
 
+  // Stopper le lecteur si le livre en cours d'écoute est supprimé (Admin ou sync)
+  useEffect(() => {
+    const onBookDeleted = (e) => {
+      const deletedId = e.detail?.id;
+      if (!deletedId) return;
+      if (currentBookRef.current?.id === deletedId) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+        setIsPlaying(false);
+        setCurrentBook(null);
+        setCurrentChapterIndex(0);
+        setCurrentTime(0);
+        setDuration(0);
+        setIsFullScreenOpen(false);
+        console.log(`[AudioContext] Lecture stoppée: livre supprimé (${deletedId})`);
+      }
+    };
+    window.addEventListener('rg:book-deleted', onBookDeleted);
+    return () => window.removeEventListener('rg:book-deleted', onBookDeleted);
+  }, []); // Montage uniquement — on lit via ref
+
   // Ref pour sleepTimerOption (évite closure stale sans recréer les listeners)
   const sleepTimerOptionRef = useRef(sleepTimerOption);
   useEffect(() => { sleepTimerOptionRef.current = sleepTimerOption; }, [sleepTimerOption]);
@@ -54,7 +75,7 @@ export const AudioProvider = ({ children }) => {
   // Synchronisation initiale de l'élément audio (montage uniquement)
   useEffect(() => {
     const audio = audioRef.current;
-    audio.preload = 'metadata';
+    audio.preload = 'auto';
 
     const onTimeUpdate = () => {
       setCurrentTime(audio.currentTime);
@@ -170,23 +191,32 @@ export const AudioProvider = ({ children }) => {
     return () => clearInterval(progressSaveTimerRef.current);
   }, [currentBook, currentChapterIndex, currentTime, duration, isPlaying]);
 
-  // Lancer la lecture d'un livre complet (avec vérification hors-ligne)
-  const playBook = async (book, chapterIdx = 0, startTime = 0) => {
+  // Lancer la lecture d'un livre complet (démarrage immédiat 0ms)
+  const playBook = (book, chapterIdx = 0, startTime = 0) => {
     setCurrentBook(book);
     setCurrentChapterIndex(chapterIdx);
     setIsPreviewMode(false);
+    setIsLoading(true);
 
     const chapter = book.chapters?.[chapterIdx];
     const rawAudioSrc = chapter?.audio_url || book.preview_url || 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3';
 
-    // Résoudre l'URL locale/hors-ligne si déjà dans le cache
-    const finalAudioSrc = await getOfflineAudioUrl(rawAudioSrc);
-
-    audioRef.current.src = finalAudioSrc;
+    // Démarrer la lecture immédiatement
+    audioRef.current.src = rawAudioSrc;
     audioRef.current.playbackRate = playbackRate;
     audioRef.current.currentTime = startTime || 0;
-    audioRef.current.play().catch(e => console.warn('Lecture automatique restreinte:', e));
+    audioRef.current.play().catch(e => console.warn('Lecture restreinte:', e));
     setIsPlaying(true);
+
+    // Vérifier en arrière-plan si une version hors-ligne plus rapide existe
+    getOfflineAudioUrl(rawAudioSrc).then(cachedSrc => {
+      if (cachedSrc && cachedSrc !== rawAudioSrc && audioRef.current && audioRef.current.src === rawAudioSrc) {
+        const curTime = audioRef.current.currentTime;
+        audioRef.current.src = cachedSrc;
+        audioRef.current.currentTime = curTime;
+        audioRef.current.play().catch(() => {});
+      }
+    }).catch(() => {});
   };
 
   // Télécharger explicitement un livre pour lecture hors-ligne
@@ -194,20 +224,27 @@ export const AudioProvider = ({ children }) => {
     return await cacheAudioForOffline(book);
   };
 
-  // Lancer la lecture d'un extrait gratuit
-  const playPreview = async (book) => {
+  // Lancer la lecture d'un extrait gratuit (démarrage immédiat)
+  const playPreview = (book) => {
     setCurrentBook(book);
     setCurrentChapterIndex(0);
     setIsPreviewMode(true);
+    setIsLoading(true);
 
     const rawAudioSrc = book.preview_url || 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3';
-    const finalAudioSrc = await getOfflineAudioUrl(rawAudioSrc);
 
-    audioRef.current.src = finalAudioSrc;
+    audioRef.current.src = rawAudioSrc;
     audioRef.current.playbackRate = playbackRate;
     audioRef.current.currentTime = 0;
     audioRef.current.play().catch(e => console.warn('Lecture restreinte:', e));
     setIsPlaying(true);
+
+    getOfflineAudioUrl(rawAudioSrc).then(cachedSrc => {
+      if (cachedSrc && cachedSrc !== rawAudioSrc && audioRef.current && audioRef.current.src === rawAudioSrc) {
+        audioRef.current.src = cachedSrc;
+        audioRef.current.play().catch(() => {});
+      }
+    }).catch(() => {});
   };
 
   // Basculer Play / Pause

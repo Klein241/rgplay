@@ -641,6 +641,20 @@ input, textarea, select {
 .animate-glow      { animation: glow-pulse 2.5s ease-in-out infinite; }
 .animate-gradient  { animation: gradient-shift 4s ease infinite; background-size: 200% 200%; }
 
+/* Animation badge Extrait Gratuit — pulse lumineux vert */
+@keyframes rgPulseBadge {
+  0%, 100% {
+    box-shadow: 0 0 6px rgba(16, 185, 129, 0.55), 0 2px 8px rgba(0,0,0,0.4);
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(16, 185, 129, 0.90), 0 0 28px rgba(16, 185, 129, 0.40), 0 2px 8px rgba(0,0,0,0.4);
+    opacity: 0.88;
+    transform: scale(1.04);
+  }
+}
+
 /* Délais pour animations en séquence */
 .animate-delay-100 { animation-delay: 100ms; }
 .animate-delay-150 { animation-delay: 150ms; }

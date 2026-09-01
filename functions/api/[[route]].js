@@ -29,6 +29,29 @@ export async function onRequest(context) {
   }
 
   try {
+    // ─── GET /api/deleted-books (Registre serveur des suppressions) ─
+    if ((path === '/deleted-books' || path === '/deleted-books/') && method === 'GET') {
+      let deletedIds = [];
+      // Lire depuis KV
+      if (env.KV_BINDING) {
+        deletedIds = (await env.KV_BINDING.get('deleted_book_ids', { type: 'json' }).catch(() => null)) || [];
+      }
+      // Lire également depuis D1 si disponible
+      if (env.DB) {
+        try {
+          await env.DB.prepare(`CREATE TABLE IF NOT EXISTS deleted_books (id TEXT PRIMARY KEY, deleted_at DATETIME DEFAULT CURRENT_TIMESTAMP)`).run();
+          const { results: dbDeleted } = await env.DB.prepare('SELECT id FROM deleted_books').all();
+          const dbIds = (dbDeleted || []).map(r => r.id);
+          const merged = [...new Set([...deletedIds, ...dbIds])];
+          deletedIds = merged;
+        } catch (_) {}
+      }
+      return jsonResponse({ success: true, deleted_ids: deletedIds }, {
+        ...corsHeaders,
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+      });
+    }
+
     // ─── GET /api/categories ─────────────────────────────────────
     if (path === '/categories' && method === 'GET') {
       const cacheKey = 'categories_v1';
@@ -100,6 +123,123 @@ export async function onRequest(context) {
       return jsonResponse({ success: true, message: `Catégorie ${catId} supprimée` }, corsHeaders);
     }
 
+    // ─── POST /api/analytics/event ───────────────────────────────
+    if (path === '/analytics/event' && method === 'POST') {
+      try {
+        const body = await request.json();
+        if (env.DB && body.visitor_id) {
+          await ensureAnalyticsTables(env.DB);
+          const eventId = 'evt_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+          // Créer/màj session si event de type session_start
+          if (body.type === 'session_start' && body.session_id) {
+            await env.DB.prepare(`
+              INSERT OR IGNORE INTO visitor_sessions (session_id, visitor_id, source, device, referrer, landing_url, started_at)
+              VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+            `).bind(
+              body.session_id, body.visitor_id,
+              body.source || 'Direct', body.device || 'Inconnu',
+              body.referrer || '', body.landing_url || ''
+            ).run().catch(() => {});
+          }
+
+          // Insérer l'événement
+          await env.DB.prepare(`
+            INSERT OR IGNORE INTO analytics_events
+              (id, session_id, visitor_id, event_type, page, action, audiobook_id, audiobook_title, chapter_id, seconds_listened, extra_data, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+          `).bind(
+            eventId, body.session_id || null, body.visitor_id,
+            body.type || 'unknown',
+            body.page || null, body.action || null,
+            body.audiobook_id || null, body.audiobook_title || null,
+            body.chapter_id || null,
+            body.seconds_listened || 0,
+            body.extra_data ? JSON.stringify(body.extra_data) : null
+          ).run().catch(() => {});
+        }
+      } catch (_) {}
+      return jsonResponse({ ok: true }, corsHeaders);
+    }
+
+    // ─── GET /api/admin/analytics ─────────────────────────────────
+    if (path === '/admin/analytics' && method === 'GET') {
+      if (!env.DB) {
+        return jsonResponse({ uniqueVisitors: 0, todayVisitors: 0, sources: [], topAudios: [], recentVisitors: [] }, corsHeaders);
+      }
+      await ensureAnalyticsTables(env.DB);
+
+      // Visiteurs uniques total
+      const { results: uvRes } = await env.DB.prepare(
+        `SELECT COUNT(DISTINCT visitor_id) AS cnt FROM visitor_sessions`
+      ).all().catch(() => ({ results: [{ cnt: 0 }] }));
+      const uniqueVisitors = uvRes[0]?.cnt || 0;
+
+      // Visiteurs aujourd'hui
+      const { results: todayRes } = await env.DB.prepare(
+        `SELECT COUNT(DISTINCT visitor_id) AS cnt FROM visitor_sessions WHERE started_at >= date('now')`
+      ).all().catch(() => ({ results: [{ cnt: 0 }] }));
+      const todayVisitors = todayRes[0]?.cnt || 0;
+
+      // Sources de trafic
+      const { results: srcRes } = await env.DB.prepare(
+        `SELECT source, COUNT(*) AS cnt FROM visitor_sessions GROUP BY source ORDER BY cnt DESC LIMIT 10`
+      ).all().catch(() => ({ results: [] }));
+      const totalSessions = srcRes.reduce((s, r) => s + r.cnt, 0);
+      const sources = srcRes.map(r => ({ source: r.source, count: r.cnt, pct: Math.round(r.cnt / Math.max(1, totalSessions) * 100) }));
+
+      // Top audios écoutés (réel)
+      const { results: audioRes } = await env.DB.prepare(
+        `SELECT audiobook_id, audiobook_title, COUNT(*) AS plays, SUM(seconds_listened) AS total_seconds
+         FROM analytics_events WHERE event_type = 'audio_play' AND audiobook_id IS NOT NULL
+         GROUP BY audiobook_id ORDER BY plays DESC LIMIT 10`
+      ).all().catch(() => ({ results: [] }));
+
+      // Visiteurs récents avec détail
+      const { results: sessRes } = await env.DB.prepare(
+        `SELECT vs.*, u.name AS user_name, u.email AS user_email
+         FROM visitor_sessions vs
+         LEFT JOIN users u ON vs.visitor_id = u.id
+         ORDER BY vs.started_at DESC LIMIT 50`
+      ).all().catch(() => ({ results: [] }));
+
+      // Récupérer les événements de chaque visiteur récent
+      const visitorIds = [...new Set(sessRes.map(s => s.visitor_id))].slice(0, 20);
+      const recentVisitors = await Promise.all(sessRes.slice(0, 20).map(async sess => {
+        const { results: evts } = await env.DB.prepare(
+          `SELECT * FROM analytics_events WHERE visitor_id = ? ORDER BY created_at DESC LIMIT 30`
+        ).bind(sess.visitor_id).all().catch(() => ({ results: [] }));
+        return { ...sess, events: evts };
+      }));
+
+      return jsonResponse({ uniqueVisitors, todayVisitors, sources, topAudios: audioRes, recentVisitors }, corsHeaders);
+    }
+
+    // ─── PUT /api/admin/audiobooks/:id/social ─────────────────────
+    const socialMatch = path.match(/^\/admin\/audiobooks\/([a-zA-Z0-9_-]+)\/social$/);
+    if (socialMatch && method === 'PUT') {
+      const bookId = socialMatch[1];
+      const body = await request.json();
+      if (env.DB) {
+        await env.DB.prepare(`
+          UPDATE audiobooks SET
+            display_plays_count   = COALESCE(?, display_plays_count),
+            display_reviews_count = COALESCE(?, display_reviews_count),
+            display_rating        = COALESCE(?, display_rating)
+          WHERE id = ?
+        `).bind(
+          body.display_plays_count ?? null,
+          body.display_reviews_count ?? null,
+          body.display_rating ?? null,
+          bookId
+        ).run();
+        if (env.KV_BINDING) {
+          // Invalider les caches liés à ce livre
+          await env.KV_BINDING.delete(`books_all_all_false`).catch(() => {});
+        }
+      }
+      return jsonResponse({ success: true, id: bookId }, corsHeaders);
+    }
     // ─── GET /api/audiobooks ─────────────────────────────────────
     if ((path === '/audiobooks' || path === '/audiobooks/') && method === 'GET') {
       const category = url.searchParams.get('category');
@@ -107,34 +247,44 @@ export async function onRequest(context) {
       const featured = url.searchParams.get('featured');
       const type = url.searchParams.get('type'); // 'audiobook' | 'podcast' | 'music' | 'masterclass'
 
-      // Cache KV si pas de filtres dynamiques
+      // Récupérer les IDs supprimés pour filtrage (KV + D1)
+      let deletedSet = new Set();
+      if (env.KV_BINDING) {
+        const deletedIds = await env.KV_BINDING.get('deleted_book_ids', { type: 'json' }).catch(() => null) || [];
+        deletedSet = new Set(deletedIds);
+      }
+      if (env.DB) {
+        try {
+          const { results: dbDel } = await env.DB.prepare('SELECT id FROM deleted_books').all().catch(() => ({ results: [] }));
+          for (const r of (dbDel || [])) deletedSet.add(r.id);
+        } catch (_) {}
+      }
+
+      // Cache KV si pas de filtres dynamiques (recherche)
       if (!search && env.KV_BINDING) {
         const cacheKey = `books_${category || 'all'}_${type || 'all'}_${featured || 'false'}`;
         const cached = await env.KV_BINDING.get(cacheKey, { type: 'json' });
         if (cached && Array.isArray(cached)) {
-          const sanitized = cached.map(b => {
-            let cUrl = b.cover_url;
-            if (!cUrl || cUrl.includes('r2.cloudflarestorage.com')) {
-              const fb = getFallbackAudiobooks().find(item => item.id === b.id);
-              cUrl = fb?.cover_url || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80';
-            }
-            let pUrl = b.preview_url;
-            if (!pUrl || pUrl.includes('r2.cloudflarestorage.com')) {
-              const fb = getFallbackAudiobooks().find(item => item.id === b.id);
-              pUrl = fb?.preview_url || 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3';
-            }
-            return { ...b, cover_url: cUrl, preview_url: pUrl };
+          const sanitized = cached.filter(b => !deletedSet.has(b.id));
+          return jsonResponse(sanitized, {
+            ...corsHeaders,
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
           });
-          return jsonResponse(sanitized, corsHeaders);
         }
       }
 
       if (env.DB) {
+        // Créer la table deleted_books si elle n'existe pas encore
+        try {
+          await env.DB.prepare(`CREATE TABLE IF NOT EXISTS deleted_books (id TEXT PRIMARY KEY, deleted_at DATETIME DEFAULT CURRENT_TIMESTAMP)`).run();
+        } catch (_) {}
+
         let query = `
           SELECT a.*, c.name as category_name 
           FROM audiobooks a 
           LEFT JOIN categories c ON a.category_id = c.id 
-          WHERE 1=1
+          LEFT JOIN deleted_books db ON a.id = db.id
+          WHERE db.id IS NULL
         `;
         const queryParams = [];
 
@@ -166,18 +316,22 @@ export async function onRequest(context) {
           rawResults = res.results || [];
         }
 
-        // Récupérer TOUS les chapitres pour chaque livre depuis la table chapters de D1
+        // Récupérer les chapitres
         let chaptersByBook = {};
         try {
           const { results: allChapters } = await env.DB.prepare(
-            'SELECT * FROM chapters ORDER BY chapter_number ASC'
+            'SELECT id, audiobook_id, chapter_number, title, duration_seconds, audio_url, audio_r2_key FROM chapters ORDER BY chapter_number ASC'
           ).all();
           for (const ch of (allChapters || [])) {
             if (!chaptersByBook[ch.audiobook_id]) chaptersByBook[ch.audiobook_id] = [];
+            let streamUrl = ch.audio_url;
+            if (!streamUrl || streamUrl.includes('r2.cloudflarestorage.com')) {
+              streamUrl = ch.audio_r2_key ? `/api/r2/download?key=${encodeURIComponent(ch.audio_r2_key)}` : `/api/chapters/${ch.id}/stream`;
+            }
             chaptersByBook[ch.audiobook_id].push({
               ...ch,
-              audio_stream_url: `/api/chapters/${ch.id}/stream`,
-              audio_url: (ch.audio_url && !ch.audio_url.includes('r2.cloudflarestorage.com')) ? ch.audio_url : `/api/chapters/${ch.id}/stream`,
+              audio_stream_url: streamUrl,
+              audio_url: streamUrl,
             });
           }
         } catch (chErr) {
@@ -192,8 +346,7 @@ export async function onRequest(context) {
           } else if (book.cover_r2_key && env.AUDIO_BUCKET) {
             coverUrl = `/api/r2/download?key=${encodeURIComponent(book.cover_r2_key)}`;
           } else if (!coverUrl || coverUrl.includes('r2.cloudflarestorage.com')) {
-            const fallback = getFallbackAudiobooks().find(fb => fb.id === book.id);
-            coverUrl = fallback?.cover_url || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80';
+            coverUrl = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80';
           }
 
           let previewUrl = book.preview_url;
@@ -202,35 +355,46 @@ export async function onRequest(context) {
           } else if (book.preview_r2_key && env.AUDIO_BUCKET) {
             previewUrl = `/api/r2/download?key=${encodeURIComponent(book.preview_r2_key)}`;
           } else if (!previewUrl || previewUrl.includes('r2.cloudflarestorage.com')) {
-            const fallback = getFallbackAudiobooks().find(fb => fb.id === book.id);
-            previewUrl = fallback?.preview_url || 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3';
+            previewUrl = 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3';
           }
 
           const bookChapters = chaptersByBook[book.id] && chaptersByBook[book.id].length > 0
             ? chaptersByBook[book.id]
-            : (getFallbackAudiobooks().find(fb => fb.id === book.id)?.chapters || [
+            : [
                 { id: `chap-${book.id}-1`, chapter_number: 1, title: 'Introduction & Chapitre 1', duration_seconds: book.duration_seconds || 1800, audio_url: previewUrl }
-              ]);
+              ];
 
           return {
             ...book,
             content_type: book.content_type || 'audiobook',
             is_pinned: Boolean(book.is_pinned),
+            display_plays_count: Number(book.display_plays_count || 0),
+            display_reviews_count: Number(book.display_reviews_count || 0),
+            display_rating: Number(book.display_rating || book.rating || 5.0),
             cover_url: coverUrl,
             preview_url: previewUrl,
             chapters: bookChapters,
           };
         });
 
-        // Cache KV si pas de recherche textuelle
+        // Filtrer encore une fois les suppressions au cas où
+        const finalEnriched = enriched.filter(b => !deletedSet.has(b.id));
+
+        // Cache KV court (60s) — suppression visible rapidement
         if (!search && env.KV_BINDING) {
           const cacheKey = `books_${category || 'all'}_${type || 'all'}_${featured || 'false'}`;
-          await env.KV_BINDING.put(cacheKey, JSON.stringify(enriched), { expirationTtl: 300 });
+          await env.KV_BINDING.put(cacheKey, JSON.stringify(finalEnriched), { expirationTtl: 60 });
         }
 
-        return jsonResponse(enriched, corsHeaders);
+        return jsonResponse(finalEnriched, {
+          ...corsHeaders,
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+        });
       }
-      return jsonResponse(getFallbackAudiobooks(category, search, featured, type), corsHeaders);
+      // Filtrer les fallback statiques également
+      const fallbackAll = getFallbackAudiobooks(category, search, featured, type);
+      const fallbackFiltered = fallbackAll.filter(b => !deletedSet.has(b.id));
+      return jsonResponse(fallbackFiltered, corsHeaders);
     }
 
     // ─── GET /api/audiobooks/:id ──────────────────────────────────
@@ -281,6 +445,11 @@ export async function onRequest(context) {
 
         const result = {
           ...book,
+          content_type: book.content_type || 'audiobook',
+          is_pinned: Boolean(book.is_pinned),
+          display_plays_count: Number(book.display_plays_count || 0),
+          display_reviews_count: Number(book.display_reviews_count || 0),
+          display_rating: Number(book.display_rating || book.rating || 5.0),
           cover_url: coverUrl,
           preview_url: previewUrl,
           chapters: enrichedChapters,
@@ -442,6 +611,53 @@ export async function onRequest(context) {
       }
 
       return jsonResponse({ success: true, synced_to: 'cloudflare_d1' }, corsHeaders);
+    }
+
+    // ─── POST /api/payment/register (Enregistrement d'une tx initiée côté client) ──
+    // Utilisé quand le frontend initie directement le paiement via CamerPay et a besoin
+    // que le backend enregistre la transaction pour que le webhook puisse la retrouver.
+    if (path === '/payment/register' && method === 'POST') {
+      const body = await request.json();
+      const userId = request.headers.get('X-User-Id') || 'user-demo';
+      const { transaction_id, audiobook_id, amount, payment_method, customer_phone } = body;
+
+      if (!transaction_id || !audiobook_id || !amount) {
+        return jsonResponse({ success: false, error: 'Champs requis manquants' }, corsHeaders, 400);
+      }
+
+      const purchaseId = `pur-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
+
+      if (env.DB) {
+        try {
+          // Supprimer les anciennes tentatives pending/failed pour ce couple utilisateur/livre
+          await env.DB.prepare(
+            `DELETE FROM purchases WHERE user_id = ? AND audiobook_id = ? AND status IN ('pending', 'failed')`
+          ).bind(userId, audiobook_id).run();
+
+          await env.DB.prepare(`
+            INSERT OR IGNORE INTO purchases
+              (id, user_id, audiobook_id, amount_paid, currency, payment_method, transaction_id, status, purchased_at)
+            VALUES (?, ?, ?, ?, 'XAF', ?, ?, 'pending', CURRENT_TIMESTAMP)
+          `).bind(purchaseId, userId, audiobook_id, Number(amount), payment_method || 'mobile_money', transaction_id).run();
+        } catch (dbErr) {
+          console.error('[REGISTER TX] Erreur D1:', dbErr.message);
+        }
+      }
+
+      if (env.KV_BINDING) {
+        await env.KV_BINDING.put(`tx_${transaction_id}`, JSON.stringify({
+          userId, audiobook_id,
+          amount: Number(amount),
+          payment_method: payment_method || 'mobile_money',
+          customer_phone: (customer_phone || '').replace(/\D/g, '') || null,
+          status: 'pending',
+          registered_from: 'client_direct',
+          created_at: Date.now(),
+        }), { expirationTtl: 3600 * 24 }); // 24h pour laisser le temps au webhook d'arriver
+      }
+
+      console.log(`[REGISTER TX] ✅ Transaction client enregistrée en D1/KV : ${transaction_id}`);
+      return jsonResponse({ success: true, transaction_id, registered: true }, corsHeaders);
     }
 
     // ─── POST /api/payment/initiate (CamerPay — Paiement Réel, Mobile Money + Carte) ──
@@ -645,13 +861,23 @@ export async function onRequest(context) {
 
       console.log('[WEBHOOK CamerPay]', JSON.stringify(hookData));
 
-      // Extraire l'identifiant de transaction
+      // Extraire l'identifiant de transaction (supporte structures plates ou imbriquées .data / .result)
+      const dataObj = hookData.data || hookData.result || hookData.payload || {};
       const txId = hookData.merchant_invoice_id || 
+                   dataObj.merchant_invoice_id ||
                    hookData.transaction_id || 
+                   dataObj.transaction_id ||
                    hookData.reference || 
+                   dataObj.reference ||
                    hookData.ref || 
+                   dataObj.ref ||
                    hookData.invoice_id ||
-                   hookData.id;
+                   dataObj.invoice_id ||
+                   hookData.id ||
+                   dataObj.id ||
+                   url.searchParams.get('merchant_invoice_id') ||
+                   url.searchParams.get('transaction_id') ||
+                   url.searchParams.get('tx');
 
       if (!txId) {
         console.warn('[WEBHOOK] Transaction ID manquant dans le payload webhook');
@@ -661,15 +887,20 @@ export async function onRequest(context) {
       // Détecter le statut avec une whitelist stricte (succès explicite uniquement)
       const rawStatus = String(
         hookData.status || 
+        dataObj.status ||
         hookData.payment_status || 
+        dataObj.payment_status ||
         hookData.transaction_status || 
+        dataObj.transaction_status ||
         hookData.code || 
+        dataObj.code ||
         hookData.result || 
+        url.searchParams.get('status') ||
         ''
       ).toLowerCase().trim();
 
-      const isStrictSuccess = ['success', 'successful', 'completed', 'paid', 'approved', '00'].includes(rawStatus) || hookData.status === true;
-      const isExplicitFailed = ['failed', 'cancelled', 'canceled', 'expired', 'declined', 'rejected', 'error'].includes(rawStatus) || hookData.status === false;
+      const isStrictSuccess = ['success', 'successful', 'completed', 'paid', 'approved', '00', 'done', 'ok'].includes(rawStatus) || hookData.status === true || dataObj.status === true;
+      const isExplicitFailed = ['failed', 'cancelled', 'canceled', 'expired', 'declined', 'rejected', 'error'].includes(rawStatus) || hookData.status === false || dataObj.status === false;
 
       if (isStrictSuccess) {
         // Mettre à jour le statut en D1 : 'pending' → 'completed'
@@ -783,11 +1014,14 @@ export async function onRequest(context) {
     // STRATÉGIE DOUBLE : KV/D1 + vérification active auprès de CamerPay.
     // Si le webhook n'est pas arrivé mais que CamerPay confirme le paiement,
     // on met à jour D1+KV immédiatement et on débloque l'audio.
-    const payStatusMatch = path.match(/^\/payment\/status\/([A-Z0-9_-]+)$/);
+    const payStatusMatch = path.match(/^\/payment\/status\/([a-zA-Z0-9_.-]+)\/?$/i);
     if (payStatusMatch && method === 'GET') {
-      const txId = payStatusMatch[1];
+      const txId = decodeURIComponent(payStatusMatch[1]);
       const userId = request.headers.get('X-User-Id') || 'user-demo';
-      const CAMERPAY_TOKEN = env.CAMERPAY_TOKEN || '800|QNy2YL5p5kkEAVFK3FNi7RY8XaL8LrKYW71RA5XQ3262b7e9';
+      const ACTIVE_TOKEN = '806|Y6xka7Vc3tftBDcOiRQSo8FHAckcy1OEYDO1jeGF1c70b8d6';
+      const CAMERPAY_TOKEN = (env.CAMERPAY_TOKEN && !env.CAMERPAY_TOKEN.startsWith('800|')) 
+        ? env.CAMERPAY_TOKEN 
+        : ACTIVE_TOKEN;
 
       // Helper : confirmer un paiement dans D1 + KV + créer progression
       const confirmPayment = async (audiobookId, camerpayData = {}) => {
@@ -828,25 +1062,25 @@ export async function onRequest(context) {
       };
 
       // ── 1. Lecture KV (ultra-rapide) ───────────────────────────────────────
-      let localStatus = null;
+      let localStatus = 'pending';
       let localData   = null;
 
       if (env.KV_BINDING) {
         localData = await env.KV_BINDING.get(`tx_${txId}`, { type: 'json' });
-        if (localData) localStatus = localData.status;
+        if (localData?.status) localStatus = localData.status;
       }
 
-      // Si déjà completed ou failed en KV → retourner directement
-      if (localStatus === 'completed' || localStatus === 'failed') {
+      // Si completed en KV → retourner immédiatement avec infos livre
+      if (localStatus === 'completed') {
         let bookInfo = null;
-        if (localStatus === 'completed' && localData?.audiobook_id && env.DB) {
+        if (localData?.audiobook_id && env.DB) {
           bookInfo = await env.DB.prepare(
             'SELECT id, title, author, cover_url FROM audiobooks WHERE id = ?'
           ).bind(localData.audiobook_id).first();
         }
         return jsonResponse({
           transaction_id: txId,
-          status: localStatus,
+          status: 'completed',
           audiobook_id: localData?.audiobook_id,
           audiobook: bookInfo,
           amount: localData?.amount,
@@ -855,119 +1089,7 @@ export async function onRequest(context) {
         }, corsHeaders);
       }
 
-      // ── 2. Vérification active auprès de CamerPay (si status=pending) ─────
-      // On interroge CamerPay directement à chaque poll pour ne pas dépendre du webhook.
-      let camerpayStatus = null;
-      let camerpayTxData = null;
-      try {
-        // Essayer d'abord avec l'endpoint de recherche par référence
-        const checkRes = await fetch(
-          `https://camerpay.biz/api/payment/${txId}`,
-          {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${CAMERPAY_TOKEN}`,
-              'Accept': 'application/json',
-            },
-          }
-        );
-
-        if (checkRes.ok) {
-          const checkText = await checkRes.text();
-          try { camerpayTxData = JSON.parse(checkText); } catch { camerpayTxData = null; }
-
-          if (camerpayTxData) {
-            // Normaliser le statut CamerPay → nos valeurs
-            const rawStatus = (
-              camerpayTxData.status ||
-              camerpayTxData.payment_status ||
-              camerpayTxData.transaction_status ||
-              camerpayTxData.data?.status || ''
-            ).toLowerCase();
-
-            if (['success', 'successful', 'completed', 'paid'].includes(rawStatus)) {
-              camerpayStatus = 'completed';
-            } else if (['failed', 'cancelled', 'canceled', 'rejected', 'expired'].includes(rawStatus)) {
-              camerpayStatus = 'failed';
-            } else {
-              camerpayStatus = 'pending';
-            }
-          }
-        } else {
-          // Fallback : essayer endpoint alternatif avec merchant_invoice_id
-          const checkRes2 = await fetch(
-            `https://camerpay.biz/api/transactions?reference=${encodeURIComponent(txId)}`,
-            {
-              headers: {
-                'Authorization': `Bearer ${CAMERPAY_TOKEN}`,
-                'Accept': 'application/json',
-              },
-            }
-          );
-          if (checkRes2.ok) {
-            const data2 = await checkRes2.json().catch(() => null);
-            if (data2) {
-              camerpayTxData = data2;
-              const rawStatus = (
-                data2.status || data2.data?.status ||
-                (Array.isArray(data2.data) && data2.data[0]?.status) || ''
-              ).toLowerCase();
-              if (['success', 'successful', 'completed', 'paid'].includes(rawStatus)) {
-                camerpayStatus = 'completed';
-              } else if (['failed', 'cancelled', 'canceled', 'rejected'].includes(rawStatus)) {
-                camerpayStatus = 'failed';
-              }
-            }
-          }
-        }
-      } catch (pollErr) {
-        // Erreur réseau temporaire vers CamerPay — pas grave, on continue
-        console.warn(`[STATUS POLL] Erreur vérif CamerPay pour ${txId}:`, pollErr.message);
-      }
-
-      // ── 3. Si CamerPay confirme 'completed' → mettre à jour et déverrouiller ─
-      if (camerpayStatus === 'completed') {
-        const audiobookId = localData?.audiobook_id;
-        await confirmPayment(audiobookId, camerpayTxData);
-
-        let bookInfo = null;
-        if (audiobookId && env.DB) {
-          bookInfo = await env.DB.prepare(
-            'SELECT id, title, author, cover_url FROM audiobooks WHERE id = ?'
-          ).bind(audiobookId).first();
-        }
-
-        return jsonResponse({
-          transaction_id: txId,
-          status: 'completed',
-          audiobook_id: audiobookId,
-          audiobook: bookInfo,
-          amount: localData?.amount,
-          payment_method: localData?.payment_method,
-          source: 'camerpay_active_check',
-        }, corsHeaders);
-      }
-
-      // ── 4. Si CamerPay confirme 'failed' ─────────────────────────────────
-      if (camerpayStatus === 'failed') {
-        if (env.DB) {
-          await env.DB.prepare(
-            `UPDATE purchases SET status = 'failed' WHERE transaction_id = ? AND status = 'pending'`
-          ).bind(txId).run();
-        }
-        if (env.KV_BINDING && localData) {
-          await env.KV_BINDING.put(`tx_${txId}`, JSON.stringify({
-            ...localData, status: 'failed', updated_at: Date.now()
-          }), { expirationTtl: 3600 });
-        }
-        return jsonResponse({
-          transaction_id: txId,
-          status: 'failed',
-          source: 'camerpay_active_check',
-        }, corsHeaders);
-      }
-
-      // ── 5. Fallback D1 (si pas de KV) ────────────────────────────────────
+      // ── 2. Fallback D1 ───────────────────────────────────────────────────
       if (env.DB) {
         const pur = await env.DB.prepare(
           `SELECT p.*, a.title, a.author, a.cover_url FROM purchases p
@@ -975,10 +1097,10 @@ export async function onRequest(context) {
            WHERE p.transaction_id = ?`
         ).bind(txId).first();
 
-        if (pur) {
+        if (pur && pur.status === 'completed') {
           return jsonResponse({
             transaction_id: txId,
-            status: pur.status,
+            status: 'completed',
             audiobook_id: pur.audiobook_id,
             audiobook: pur.title ? { id: pur.audiobook_id, title: pur.title, author: pur.author, cover_url: pur.cover_url } : null,
             amount: pur.amount_paid,
@@ -988,11 +1110,15 @@ export async function onRequest(context) {
         }
       }
 
-      // Toujours en attente (pas encore confirmé par CamerPay)
+      // Toujours en attente (l'utilisateur valide son PIN sur son téléphone)
       return jsonResponse({
         transaction_id: txId,
-        status: localData?.status || 'pending',
+        status: 'pending',
+        audiobook_id: localData?.audiobook_id,
+        amount: localData?.amount,
+        payment_method: localData?.payment_method,
         source: 'kv_pending',
+        message: 'En attente de confirmation sur le téléphone...',
       }, corsHeaders);
     }
 
@@ -1002,7 +1128,7 @@ export async function onRequest(context) {
     // Utile si des webhooks n'ont pas été reçus.
     // Appelé depuis le dashboard admin ou manuellement.
     if (path === '/admin/payment/sync-pending' && method === 'POST') {
-      const CAMERPAY_TOKEN = env.CAMERPAY_TOKEN || '800|QNy2YL5p5kkEAVFK3FNi7RY8XaL8LrKYW71RA5XQ3262b7e9';
+      const CAMERPAY_TOKEN = env.CAMERPAY_TOKEN || '806|Y6xka7Vc3tftBDcOiRQSo8FHAckcy1OEYDO1jeGF1c70b8d6';
       const results = [];
 
       if (!env.DB) {
@@ -1162,6 +1288,52 @@ export async function onRequest(context) {
       }, corsHeaders);
     }
 
+    // ─── POST /api/admin/books/:id/social-metrics (Effet de Masse / Social Proof) ──
+    const socialMetricsMatch = path.match(/^\/admin\/books\/([a-zA-Z0-9_-]+)\/social-metrics$/);
+    if (socialMetricsMatch && method === 'POST') {
+      const bookId = socialMetricsMatch[1];
+      const body = await request.json().catch(() => ({}));
+      const displayPlays = Number(body.display_plays_count || 0);
+      const displayReviews = Number(body.display_reviews_count || 0);
+      const displayRating = Number(body.display_rating || 5.0);
+
+      if (env.DB) {
+        await ensureAnalyticsTables(env.DB);
+        try {
+          await env.DB.prepare(`
+            UPDATE audiobooks SET
+              display_plays_count = ?,
+              display_reviews_count = ?,
+              display_rating = ?
+            WHERE id = ?
+          `).bind(displayPlays, displayReviews, displayRating, bookId).run();
+        } catch (dbErr) {
+          console.error('[Social Metrics] Erreur update D1:', dbErr);
+        }
+      }
+
+      if (env.KV_BINDING) {
+        try {
+          const list = await env.KV_BINDING.list({ prefix: 'books_' });
+          for (const key of list.keys) {
+            await env.KV_BINDING.delete(key.name);
+          }
+        } catch (_) {}
+        await env.KV_BINDING.delete(`book_${bookId}`).catch(() => {});
+        await env.KV_BINDING.delete('books_all_all_false').catch(() => {});
+        await env.KV_BINDING.delete('books_all_all_true').catch(() => {});
+      }
+
+      return jsonResponse({
+        success: true,
+        book_id: bookId,
+        display_plays_count: displayPlays,
+        display_reviews_count: displayReviews,
+        display_rating: displayRating,
+        message: "Effet de masse appliqué et synchronisé avec succès !"
+      }, corsHeaders);
+    }
+
     // ─── POST /api/admin/books (Ajout / Mise à jour Livre dans D1) ─
     if (path === '/admin/books' && method === 'POST') {
       const body = await request.json();
@@ -1172,9 +1344,13 @@ export async function onRequest(context) {
       const isBestseller = body.is_bestseller !== undefined ? (body.is_bestseller ? 1 : 0) : 0;
       const rating = Number(body.rating || 5.0);
       const ratingCount = Number(body.rating_count || 1);
+      const displayPlays = Number(body.display_plays_count || 0);
+      const displayReviews = Number(body.display_reviews_count || 0);
+      const displayRating = Number(body.display_rating || rating || 5.0);
 
       if (env.DB) {
         try {
+          await ensureAnalyticsTables(env.DB);
           // Créer la colonne is_pinned si elle n'existe pas encore
           try {
             await env.DB.prepare('ALTER TABLE audiobooks ADD COLUMN is_pinned INTEGER DEFAULT 0').run();
@@ -1185,8 +1361,9 @@ export async function onRequest(context) {
               id, title, author, narrator, description, synopsis,
               price, discount_price, category_id, content_type, cover_url, cover_r2_key,
               preview_url, preview_r2_key, duration_seconds, rating, rating_count, 
+              display_plays_count, display_reviews_count, display_rating,
               is_featured, is_bestseller, is_pinned, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(id) DO UPDATE SET
               title = excluded.title,
               author = excluded.author,
@@ -1204,6 +1381,9 @@ export async function onRequest(context) {
               duration_seconds = excluded.duration_seconds,
               rating = excluded.rating,
               rating_count = excluded.rating_count,
+              display_plays_count = excluded.display_plays_count,
+              display_reviews_count = excluded.display_reviews_count,
+              display_rating = excluded.display_rating,
               is_featured = excluded.is_featured,
               is_bestseller = excluded.is_bestseller,
               is_pinned = excluded.is_pinned
@@ -1215,6 +1395,7 @@ export async function onRequest(context) {
             body.preview_url, body.preview_r2_key || null,
             Number(body.duration_seconds || 0),
             rating, ratingCount,
+            displayPlays, displayReviews, displayRating,
             isFeatured, isBestseller,
             isPinned
           ).run();
@@ -1277,25 +1458,61 @@ export async function onRequest(context) {
       }, corsHeaders);
     }
 
-    // ─── DELETE /api/admin/books/:id (Suppression Livre D1) ──────
-    const deleteBookMatch = path.match(/^\/admin\/books\/([a-zA-Z0-9_-]+)$/);
+    // ─── DELETE /api/admin/books/:id (Suppression Livre D1 & Purge KV) ──────
+    const deleteBookMatch = path.match(/^\/admin\/books\/([^\/\?]+)\/?$/i);
     if (deleteBookMatch && method === 'DELETE') {
-      const bookId = deleteBookMatch[1];
+      const bookId = decodeURIComponent(deleteBookMatch[1]);
+      let d1Success = false;
 
       if (env.DB) {
-        await env.DB.prepare('DELETE FROM chapters WHERE audiobook_id = ?').bind(bookId).run();
-        await env.DB.prepare('DELETE FROM audiobooks WHERE id = ?').bind(bookId).run();
-
-        if (env.KV_BINDING) {
-          await env.KV_BINDING.delete('books_all_false');
-          await env.KV_BINDING.delete('books_all_true');
-          await env.KV_BINDING.delete(`book_${bookId}`);
+        try {
+          // Créer table deleted_books si nécessaire
+          await env.DB.prepare(`CREATE TABLE IF NOT EXISTS deleted_books (id TEXT PRIMARY KEY, deleted_at DATETIME DEFAULT CURRENT_TIMESTAMP)`).run().catch(() => {});
+          // Supprimer en cascade toutes les dépendances
+          await env.DB.prepare('DELETE FROM bookmarks WHERE audiobook_id = ?').bind(bookId).run().catch(() => {});
+          await env.DB.prepare('DELETE FROM reviews WHERE audiobook_id = ?').bind(bookId).run().catch(() => {});
+          await env.DB.prepare('DELETE FROM purchases WHERE audiobook_id = ?').bind(bookId).run().catch(() => {});
+          await env.DB.prepare('DELETE FROM user_progress WHERE audiobook_id = ?').bind(bookId).run().catch(() => {});
+          await env.DB.prepare('DELETE FROM chapters WHERE audiobook_id = ?').bind(bookId).run().catch(() => {});
+          await env.DB.prepare('DELETE FROM audiobooks WHERE id = ?').bind(bookId).run();
+          // Enregistrer dans le registre permanent des suppressions
+          await env.DB.prepare('INSERT OR IGNORE INTO deleted_books (id) VALUES (?)').bind(bookId).run().catch(() => {});
+          d1Success = true;
+          console.log(`[DELETE BOOK] ✅ Supprimé définitivement de D1 et enregistré dans deleted_books : ${bookId}`);
+        } catch (dbErr) {
+          console.error('[DELETE BOOK] Erreur D1:', dbErr);
         }
-
-        return jsonResponse({ success: true, message: `Livre ${bookId} supprimé de D1` }, corsHeaders);
       }
 
-      return jsonResponse({ success: true, message: `Livre supprimé localement` }, corsHeaders);
+      if (env.KV_BINDING) {
+        // 1. Purge TOUS les caches catalogue par préfixe
+        try {
+          const list = await env.KV_BINDING.list({ prefix: 'books_' });
+          await Promise.allSettled((list.keys || []).map(k => env.KV_BINDING.delete(k.name)));
+        } catch (_) {}
+        // Purge cache du livre individuel
+        await env.KV_BINDING.delete(`book_${bookId}`).catch(() => {});
+
+        // 2. Maintenir registre KV permanent des IDs supprimés (30 jours)
+        try {
+          const deletedList = await env.KV_BINDING.get('deleted_book_ids', { type: 'json' }) || [];
+          if (!deletedList.includes(bookId)) {
+            deletedList.push(bookId);
+            await env.KV_BINDING.put('deleted_book_ids', JSON.stringify(deletedList), { expirationTtl: 86400 * 30 });
+          }
+        } catch (_) {}
+      }
+
+      return jsonResponse({
+        success: true,
+        deleted: true,
+        book_id: bookId,
+        d1: d1Success,
+        message: `Livre ${bookId} définitivement supprimé et enregistré dans le registre des suppressions`,
+      }, {
+        ...corsHeaders,
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+      });
     }
 
     // ─── POST /api/r2/upload (Upload réel de fichier vers R2) ─────
@@ -1381,6 +1598,17 @@ export async function onRequest(context) {
       }
 
       if (env.AUDIO_BUCKET) {
+        // Détecter automatiquement le Content-Type optimal selon l'extension
+        let inferredType = 'application/octet-stream';
+        const lowerKey = key.toLowerCase();
+        if (lowerKey.endsWith('.mp3')) inferredType = 'audio/mpeg';
+        else if (lowerKey.endsWith('.m4a')) inferredType = 'audio/mp4';
+        else if (lowerKey.endsWith('.wav')) inferredType = 'audio/wav';
+        else if (lowerKey.endsWith('.ogg')) inferredType = 'audio/ogg';
+        else if (lowerKey.endsWith('.webp')) inferredType = 'image/webp';
+        else if (lowerKey.endsWith('.jpg') || lowerKey.endsWith('.jpeg')) inferredType = 'image/jpeg';
+        else if (lowerKey.endsWith('.png')) inferredType = 'image/png';
+
         const rangeHeader = request.headers.get('Range');
         if (rangeHeader) {
           const rangeMatch = rangeHeader.match(/bytes=(\d+)-(\d+)?/);
@@ -1393,7 +1621,11 @@ export async function onRequest(context) {
             if (obj) {
               const headers = new Headers(corsHeaders);
               obj.writeHttpMetadata(headers);
+              if (!headers.get('Content-Type') || headers.get('Content-Type') === 'application/octet-stream') {
+                headers.set('Content-Type', inferredType);
+              }
               headers.set('Accept-Ranges', 'bytes');
+              headers.set('Cache-Control', 'public, max-age=604800, immutable');
               headers.set('Content-Range', `bytes ${start}-${end ?? (obj.size - 1)}/${obj.size}`);
               return new Response(obj.body, { status: 206, headers });
             }
@@ -1404,8 +1636,11 @@ export async function onRequest(context) {
         if (obj) {
           const headers = new Headers(corsHeaders);
           obj.writeHttpMetadata(headers);
+          if (!headers.get('Content-Type') || headers.get('Content-Type') === 'application/octet-stream') {
+            headers.set('Content-Type', inferredType);
+          }
           headers.set('Accept-Ranges', 'bytes');
-          headers.set('Cache-Control', 'public, max-age=86400');
+          headers.set('Cache-Control', 'public, max-age=604800, immutable');
           return new Response(obj.body, { status: 200, headers });
         }
       }
@@ -1758,6 +1993,16 @@ async function ensureD1Seeded(db) {
     const tableCheck = await db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='audiobooks'").first();
     if (!tableCheck) return;
 
+    // Créer la table deleted_books si nécessaire
+    await db.prepare(`CREATE TABLE IF NOT EXISTS deleted_books (id TEXT PRIMARY KEY, deleted_at DATETIME DEFAULT CURRENT_TIMESTAMP)`).run().catch(() => {});
+
+    // Récupérer les IDs supprimés pour ne jamais les réinjecter
+    let deletedSet = new Set();
+    try {
+      const { results: delRows } = await db.prepare('SELECT id FROM deleted_books').all();
+      for (const r of (delRows || [])) deletedSet.add(r.id);
+    } catch (_) {}
+
     const count = await db.prepare('SELECT COUNT(*) as c FROM audiobooks').first();
     if (count && count.c === 0) {
       const categories = getFallbackCategories();
@@ -1768,6 +2013,9 @@ async function ensureD1Seeded(db) {
 
       const books = getFallbackAudiobooks();
       for (const b of books) {
+        // Ne jamais réinsérer un livre qui a été supprimé
+        if (deletedSet.has(b.id)) continue;
+
         await db.prepare(`
           INSERT OR IGNORE INTO audiobooks (
             id, title, author, narrator, description, price, discount_price, category_id, content_type, cover_url, preview_url, duration_seconds, rating, rating_count, is_featured, is_bestseller
@@ -1795,3 +2043,37 @@ async function ensureD1Seeded(db) {
   }
 }
 
+/**
+ * Crée les tables analytics si elles n'existent pas encore (migration lazy).
+ */
+async function ensureAnalyticsTables(db) {
+  try {
+    await db.batch([
+      db.prepare(`CREATE TABLE IF NOT EXISTS visitor_sessions (
+        session_id TEXT PRIMARY KEY, visitor_id TEXT NOT NULL,
+        user_id TEXT, source TEXT DEFAULT 'Direct', device TEXT DEFAULT 'Inconnu',
+        referrer TEXT, landing_url TEXT, started_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`),
+      db.prepare(`CREATE TABLE IF NOT EXISTS analytics_events (
+        id TEXT PRIMARY KEY, session_id TEXT, visitor_id TEXT NOT NULL, user_id TEXT,
+        event_type TEXT NOT NULL, page TEXT, action TEXT, audiobook_id TEXT,
+        audiobook_title TEXT, chapter_id TEXT, seconds_listened INTEGER DEFAULT 0,
+        extra_data TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`),
+      db.prepare(`CREATE INDEX IF NOT EXISTS idx_sessions_visitor ON visitor_sessions(visitor_id)`),
+      db.prepare(`CREATE INDEX IF NOT EXISTS idx_events_visitor ON analytics_events(visitor_id)`),
+      db.prepare(`CREATE INDEX IF NOT EXISTS idx_events_created ON analytics_events(created_at)`),
+    ]);
+
+    // Ajouter colonnes social proof sur audiobooks si absentes (SQLite ALTER TABLE)
+    for (const col of [
+      `ALTER TABLE audiobooks ADD COLUMN display_plays_count INTEGER DEFAULT 0`,
+      `ALTER TABLE audiobooks ADD COLUMN display_reviews_count INTEGER DEFAULT 0`,
+      `ALTER TABLE audiobooks ADD COLUMN display_rating REAL`,
+    ]) {
+      await db.prepare(col).run().catch(() => {}); // Ignore si déjà existant
+    }
+  } catch (e) {
+    console.warn('[Analytics Tables] Erreur init:', e);
+  }
+}

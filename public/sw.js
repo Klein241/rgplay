@@ -5,9 +5,8 @@
  * - Push Notifications & PWA
  */
 
-const SW_VERSION = 'v1.0.3';
+const SW_VERSION = 'v1.0.4';
 const CACHE_NAME = `rg-play-${SW_VERSION}`;
-const API_PREFIX = '/api/';
 
 // ── Installation Immédiate ───────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
@@ -23,7 +22,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// ── Fetch Strategy : Network-First avec Fallback Robuste ─────────────────────
+// ── Fetch Strategy ────────────────────────────────────────────────────────────
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (!request.url.startsWith('http://') && !request.url.startsWith('https://')) {
@@ -31,42 +30,45 @@ self.addEventListener('fetch', (event) => {
   }
   const url = new URL(request.url);
 
-  // 1. Navigation HTML & API : Network First
-  if (request.mode === 'navigate' || request.destination === 'document' || url.pathname.startsWith(API_PREFIX)) {
+  // 1. NE JAMAIS intercepter les requêtes API (D1, R2, KV, auth, downloads)
+  // L'application React et apiClient gèrent directement les réponses et fallbacks JSON
+  if (url.pathname.startsWith('/api/')) {
+    return;
+  }
+
+  // 2. Navigation HTML pour SPA React
+  if (request.mode === 'navigate' || request.destination === 'document') {
     event.respondWith(
       fetch(request)
         .catch(async () => {
           const cached = await caches.match(request);
           if (cached) return cached;
-          if (request.mode === 'navigate' || request.destination === 'document') {
-            const indexHtml = await caches.match('/index.html');
-            if (indexHtml) return indexHtml;
-          }
-          return new Response('<!DOCTYPE html><html><body><p>Hors-ligne</p></body></html>', {
-            status: 200,
-            headers: { 'Content-Type': 'text/html; charset=utf-8' },
-          });
+          const indexHtml = await caches.match('/index.html');
+          if (indexHtml) return indexHtml;
+          return fetch(request);
         })
     );
     return;
   }
 
-  // 2. Assets statiques (JS, CSS, Images, SVGs)
-  event.respondWith(
-    fetch(request)
-      .then((response) => {
-        if (response.ok && request.method === 'GET') {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone)).catch(() => {});
-        }
-        return response;
-      })
-      .catch(async () => {
-        const cached = await caches.match(request);
-        if (cached) return cached;
-        return new Response('', { status: 408, statusText: 'Request Timeout' });
-      })
-  );
+  // 3. Assets statiques (JS, CSS, Polices, Icônes)
+  if (request.method === 'GET') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok && (url.pathname.endsWith('.js') || url.pathname.endsWith('.css') || url.pathname.endsWith('.woff2') || url.pathname.endsWith('.svg'))) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone)).catch(() => {});
+          }
+          return response;
+        })
+        .catch(async () => {
+          const cached = await caches.match(request);
+          if (cached) return cached;
+          return new Response('', { status: 408, statusText: 'Request Timeout' });
+        })
+    );
+  }
 });
 
 // ════════════════════════════════════════════════════════════════════════════

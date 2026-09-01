@@ -196,6 +196,7 @@ function loadDb() {
         { id: 'prog-1', user_id: 'user-demo', audiobook_id: 'book-1', current_chapter_id: 'chap-1-2', position_seconds: 450, completed_percentage: 25, is_completed: 0, last_listened_at: new Date().toISOString() },
         { id: 'prog-2', user_id: 'user-demo', audiobook_id: 'book-4', current_chapter_id: 'chap-4-1', position_seconds: 1200, completed_percentage: 50, is_completed: 0, last_listened_at: new Date().toISOString() },
       ],
+      deleted_book_ids: [],
       push_subscriptions: [],
     };
     saveDb(initialDb);
@@ -204,12 +205,17 @@ function loadDb() {
   try {
     const content = fs.readFileSync(dbFile, 'utf-8');
     const parsed = JSON.parse(content);
-    if (!parsed.audiobooks || !Array.isArray(parsed.audiobooks)) parsed.audiobooks = INITIAL_AUDIOBOOKS;
+    if (!parsed.deleted_book_ids || !Array.isArray(parsed.deleted_book_ids)) parsed.deleted_book_ids = [];
+    if (!parsed.audiobooks || !Array.isArray(parsed.audiobooks)) {
+      parsed.audiobooks = INITIAL_AUDIOBOOKS.filter(b => !parsed.deleted_book_ids.includes(b.id));
+    } else {
+      parsed.audiobooks = parsed.audiobooks.filter(b => !parsed.deleted_book_ids.includes(b.id));
+    }
     if (!parsed.categories || !Array.isArray(parsed.categories)) parsed.categories = INITIAL_CATEGORIES;
     return parsed;
   } catch (e) {
     console.error('[API Dev Server] Erreur lecture db.json, réinitialisation :', e);
-    return { categories: INITIAL_CATEGORIES, audiobooks: INITIAL_AUDIOBOOKS, purchases: [], progress: [] };
+    return { categories: INITIAL_CATEGORIES, audiobooks: INITIAL_AUDIOBOOKS, purchases: [], progress: [], deleted_book_ids: [] };
   }
 }
 
@@ -244,11 +250,14 @@ export function viteApiPlugin() {
         const method = req.method;
         const apiPath = pathname.replace(/^\/api/, '');
 
-        // Set standard CORS & JSON headers
+        // Set standard CORS, anti-cache & JSON headers
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Range, X-User-Id');
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
 
         if (method === 'OPTIONS') {
           res.statusCode = 204;
@@ -259,6 +268,16 @@ export function viteApiPlugin() {
         try {
           const db = loadDb();
 
+          // ── GET /api/deleted-books ───────────────────────────────────
+          if ((apiPath === '/deleted-books' || apiPath === '/deleted-books/') && method === 'GET') {
+            res.statusCode = 200;
+            res.end(JSON.stringify({
+              success: true,
+              deleted_ids: db.deleted_book_ids || [],
+            }));
+            return;
+          }
+
           // ── GET /api/status ──────────────────────────────────────────
           if (apiPath === '/status' && method === 'GET') {
             res.statusCode = 200;
@@ -266,6 +285,7 @@ export function viteApiPlugin() {
               status: 'online',
               mode: 'vite_shared_dev_server',
               database_file: 'data/db.json',
+              deleted_book_ids_count: (db.deleted_book_ids || []).length,
               bindings: {
                 d1: {
                   connected: true,
@@ -294,9 +314,14 @@ export function viteApiPlugin() {
             const category = url.searchParams.get('category');
             const search = url.searchParams.get('search');
             const featured = url.searchParams.get('featured');
+            const type = url.searchParams.get('type');
+            const deletedSet = new Set(db.deleted_book_ids || []);
 
-            let books = [...(db.audiobooks || [])];
+            let books = (db.audiobooks || []).filter(b => !deletedSet.has(b.id));
 
+            if (type && type !== 'all') {
+              books = books.filter(b => (b.content_type || 'audiobook') === type);
+            }
             if (category && category !== 'all') {
               books = books.filter(b => 
                 b.category_id === category || 
@@ -321,10 +346,16 @@ export function viteApiPlugin() {
           }
 
           // ── GET /api/audiobooks/:id ──────────────────────────────────
-          const bookDetailMatch = apiPath.match(/^\/audiobooks\/([a-zA-Z0-9_-]+)$/);
+          const bookDetailMatch = apiPath.match(/^\/audiobooks\/([^\/\?]+)\/?$/i);
           if (bookDetailMatch && method === 'GET') {
-            const bookId = bookDetailMatch[1];
-            const book = db.audiobooks.find(b => b.id === bookId);
+            const bookId = decodeURIComponent(bookDetailMatch[1]);
+            const deletedSet = new Set(db.deleted_book_ids || []);
+            if (deletedSet.has(bookId)) {
+              res.statusCode = 404;
+              res.end(JSON.stringify({ error: 'Livre supprimé', deleted: true }));
+              return;
+            }
+            const book = (db.audiobooks || []).find(b => b.id === bookId);
             if (book) {
               res.statusCode = 200;
               res.end(JSON.stringify(book));
@@ -359,8 +390,13 @@ export function viteApiPlugin() {
               })) : [],
             };
 
+            // If it was marked deleted previously, unmark it
+            if (db.deleted_book_ids) {
+              db.deleted_book_ids = db.deleted_book_ids.filter(id => id !== bookId);
+            }
+
             // Remove existing version if update
-            db.audiobooks = db.audiobooks.filter(b => b.id !== bookId);
+            db.audiobooks = (db.audiobooks || []).filter(b => b.id !== bookId);
             // Prepend new book so it's top of list
             db.audiobooks.unshift(newBook);
             saveDb(db);
@@ -379,20 +415,36 @@ export function viteApiPlugin() {
           }
 
           // ── DELETE /api/admin/books/:id ──────────────────────────────
-          const deleteMatch = apiPath.match(/^\/admin\/books\/([a-zA-Z0-9_-]+)$/);
+          const deleteMatch = apiPath.match(/^\/admin\/books\/([^\/\?]+)\/?$/i);
           if (deleteMatch && method === 'DELETE') {
-            const bookId = deleteMatch[1];
-            const prevCount = db.audiobooks.length;
-            db.audiobooks = db.audiobooks.filter(b => b.id !== bookId);
+            const bookId = decodeURIComponent(deleteMatch[1]);
+            const prevCount = (db.audiobooks || []).length;
+            db.audiobooks = (db.audiobooks || []).filter(b => b.id !== bookId);
+            
+            if (!db.deleted_book_ids) db.deleted_book_ids = [];
+            if (!db.deleted_book_ids.includes(bookId)) {
+              db.deleted_book_ids.push(bookId);
+            }
+
+            // Supprimer en cascade des achats et progression de tous les utilisateurs
+            if (db.purchases) {
+              db.purchases = db.purchases.filter(p => p.audiobook_id !== bookId);
+            }
+            if (db.progress) {
+              db.progress = db.progress.filter(p => p.audiobook_id !== bookId);
+            }
+
             saveDb(db);
 
-            console.log(`[API Dev Server] 🗑 Livre ${bookId} supprimé de data/db.json`);
+            console.log(`[API Dev Server] 🗑 Livre ${bookId} définitivement supprimé de data/db.json et enregistré dans deleted_book_ids`);
 
             res.statusCode = 200;
             res.end(JSON.stringify({
               success: true,
-              deleted: prevCount !== db.audiobooks.length,
-              message: `Livre ${bookId} supprimé de la base de données`,
+              deleted: true,
+              book_id: bookId,
+              deleted_ids: db.deleted_book_ids,
+              message: `Livre ${bookId} supprimé de la base de données et de tous les profils`,
             }));
             return;
           }
@@ -400,10 +452,11 @@ export function viteApiPlugin() {
           // ── GET /api/library ─────────────────────────────────────────
           if (apiPath === '/library' && method === 'GET') {
             const userId = req.headers['x-user-id'] || 'user-demo';
-            const userPurchases = (db.purchases || []).filter(p => p.user_id === userId);
+            const deletedSet = new Set(db.deleted_book_ids || []);
+            const userPurchases = (db.purchases || []).filter(p => p.user_id === userId && !deletedSet.has(p.audiobook_id));
             
             const libraryBooks = userPurchases.map(p => {
-              const book = db.audiobooks.find(b => b.id === p.audiobook_id);
+              const book = (db.audiobooks || []).find(b => b.id === p.audiobook_id && !deletedSet.has(b.id));
               if (!book) return null;
               const prog = (db.progress || []).find(pr => pr.user_id === userId && pr.audiobook_id === book.id) || {};
               return {

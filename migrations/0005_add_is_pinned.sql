@@ -1,1 +1,2 @@
-ALTER TABLE audiobooks ADD COLUMN is_pinned INTEGER DEFAULT 0;
+-- Migration 0005 : is_pinned déjà présent
+SELECT 1;

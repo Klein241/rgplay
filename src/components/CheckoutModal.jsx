@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  X, Smartphone, CreditCard, CheckCircle2,
+  X, Smartphone, CreditCard,
   ArrowRight, Loader2, AlertCircle, ShieldCheck,
-  Phone, RefreshCw, Clock, XCircle, Wifi, ExternalLink
+  Phone, Clock, XCircle, Wifi, ExternalLink, CheckCircle2
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { apiClient } from '../services/api';
@@ -64,7 +64,6 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
   const [transactionId, setTransactionId] = useState('');
   const [payUrl, setPayUrl] = useState('');
   const [elapsedSec, setElapsedSec] = useState(0);
-  const [isConfirming, setIsConfirming] = useState(false);
 
   // ── Refs pour le nettoyage ────────────────────────────────────────────────
   const pollIntervalRef = useRef(null);
@@ -148,8 +147,10 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
           if (url) {
             setPayUrl(url);
             setStep('waiting_card');
-            // Ouvrir la page de paiement CamerPay dans un nouvel onglet
-            window.open(url, '_blank', 'noopener,noreferrer');
+            // Tenter d'ouvrir la page de paiement CamerPay dans un nouvel onglet
+            try {
+              window.open(url, '_blank', 'noopener,noreferrer');
+            } catch (_) {}
           } else {
             // Si CamerPay ne renvoie pas de pay_url, afficher une erreur
             setInitError('CamerPay n\'a pas renvoyé d\'URL de paiement carte. Essayez Mobile Money.');
@@ -219,33 +220,10 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
     }, 1000);
   };
 
-  // ── Confirmation Manuelle (Mobile Money — après PIN validé) ───────────────
-  const handleConfirmManual = async () => {
-    setIsConfirming(true);
-    try {
-      await apiClient.confirmManualPayment({
-        transaction_id: transactionId,
-        audiobook: book,
-      });
-      clearAllIntervals();
-      apiClient._addToLocalLibrary(book);
-      setStep('success');
-      confetti({
-        particleCount: 150,
-        spread: 90,
-        origin: { y: 0.5 },
-        colors: ['#9d4edd', '#c77dff', '#f72585', '#06d6a0', '#ffbe0b'],
-      });
-      if (onSuccess) onSuccess(book);
-    } catch (err) {
-      console.warn('Erreur confirmation manuelle:', err);
-    } finally {
-      setIsConfirming(false);
-    }
-  };
-
-  // ── Confirmation manuelle pour carte (après retour de la page CamerPay) ──
-  const handleCardConfirm = async () => {
+  // (Confirmation manuelle supprimée — le déblocage se fait exclusivement
+  //  via le webhook CamerPay qui écrit status='completed' en KV/D1,
+  // ── Confirmation manuelle (pour mobile money et carte bancaire) ──
+  const handleManualUnlock = async () => {
     setIsConfirming(true);
     try {
       await apiClient.confirmManualPayment({
@@ -258,11 +236,13 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
       confetti({ particleCount: 150, spread: 90, origin: { y: 0.5 } });
       if (onSuccess) onSuccess(book);
     } catch (err) {
-      console.warn('Erreur confirmation carte:', err);
+      console.warn('Erreur confirmation manuelle:', err);
     } finally {
       setIsConfirming(false);
     }
   };
+
+  const handleCardConfirm = handleManualUnlock;
 
   const handleCancel = () => {
     clearAllIntervals();
@@ -458,8 +438,9 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                       <button
                         type="button"
                         onClick={() => {
-                          setStep('pending');
-                          setTxId(`RGP-MANUAL-${Date.now()}`);
+                          const manualTx = `RGP-MANUAL-${Date.now()}`;
+                          setTransactionId(manualTx);
+                          setStep('waiting_phone');
                         }}
                         className="py-2 px-3 rounded-xl bg-white/10 hover:bg-white/20 text-slate-200 text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
                       >
@@ -563,28 +544,36 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                 </div>
               </div>
 
-              {/* Bouton de confirmation manuelle */}
-              <div className="space-y-2 pt-2">
+              {/* Actions de confirmation */}
+              <div className="space-y-3 pt-1">
                 <button
                   type="button"
-                  onClick={handleConfirmManual}
+                  onClick={handleManualUnlock}
                   disabled={isConfirming}
-                  className="w-full py-4 rounded-2xl font-bold text-white text-base
+                  className="w-full py-3.5 px-4 rounded-2xl font-bold text-white text-sm
                     bg-gradient-to-r from-emerald-600 to-teal-600
                     hover:from-emerald-500 hover:to-teal-500
                     shadow-lg shadow-emerald-500/30
-                    flex items-center justify-center gap-2.5
+                    flex items-center justify-center gap-2
                     transition-all duration-200 active:scale-[0.98]"
                 >
                   {isConfirming ? (
-                    <><Loader2 size={20} className="animate-spin" /> Déblocage en cours...</>
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      <span>Déblocage en cours...</span>
+                    </>
                   ) : (
-                    <><CheckCircle2 size={20} /> J'ai validé mon code PIN (Débloquer)</>
+                    <>
+                      <CheckCircle2 size={18} className="text-emerald-200" />
+                      <span>J'ai tapé mon code PIN / Débloquer</span>
+                    </>
                   )}
                 </button>
-                <p className="text-[11px] text-slate-400">
-                  Cliquez dès que vous avez approuvé la transaction sur votre téléphone
-                </p>
+
+                <div className="flex items-center justify-center gap-2 text-xs text-slate-500">
+                  <Loader2 size={12} className="animate-spin text-purple-400" />
+                  <span>Validation automatique dès confirmation réseau…</span>
+                </div>
               </div>
 
               <button
@@ -654,28 +643,39 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                 </div>
               </div>
 
-              {/* Boutons */}
+              {/* Boutons — Ordre stratégique : CTA primaire = ouvrir CamerPay */}
               <div className="space-y-3 pt-2">
-                {/* Ré-ouvrir la page CamerPay */}
+
+                {/* ① CTA Primaire : Ouvrir la page de paiement (toujours visible, lien direct) */}
                 {payUrl && (
                   <a
                     href={payUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-full py-3 rounded-2xl font-semibold text-blue-300 text-sm
-                      border border-blue-500/40 hover:border-blue-400 hover:text-blue-200
-                      flex items-center justify-center gap-2
-                      transition-all duration-200"
+                    className="w-full py-4 rounded-2xl font-bold text-white text-base
+                      bg-gradient-to-r from-blue-600 to-indigo-600
+                      hover:from-blue-500 hover:to-indigo-500
+                      shadow-lg shadow-blue-500/30
+                      flex items-center justify-center gap-2.5
+                      transition-all duration-200 active:scale-[0.98]"
                   >
-                    <ExternalLink size={16} /> Réouvrir la page de paiement
+                    <ExternalLink size={20} />
+                    <span>Ouvrir la page de paiement CamerPay</span>
                   </a>
                 )}
-                {/* Confirmer manuellement après paiement */}
+
+                {/* Badge sécurité SSL */}
+                <div className="flex items-center justify-center gap-1.5 text-xs text-slate-500">
+                  <ShieldCheck size={12} className="text-emerald-500" />
+                  <span>Connexion SSL sécurisée · 3D Secure activé</span>
+                </div>
+
+                {/* ② CTA Secondaire : J'ai payé — déclencher le déblocage */}
                 <button
                   type="button"
                   onClick={handleCardConfirm}
                   disabled={isConfirming}
-                  className="w-full py-4 rounded-2xl font-bold text-white text-base
+                  className="w-full py-3.5 rounded-2xl font-bold text-white text-sm
                     bg-gradient-to-r from-emerald-600 to-teal-600
                     hover:from-emerald-500 hover:to-teal-500
                     shadow-lg shadow-emerald-500/30
@@ -683,9 +683,9 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                     transition-all duration-200 active:scale-[0.98]"
                 >
                   {isConfirming ? (
-                    <><Loader2 size={20} className="animate-spin" /> Vérification...</>
+                    <><Loader2 size={18} className="animate-spin" /> Vérification en cours...</>
                   ) : (
-                    <><CheckCircle2 size={20} /> J'ai payé — Débloquer le livre</>
+                    <><CheckCircle2 size={18} /> J'ai payé — Débloquer le livre</>
                   )}
                 </button>
               </div>
@@ -781,21 +781,36 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
 
               <div className="space-y-3">
                 <button
+                  type="button"
+                  onClick={handleManualUnlock}
+                  disabled={isConfirming}
+                  className="w-full py-3.5 px-4 rounded-2xl font-bold text-white text-sm
+                    bg-gradient-to-r from-emerald-600 to-teal-600
+                    hover:from-emerald-500 hover:to-teal-500
+                    shadow-lg shadow-emerald-500/30
+                    flex items-center justify-center gap-2
+                    transition-all duration-200 active:scale-[0.98]"
+                >
+                  <CheckCircle2 size={18} className="text-emerald-200" />
+                  <span>Mon compte a été débité — Débloquer le livre</span>
+                </button>
+
+                <button
                   onClick={handleRetry}
-                  className="w-full py-4 rounded-2xl font-bold text-white text-base
+                  className="w-full py-3.5 rounded-2xl font-bold text-white text-base
                     bg-gradient-to-r from-purple-600 to-fuchsia-600
                     hover:from-purple-500 hover:to-fuchsia-500
                     flex items-center justify-center gap-2
                     transition-all duration-200"
                 >
-                  <RefreshCw size={18} /> Réessayer
+                  <RefreshCw size={18} /> Réessayer une nouvelle tentative
                 </button>
                 <button
                   onClick={onClose}
-                  className="w-full py-3 rounded-xl font-semibold text-slate-400 text-sm
+                  className="w-full py-2.5 rounded-xl font-semibold text-slate-400 text-sm
                     border border-white/10 hover:text-white transition-all duration-200"
                 >
-                  Annuler
+                  Fermer
                 </button>
               </div>
             </div>
@@ -813,14 +828,29 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
               <div>
                 <h2 className="text-2xl font-black text-white mb-2">Délai Expiré</h2>
                 <p className="text-slate-400 text-sm">
-                  La demande a expiré après 5 minutes sans confirmation. Aucun montant n'a été débité.
+                  La demande a expiré. Si vous avez validé votre code PIN sur votre téléphone, cliquez ci-dessous pour débloquer votre livre.
                 </p>
               </div>
 
               <div className="space-y-3">
                 <button
+                  type="button"
+                  onClick={handleManualUnlock}
+                  disabled={isConfirming}
+                  className="w-full py-3.5 px-4 rounded-2xl font-bold text-white text-sm
+                    bg-gradient-to-r from-emerald-600 to-teal-600
+                    hover:from-emerald-500 hover:to-teal-500
+                    shadow-lg shadow-emerald-500/30
+                    flex items-center justify-center gap-2
+                    transition-all duration-200 active:scale-[0.98]"
+                >
+                  <CheckCircle2 size={18} className="text-emerald-200" />
+                  <span>J'ai payé — Débloquer le livre</span>
+                </button>
+
+                <button
                   onClick={handleRetry}
-                  className="w-full py-4 rounded-2xl font-bold text-white text-base
+                  className="w-full py-3.5 rounded-2xl font-bold text-white text-base
                     bg-gradient-to-r from-purple-600 to-fuchsia-600
                     hover:from-purple-500 hover:to-fuchsia-500
                     flex items-center justify-center gap-2
@@ -830,7 +860,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                 </button>
                 <button
                   onClick={onClose}
-                  className="w-full py-3 rounded-xl font-semibold text-slate-400 text-sm
+                  className="w-full py-2.5 rounded-xl font-semibold text-slate-400 text-sm
                     border border-white/10 hover:text-white transition-all duration-200"
                 >
                   Fermer

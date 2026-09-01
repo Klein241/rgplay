@@ -80,7 +80,6 @@ export const UserProfileModal = ({ isOpen, onClose, onProfileSaved }) => {
       is_registered: true,
       registeredAt: Date.now(),
       plan: 'free',
-      solde: 15000,
     };
 
     try {

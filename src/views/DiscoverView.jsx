@@ -18,16 +18,51 @@ const CONTENT_TYPES = [
 
 export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
   const [selectedType, setSelectedType] = useState('all');
-  const [categories, setCategories] = useState([]);
+  const [categories, setCategories] = useState(() => [
+    { id: 'all', name: 'Tous les genres', slug: 'all', icon: 'Sparkles', color: '#9d4edd' },
+    { id: 'cat-1', name: 'Business & Finance', slug: 'business-finance', icon: 'TrendingUp', color: '#9d4edd' },
+    { id: 'cat-2', name: 'Développement Personnel', slug: 'dev-perso', icon: 'Sparkles', color: '#c77dff' },
+    { id: 'cat-3', name: 'Intelligence Artificielle & Tech', slug: 'tech-ia', icon: 'Cpu', color: '#3a86ff' },
+    { id: 'cat-4', name: 'Psychologie & Mental', slug: 'psychologie', icon: 'Brain', color: '#ff006e' },
+    { id: 'cat-5', name: 'Histoire & Stratégie', slug: 'strategie', icon: 'Shield', color: '#fb5607' },
+    { id: 'cat-6', name: 'Romans & Fiction', slug: 'fiction', icon: 'BookOpen', color: '#ffbe0b' },
+  ]);
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [audiobooks, setAudiobooks] = useState([]);
-  const [featuredBook, setFeaturedBook] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [audiobooks, setAudiobooks] = useState(() => {
+    try {
+      const cached = localStorage.getItem('rg_cached_books');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (_) {}
+    return [];
+  });
+  const [featuredBook, setFeaturedBook] = useState(() => {
+    try {
+      const cached = localStorage.getItem('rg_cached_books');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.find(b => Boolean(b.is_featured)) || parsed[0];
+        }
+      }
+    } catch (_) {}
+    return null;
+  });
+  const [isLoading, setIsLoading] = useState(() => {
+    try {
+      const cached = localStorage.getItem('rg_cached_books');
+      return !cached || JSON.parse(cached).length === 0;
+    } catch (_) {
+      return true;
+    }
+  });
 
   const { playPreview, playBook } = useAudio();
 
-  const loadData = async () => {
-    setIsLoading(true);
+  const loadData = async (showLoading = false) => {
+    if (showLoading) setIsLoading(true);
     try {
       const [cats, books] = await Promise.all([
         apiClient.getCategories(),
@@ -37,13 +72,15 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
           type: selectedType
         }),
       ]);
-      setCategories(cats);
-      setAudiobooks(books);
-      if (books.length > 0) {
-        const featured = books.find(b => Boolean(b.is_featured)) || books[0];
-        setFeaturedBook(featured);
-      } else {
-        setFeaturedBook(null);
+      if (cats && cats.length > 0) setCategories(cats);
+      if (books && Array.isArray(books)) {
+        setAudiobooks(books);
+        if (books.length > 0) {
+          const featured = books.find(b => Boolean(b.is_featured)) || books[0];
+          setFeaturedBook(featured);
+        } else {
+          setFeaturedBook(null);
+        }
       }
     } catch (e) {
       console.error('Erreur chargement données:', e);
@@ -58,12 +95,21 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') handleRefresh();
     };
+    // Retrait instantané de l'état local (optimiste) + rechargement serveur
+    const handleBookDeleted = (e) => {
+      const deletedId = e.detail?.id;
+      if (deletedId) {
+        setAudiobooks(prev => prev.filter(b => b.id !== deletedId));
+        setFeaturedBook(prev => (prev?.id === deletedId ? null : prev));
+      }
+      loadData();
+    };
     window.addEventListener('rg:book-created', handleRefresh);
-    window.addEventListener('rg:book-deleted', handleRefresh);
+    window.addEventListener('rg:book-deleted', handleBookDeleted);
     document.addEventListener('visibilitychange', handleVisibility);
     return () => {
       window.removeEventListener('rg:book-created', handleRefresh);
-      window.removeEventListener('rg:book-deleted', handleRefresh);
+      window.removeEventListener('rg:book-deleted', handleBookDeleted);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [selectedType, selectedCategory, searchQuery]);
@@ -356,9 +402,9 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
           </div>
 
           {isLoading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[1, 2, 3, 4, 5, 6].map((n) => (
-                <div key={n} className="skeleton rounded-3xl h-80" />
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5 sm:gap-4">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+                <div key={n} className="skeleton rounded-2xl h-52 sm:h-64" />
               ))}
             </div>
           ) : audiobooks.length === 0 ? (
@@ -379,7 +425,7 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5 sm:gap-4">
               {audiobooks.map((book) => (
                 <AudiobookCard key={book.id} book={book} layout="grid" onSelect={onSelectBook} />
               ))}

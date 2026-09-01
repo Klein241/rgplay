@@ -130,3 +130,72 @@ export async function removeOfflineAudio(bookId) {
     return false;
   }
 }
+
+/**
+ * Télécharge physiquement un fichier MP3 sur l'appareil de l'utilisateur.
+ * Accessible uniquement si le livre a été acheté.
+ *
+ * @param {object} book     - Le livre audio (doit contenir .id, .title, .author)
+ * @param {object|null} chapter  - Le chapitre spécifique (optionnel, sinon = preview)
+ * @param {boolean} isPurchased  - L'utilisateur a-t-il payé ce livre ?
+ * @returns {'ok'|'not_purchased'|'error'}
+ */
+export async function downloadAudioMp3(book, chapter = null, isPurchased = false) {
+  // Vérification d'accès : livre acheté, ou gratuit pour les membres
+  const isFree = book?.price === 0 || book?.is_free_for_members === 1 || book?.is_free_for_members === true;
+  if (!isPurchased && !isFree) {
+    return 'not_purchased';
+  }
+
+  try {
+    // Priorité : URL du chapitre > URL preview > URL audio du premier chapitre
+    const audioUrl = chapter?.audio_url || book?.preview_url || book?.chapters?.[0]?.audio_url;
+    if (!audioUrl) return 'error';
+
+    // Nom de fichier propre (format [RG_Play] Titre - Chapitre.mp3)
+    const safeTitle   = (book.title || 'Audio').replace(/[^a-zA-Z0-9\u00C0-\u024F\s'-]/g, '').trim().slice(0, 40);
+    const safeChapter = chapter ? ` - ${chapter.title || `Ch.${chapter.chapter_number}`}`.slice(0, 30) : '';
+    const fileName    = `[RG_Play] ${safeTitle}${safeChapter}.mp3`;
+
+    // Tentative de téléchargement direct (via fetch + blob)
+    const response = await fetch(audioUrl, { mode: 'cors' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const blob   = await response.blob();
+    const blobUrl = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href     = blobUrl;
+    a.download = fileName;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    // Libérer la mémoire après un court délai
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+
+    console.log(`[MP3 Download] ✓ Téléchargement déclenché : "${fileName}"`);
+    return 'ok';
+  } catch (err) {
+    console.warn('[MP3 Download] Erreur téléchargement:', err);
+
+    // Fallback : ouvrir l'URL dans un nouvel onglet
+    const audioUrl = chapter?.audio_url || book?.preview_url || book?.chapters?.[0]?.audio_url;
+    if (audioUrl) {
+      try { window.open(audioUrl, '_blank'); } catch (_) {}
+    }
+    return 'error';
+  }
+}
+
+/**
+ * Retourne l'espace total utilisé par les fichiers mis en cache hors-ligne (en Mo estimé).
+ */
+export async function getOfflineCacheSize() {
+  try {
+    if (!('storage' in navigator && 'estimate' in navigator.storage)) return null;
+    const { usage } = await navigator.storage.estimate();
+    return usage ? (usage / 1024 / 1024).toFixed(1) : null;
+  } catch { return null; }
+}

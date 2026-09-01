@@ -28,13 +28,13 @@ Write-Host "[3/5] Création bucket R2 preview 'rg-play-audio-preview'..." -Foreg
 npx wrangler r2 bucket create rg-play-audio-preview 2>$null
 Write-Host "  ✓ Bucket R2 preview prêt" -ForegroundColor Green
 
-# 4. Initialiser la base D1 avec le schéma + seed data
-Write-Host "[4/5] Initialisation Cloudflare D1 (schema + seed)..." -ForegroundColor Yellow
-npx wrangler d1 execute rg-play-db --remote --file=./migrations/0001_init.sql
+# 4. Assurer la présence du schéma Cloudflare D1
+Write-Host "[4/5] Vérification et mise à jour du schéma Cloudflare D1..." -ForegroundColor Yellow
+npx wrangler d1 execute rg-play-db --remote --file=./migrations/0000_schema.sql --yes
 if ($LASTEXITCODE -ne 0) { 
-    Write-Host "  AVERTISSEMENT: D1 init a retourné une erreur (peut-être déjà initialisé)" -ForegroundColor DarkYellow
+    Write-Host "  AVERTISSEMENT: D1 schema check a retourné un code non nul" -ForegroundColor DarkYellow
 } else {
-    Write-Host "  ✓ D1 Schema + Seed data chargés" -ForegroundColor Green
+    Write-Host "  ✓ D1 Schéma vérifié" -ForegroundColor Green
 }
 
 # 5. Déploiement sur Cloudflare Pages

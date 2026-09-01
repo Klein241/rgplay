@@ -17,6 +17,8 @@ import { ProfileView } from './views/ProfileView';
 import { AudioProvider } from './context/AudioContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { PushProvider } from './context/PushContext';
+import { initTracker, trackPageView } from './services/tracker';
+import { apiClient } from './services/api';
 
 export function App() {
   const [activeTab, setActiveTab] = useState('discover');
@@ -25,8 +27,38 @@ export function App() {
   const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
   const [isNotifCenterOpen, setIsNotifCenterOpen] = useState(false);
 
+  // Initialiser le tracker au premier montage
+  useEffect(() => { initTracker(); }, []);
+
+  // Tracker les changements de page
+  useEffect(() => { trackPageView(activeTab); }, [activeTab]);
+
+  // Synchroniser les suppressions au démarrage et au retour d'onglet
+  useEffect(() => {
+    apiClient.syncDeletedBooks();
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        apiClient.syncDeletedBooks();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
+
   const [selectedBookForDetail, setSelectedBookForDetail] = useState(null);
   const [selectedBookForCheckout, setSelectedBookForCheckout] = useState(null);
+
+  // Fermer les modals si le livre affiché est supprimé (Admin ou sync)
+  useEffect(() => {
+    const onBookDeleted = (e) => {
+      const deletedId = e.detail?.id;
+      if (!deletedId) return;
+      setSelectedBookForDetail(prev => (prev?.id === deletedId ? null : prev));
+      setSelectedBookForCheckout(prev => (prev?.id === deletedId ? null : prev));
+    };
+    window.addEventListener('rg:book-deleted', onBookDeleted);
+    return () => window.removeEventListener('rg:book-deleted', onBookDeleted);
+  }, []);
 
   // Livres achetés par l'utilisateur (depuis localStorage)
   const [purchasedIds, setPurchasedIds] = useState(() => {
@@ -36,12 +68,20 @@ export function App() {
     } catch { return new Set(); }
   });
 
-  const refreshPurchased = () => {
-    try {
-      const lib = JSON.parse(localStorage.getItem('rg_user_library') || '[]');
-      setPurchasedIds(new Set(lib.map(b => b.id)));
-    } catch {}
-  };
+  useEffect(() => {
+    const refreshPurchased = () => {
+      try {
+        const lib = JSON.parse(localStorage.getItem('rg_user_library') || '[]');
+        setPurchasedIds(new Set(lib.map(b => b.id)));
+      } catch {}
+    };
+    window.addEventListener('rg:library-updated', refreshPurchased);
+    window.addEventListener('rg:book-deleted', refreshPurchased);
+    return () => {
+      window.removeEventListener('rg:library-updated', refreshPurchased);
+      window.removeEventListener('rg:book-deleted', refreshPurchased);
+    };
+  }, []);
 
   // ── Gestion des routes & Partage d'audio ──
   useEffect(() => {
@@ -256,6 +296,7 @@ export function App() {
                   <ProfileView
                     onOpenAdmin={() => handleTabChange('admin')}
                     onOpenInstallModal={() => setIsInstallModalOpen(true)}
+                    onOpenCheckout={(book) => setSelectedBookForCheckout(book)}
                   />
                 )}
               </main>

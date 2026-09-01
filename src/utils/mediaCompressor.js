@@ -4,7 +4,8 @@
  * - Audio  : Normalisation DSP, Compression Dynamique & Encodage Compact Haute Efficacité
  */
 
-import { encodeAudioBufferToCompressedBlob } from './mp3Encoder';
+import { encodeAudioBufferToCompressedBlob, audioBufferToWav } from './mp3Encoder';
+export { encodeAudioBufferToCompressedBlob, audioBufferToWav };
 
 // ── Compression d'Image sans perte de netteté ────────────────────────────────
 export async function compressImage(file, { maxWidth = 1200, maxHeight = 1200, quality = 0.88, format = 'image/webp' } = {}) {

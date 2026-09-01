@@ -1,20 +1,29 @@
 import React, { useState } from 'react';
-import { 
-  X, Star, Play, Clock, Headphones, CheckCircle2, ShieldCheck, 
-  Smartphone, CreditCard, Sparkles, BookOpen, Share2 
+import {
+  X, Star, Play, Headphones, CheckCircle2, ShieldCheck,
+  Smartphone, Sparkles, Share2, Download, AlertCircle, ChevronDown, ChevronUp, EyeOff, Eye
 } from 'lucide-react';
 import { useAudio } from '../context/AudioContext';
+import { downloadAudioMp3 } from '../utils/offlineAudioCache';
+import { trackAction } from '../services/tracker';
 
 export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased }) => {
   const { playPreview, playBook, currentBook, isPlaying } = useAudio();
-  const [activeTab, setActiveTab] = useState('synopsis'); // 'synopsis', 'chapters', 'reviews'
+  const [activeTab, setActiveTab] = useState('synopsis');
 
-  // État des avis & Partage
   const [userRating, setUserRating] = useState(5);
   const [hoverRating, setHoverRating] = useState(0);
   const [userReviewText, setUserReviewText] = useState('');
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadStatus, setDownloadStatus] = useState(null);
+  const [reviewsHidden, setReviewsHidden] = useState(false); // admin toggle
+
+  // Admin check
+  const isAdmin = (() => {
+    try { return localStorage.getItem('rg_admin_logged_in') === 'true'; } catch (_) { return false; }
+  })();
 
   const getStoredReviews = () => {
     if (!book) return [];
@@ -36,6 +45,24 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
       setReviewSubmitted(false);
       setUserReviewText('');
       setUserRating(5);
+      setActiveTab('synopsis');
+
+      // Inject dynamic OG meta tags for social share preview
+      try {
+        const ogImage = document.querySelector('meta[property="og:image"]');
+        const ogTitle = document.querySelector('meta[property="og:title"]');
+        const ogDesc = document.querySelector('meta[property="og:description"]');
+        const ogUrl = document.querySelector('meta[property="og:url"]');
+
+        const coverUrl = book.cover_url && !book.cover_url.includes('r2.cloudflarestorage.com')
+          ? book.cover_url
+          : `https://rg-play.pages.dev/api/r2/download?key=${encodeURIComponent(book.cover_r2_key || '')}`;
+
+        if (ogImage) ogImage.setAttribute('content', coverUrl);
+        if (ogTitle) ogTitle.setAttribute('content', `${book.title} — RG Play`);
+        if (ogDesc) ogDesc.setAttribute('content', `🎧 Écoutez "${book.title}" par ${book.author}. ${book.description || ''}`);
+        if (ogUrl) ogUrl.setAttribute('content', `${window.location.origin}/?book=${book.id}`);
+      } catch (_) {}
     }
   }, [book?.id]);
 
@@ -57,16 +84,36 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
 
     const updated = [newRev, ...reviews];
     setReviews(updated);
-    try {
-      localStorage.setItem(`rg_reviews_${book.id}`, JSON.stringify(updated));
-    } catch (_) {}
-
+    try { localStorage.setItem(`rg_reviews_${book.id}`, JSON.stringify(updated)); } catch (_) {}
     setReviewSubmitted(true);
     setUserReviewText('');
     window.dispatchEvent(new CustomEvent('rg:book-rated', { detail: { bookId: book.id, rating: userRating } }));
   };
 
   if (!isOpen || !book) return null;
+
+  const handleDownloadMp3 = async () => {
+    setIsDownloading(true);
+    setDownloadStatus(null);
+    trackAction('download_mp3', book.id);
+    const res = await downloadAudioMp3(book, null, isPurchased);
+    if (res === 'ok') {
+      setDownloadStatus({ type: 'success', text: '✓ Fichier MP3 en cours de téléchargement' });
+    } else if (res === 'not_purchased') {
+      setDownloadStatus({ type: 'error', text: 'Veuillez acheter cet audio pour télécharger le MP3' });
+    } else {
+      setDownloadStatus({ type: 'warn', text: 'Ouverture du flux audio...' });
+    }
+    setIsDownloading(false);
+    setTimeout(() => setDownloadStatus(null), 4000);
+  };
+
+  const fmtCount = (n) => {
+    if (!n || n === 0) return null;
+    if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
+    if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+    return `${n}`;
+  };
 
   const isCurrentPlaying = currentBook?.id === book.id && isPlaying;
   const formattedDuration = `${Math.floor(book.duration_seconds / 3600)}h ${Math.floor((book.duration_seconds % 3600) / 60)}m`;
@@ -81,9 +128,10 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
         : book.cover_url;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-xl flex items-center justify-center p-3 sm:p-6 animate-fadeIn">
-      <div className="glass-card rounded-3xl w-full max-w-3xl border border-purple-500/30 overflow-hidden shadow-2xl relative">
-        {/* Boutons d'Action Haut Droite : Partage & Fermeture */}
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 backdrop-blur-xl flex items-center justify-center p-3 sm:p-6 animate-fadeIn">
+      <div className="glass-card rounded-3xl w-full max-w-2xl border border-purple-500/25 overflow-hidden shadow-2xl relative">
+
+        {/* Boutons haut droite */}
         <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
           <button
             onClick={async () => {
@@ -91,8 +139,8 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
               if (navigator.share) {
                 try {
                   await navigator.share({
-                    title: book.title,
-                    text: `Écoutez "${book.title}" par ${book.author} sur RG Play`,
+                    title: `${book.title} — RG Play`,
+                    text: `🎧 Écoutez "${book.title}" par ${book.author} sur RG Play`,
                     url,
                   });
                 } catch (_) {}
@@ -116,19 +164,19 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
           </button>
         </div>
 
-        {/* Bannière de Fond Dégradée */}
-        <div className="relative h-48 sm:h-64 overflow-hidden">
+        {/* Bannière de fond */}
+        <div className="relative h-44 sm:h-56 overflow-hidden">
           <img
             src={coverSrc}
             alt={book.title}
             onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = DEFAULT_COVER; }}
-            className="w-full h-full object-cover filter blur-lg scale-110 opacity-30"
+            className="w-full h-full object-cover filter blur-xl scale-110 opacity-25"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#161128] via-[#161128]/70 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#161128] via-[#161128]/75 to-transparent" />
 
-          {/* En-tête avec Couverture */}
-          <div className="absolute bottom-4 left-6 right-6 flex items-end gap-5">
-            <div className="relative w-28 h-28 sm:w-36 sm:h-36 rounded-2xl overflow-hidden shadow-2xl border-2 border-white/20 flex-shrink-0">
+          {/* Header : Cover + Titre */}
+          <div className="absolute bottom-4 left-5 right-5 flex items-end gap-4">
+            <div className="relative w-24 h-24 sm:w-32 sm:h-32 rounded-2xl overflow-hidden shadow-2xl border-2 border-white/20 flex-shrink-0">
               <img
                 src={coverSrc}
                 alt={book.title}
@@ -137,106 +185,102 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
               />
             </div>
             <div className="flex-1 min-w-0 pb-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-purple-500/30 text-purple-200 border border-purple-400/30">
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-500/30 text-purple-200 border border-purple-400/30">
                 {book.category_name || 'Livre Audio'}
               </span>
-              <h2 className="text-xl sm:text-2xl font-extrabold text-white mt-1.5 line-clamp-2 leading-tight font-['Outfit']">
+              <h2 className="text-lg sm:text-2xl font-extrabold text-white mt-1.5 line-clamp-2 leading-tight font-['Outfit']">
                 {book.title}
               </h2>
-              <p className="text-xs sm:text-sm text-slate-300 font-medium">
+              <p className="text-xs text-slate-300 font-medium mt-0.5">
                 Par <span className="text-purple-300">{book.author}</span>
               </p>
             </div>
           </div>
         </div>
 
-        {/* Métadonnées Clés (Durée, Narrateur, Note, Langue) */}
-        <div className="px-6 py-3.5 bg-white/5 border-y border-white/5 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-xs">
+        {/* Métadonnées clés */}
+        <div className="px-5 py-3 bg-white/4 border-y border-white/6 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
           <div className="space-y-0.5">
-            <span className="text-[10px] text-slate-400 font-medium">Lu par</span>
-            <p className="font-bold text-slate-200 truncate">{book.narrator}</p>
-          </div>
-          <div className="space-y-0.5">
-            <span className="text-[10px] text-slate-400 font-medium">Durée Totale</span>
-            <p className="font-bold text-slate-200">{formattedDuration}</p>
-          </div>
-          <div className="space-y-0.5">
-            <span className="text-[10px] text-slate-400 font-medium">Note Avis</span>
-            <p className="font-bold text-amber-400 flex items-center justify-center gap-1">
-              <Star className="w-3.5 h-3.5 fill-amber-400" />
-              <span>{book.rating} ({book.rating_count || 120})</span>
+            <span className="text-[9px] text-slate-400 font-medium block">Lectures</span>
+            <p className="font-bold text-purple-300 flex items-center justify-center gap-1">
+              <Headphones className="w-3 h-3 text-purple-400" />
+              {fmtCount(book.display_plays_count) || (book.rating_count ? `${book.rating_count * 8}` : '1.2k')}
             </p>
           </div>
           <div className="space-y-0.5">
-            <span className="text-[10px] text-slate-400 font-medium">Format & Audio</span>
-            <p className="font-bold text-purple-300">Haute Fidélité</p>
+            <span className="text-[9px] text-slate-400 font-medium block">Durée</span>
+            <p className="font-bold text-slate-200">{formattedDuration}</p>
+          </div>
+          <div className="space-y-0.5">
+            <span className="text-[9px] text-slate-400 font-medium block">Note</span>
+            <p className="font-bold text-amber-400 flex items-center justify-center gap-1">
+              <Star className="w-3 h-3 fill-amber-400" />
+              {book.display_rating || book.rating || 4.9}
+              <span className="text-slate-400 font-normal">({fmtCount(book.display_reviews_count) || book.rating_count || 120})</span>
+            </p>
+          </div>
+          <div className="space-y-0.5">
+            <span className="text-[9px] text-slate-400 font-medium block">Format</span>
+            <p className="font-bold text-emerald-400 text-[10px]">Audio HD Stéréo</p>
           </div>
         </div>
 
-        {/* Corps de la Modale */}
-        <div className="p-6">
-          {/* Navigation par onglets */}
-          <div className="flex gap-4 border-b border-white/10 mb-4 pb-2">
-            <button
-              onClick={() => setActiveTab('synopsis')}
-              className={`text-sm font-bold pb-2 transition-all border-b-2 ${
-                activeTab === 'synopsis'
-                  ? 'border-purple-500 text-purple-300'
-                  : 'border-transparent text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Synopsis & Description
-            </button>
-            <button
-              onClick={() => setActiveTab('chapters')}
-              className={`text-sm font-bold pb-2 transition-all border-b-2 flex items-center gap-1.5 ${
-                activeTab === 'chapters'
-                  ? 'border-purple-500 text-purple-300'
-                  : 'border-transparent text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <span>Chapitres ({book.chapters?.length || 1})</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('reviews')}
-              className={`text-sm font-bold pb-2 transition-all border-b-2 flex items-center gap-1.5 ${
-                activeTab === 'reviews'
-                  ? 'border-purple-500 text-purple-300'
-                  : 'border-transparent text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-              <span>Avis & Notes ({reviews.length})</span>
-            </button>
+        {/* Corps de la modale — aéré */}
+        <div className="px-5 py-5 space-y-5">
+
+          {/* Onglets */}
+          <div className="flex gap-5 border-b border-white/10 pb-2">
+            {[
+              { id: 'synopsis', label: 'Synopsis' },
+              { id: 'chapters', label: `Chapitres (${book.chapters?.length || 1})` },
+              { id: 'reviews', label: `Avis (${reviews.length})`, icon: <Star className="w-3 h-3 fill-amber-400 text-amber-400" /> },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`text-xs sm:text-sm font-bold pb-2 transition-all border-b-2 flex items-center gap-1.5 ${
+                  activeTab === tab.id
+                    ? 'border-purple-500 text-purple-300'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                {tab.icon}
+                {tab.label}
+              </button>
+            ))}
           </div>
 
-          {/* Contenu Synopsis */}
+          {/* ── Synopsis ── */}
           {activeTab === 'synopsis' && (
-            <div className="space-y-3 max-h-52 overflow-y-auto pr-2 text-xs sm:text-sm text-slate-300 leading-relaxed">
-              <p className="font-semibold text-slate-100">{book.description}</p>
-              <p>{book.synopsis || "Une écoute immersive indispensable pour comprendre les dynamiques modernes et enrichir votre quotidien."}</p>
-              <div className="flex items-center gap-2 pt-2 text-xs text-purple-300">
-                <Sparkles className="w-4 h-4" />
+            <div className="space-y-4">
+              <div className="text-xs sm:text-sm text-slate-300 leading-relaxed space-y-3 max-h-48 overflow-y-auto pr-1">
+                <p className="font-semibold text-slate-100">{book.description}</p>
+                {book.synopsis && (
+                  <p className="text-slate-400">{book.synopsis}</p>
+                )}
+              </div>
+              <div className="flex items-center gap-2 text-xs text-purple-300 pt-1 border-t border-white/6">
+                <Sparkles className="w-3.5 h-3.5 flex-shrink-0" />
                 <span>Format Audio HD Stéréo • Téléchargeable pour écoute hors-ligne</span>
               </div>
             </div>
           )}
 
-          {/* Contenu Chapitres */}
+          {/* ── Chapitres ── */}
           {activeTab === 'chapters' && (
-            <div className="space-y-2 max-h-52 overflow-y-auto pr-2">
-              {book.chapters?.map((chap, idx) => (
+            <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+              {(book.chapters?.length ? book.chapters : [{ id: 'ch0', title: 'Chapitre 1 : Introduction', duration_seconds: 1800 }]).map((chap, idx) => (
                 <div
                   key={chap.id || idx}
-                  className="p-2.5 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between text-xs"
+                  className="p-3 rounded-xl bg-white/4 border border-white/6 flex items-center justify-between text-xs hover:bg-white/7 transition-colors"
                 >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="w-6 h-6 rounded-lg bg-purple-500/20 text-purple-300 font-bold flex items-center justify-center text-[10px]">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="w-6 h-6 rounded-lg bg-purple-500/20 text-purple-300 font-bold flex items-center justify-center text-[10px] flex-shrink-0">
                       {idx + 1}
                     </span>
                     <span className="font-semibold text-slate-200 truncate">{chap.title}</span>
                   </div>
-                  <span className="text-slate-400 text-[11px] font-mono">
+                  <span className="text-slate-400 text-[11px] font-mono flex-shrink-0 ml-2">
                     {Math.floor((chap.duration_seconds || 1800) / 60)} min
                   </span>
                 </div>
@@ -244,142 +288,192 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
             </div>
           )}
 
-          {/* Contenu Avis & Étoiles */}
+          {/* ── Avis & Notes ── */}
           {activeTab === 'reviews' && (
-            <div className="space-y-4 max-h-64 overflow-y-auto pr-2">
-              {/* Formulaire pour laisser un avis */}
-              <div className="p-3.5 rounded-2xl bg-purple-500/10 border border-purple-500/20 space-y-3">
-                <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Donner votre note et votre avis</span>
-                </h4>
-                {/* Sélecteur d'étoiles */}
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-300">Votre note :</span>
-                  <div className="flex items-center gap-1">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        key={star}
-                        type="button"
-                        onClick={() => setUserRating(star)}
-                        onMouseEnter={() => setHoverRating(star)}
-                        onMouseLeave={() => setHoverRating(0)}
-                        className="p-1 text-slate-500 hover:scale-125 transition-transform"
-                      >
-                        <Star
-                          className={`w-5 h-5 ${
-                            (hoverRating || userRating) >= star
-                              ? 'fill-amber-400 text-amber-400'
-                              : 'text-slate-600'
-                          }`}
-                        />
-                      </button>
-                    ))}
-                  </div>
-                  <span className="text-xs font-bold text-amber-300 ml-1">
-                    {userRating}/5
-                  </span>
-                </div>
-                {/* Commentaire */}
-                <textarea
-                  rows={2}
-                  value={userReviewText}
-                  onChange={(e) => setUserReviewText(e.target.value)}
-                  placeholder="Qu'avez-vous pensé de la voix, de la clarté et de l'histoire ?"
-                  className="rg-input text-xs py-2 resize-none"
-                />
-                <div className="flex justify-between items-center">
-                  <span className="text-[10px] text-slate-400">
-                    Votre avis sera visible par toute la communauté
-                  </span>
+            <div className="space-y-4">
+              {/* Bouton masquer/afficher avis (admin uniquement) */}
+              {isAdmin && (
+                <div className="flex justify-end">
                   <button
-                    onClick={handleSubmitReview}
-                    disabled={!userRating || !userReviewText.trim()}
-                    className="btn-gradient px-4 py-1.5 rounded-xl text-xs font-bold disabled:opacity-40"
+                    type="button"
+                    onClick={() => setReviewsHidden(h => !h)}
+                    className="flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-xl border transition-all"
+                    style={reviewsHidden
+                      ? { background: 'rgba(239,68,68,0.12)', borderColor: 'rgba(239,68,68,0.3)', color: '#fca5a5' }
+                      : { background: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.10)', color: '#94a3b8' }
+                    }
                   >
-                    {reviewSubmitted ? '✓ Publié !' : 'Publier mon avis'}
+                    {reviewsHidden ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                    <span>{reviewsHidden ? 'Afficher les commentaires' : 'Masquer les commentaires'}</span>
                   </button>
                 </div>
-              </div>
+              )}
 
-              {/* Liste des avis existants */}
-              <div className="space-y-2.5 pt-1">
-                {reviews.map((rev) => (
-                  <div key={rev.id} className="p-3 rounded-2xl bg-white/4 border border-white/6 space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-[10px] font-bold text-white">
-                          {(rev.author_name || 'U')[0].toUpperCase()}
-                        </div>
-                        <span className="text-xs font-bold text-white">{rev.author_name}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {[1, 2, 3, 4, 5].map((s) => (
-                          <Star
-                            key={s}
-                            className={`w-3 h-3 ${s <= rev.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}`}
-                          />
-                        ))}
-                        <span className="text-[10px] text-slate-400 ml-1.5">{rev.date}</span>
-                      </div>
+              {/* Formulaire de dépôt d'avis */}
+              {!reviewsHidden && (
+                <div className="p-4 rounded-2xl bg-purple-500/8 border border-purple-500/20 space-y-3">
+                  <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Donner votre note et votre avis</span>
+                  </h4>
+
+                  {/* Étoiles */}
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-slate-400">Votre note :</span>
+                    <div className="flex items-center gap-1">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() => setUserRating(star)}
+                          onMouseEnter={() => setHoverRating(star)}
+                          onMouseLeave={() => setHoverRating(0)}
+                          className="p-0.5 text-slate-500 hover:scale-125 transition-transform"
+                        >
+                          <Star className={`w-5 h-5 ${(hoverRating || userRating) >= star ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}`} />
+                        </button>
+                      ))}
                     </div>
-                    <p className="text-xs text-slate-300 leading-relaxed">{rev.comment}</p>
+                    <span className="text-xs font-bold text-amber-300">{userRating}/5</span>
                   </div>
-                ))}
-              </div>
+
+                  {/* Textarea */}
+                  <textarea
+                    rows={2}
+                    value={userReviewText}
+                    onChange={(e) => setUserReviewText(e.target.value)}
+                    placeholder="Qu'avez-vous pensé de la voix, de la clarté et de l'histoire ?"
+                    className="rg-input text-xs py-2.5 resize-none w-full"
+                  />
+
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] text-slate-500">Votre avis sera visible par toute la communauté</span>
+                    <button
+                      onClick={handleSubmitReview}
+                      disabled={!userRating || !userReviewText.trim()}
+                      className="btn-gradient px-4 py-1.5 rounded-xl text-xs font-bold disabled:opacity-40"
+                    >
+                      {reviewSubmitted ? '✓ Publié !' : 'Publier mon avis'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Liste des avis */}
+              {!reviewsHidden && (
+                <div className="space-y-3 max-h-48 overflow-y-auto pr-1">
+                  {reviews.map((rev) => (
+                    <div key={rev.id} className="p-3.5 rounded-2xl bg-white/4 border border-white/6 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0">
+                            {(rev.author_name || 'U')[0].toUpperCase()}
+                          </div>
+                          <span className="text-xs font-bold text-white">{rev.author_name}</span>
+                        </div>
+                        <div className="flex items-center gap-0.5">
+                          {[1, 2, 3, 4, 5].map((s) => (
+                            <Star key={s} className={`w-3 h-3 ${s <= rev.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}`} />
+                          ))}
+                          <span className="text-[10px] text-slate-400 ml-1.5">{rev.date}</span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-slate-300 leading-relaxed">{rev.comment}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {reviewsHidden && (
+                <div className="py-6 text-center text-xs text-slate-500 border border-dashed border-white/10 rounded-2xl">
+                  <EyeOff className="w-5 h-5 mx-auto mb-1.5 text-slate-600" />
+                  Les commentaires sont masqués (admin)
+                </div>
+              )}
             </div>
           )}
 
-          {/* Actions & Paiement Sécurisé */}
-          <div className="mt-6 pt-4 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4">
-            {/* Bouton Extrait Gratuit */}
-            <button
-              onClick={() => playPreview(book)}
-              className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10 font-bold text-xs flex items-center justify-center gap-2 transition-all hover:scale-102"
-            >
-              <Headphones className="w-4 h-4 text-purple-400" />
-              <span>Écouter l'Extrait Gratuit</span>
-            </button>
+          {/* Statut téléchargement */}
+          {downloadStatus && (
+            <div className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 animate-fadeIn ${
+              downloadStatus.type === 'success' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' :
+              downloadStatus.type === 'error' ? 'bg-rose-500/15 text-rose-300 border border-rose-500/30' :
+              'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+            }`}>
+              {downloadStatus.type === 'success' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
+              <span>{downloadStatus.text}</span>
+            </div>
+          )}
 
-            {/* Bouton Achat ou Lecture */}
-            {(isPurchased || book.price === 0 || book.is_free_for_members) ? (
+          {/* ── Zone Actions ── */}
+          <div className="pt-4 border-t border-white/10 space-y-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+
+              {/* Bouton Extrait Gratuit — clignotant et bien visible */}
               <button
-                onClick={() => {
-                  playBook(book, 0, 0);
-                  onClose();
+                onClick={() => { playPreview(book); trackAction('preview_click', book.id); }}
+                className="sm:w-auto px-5 py-3 rounded-2xl font-black text-xs flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95 border"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(16,185,129,0.20) 0%, rgba(5,150,105,0.25) 100%)',
+                  borderColor: 'rgba(16,185,129,0.45)',
+                  color: '#6ee7b7',
+                  boxShadow: '0 0 12px rgba(16,185,129,0.25)',
+                  animation: 'rgPulseBadge 2.5s ease-in-out infinite',
                 }}
-                className="w-full sm:w-auto flex-1 btn-gradient py-3 px-6 rounded-2xl flex items-center justify-center gap-2 text-sm font-bold shadow-lg"
               >
-                <Play className="w-4 h-4 fill-white" />
-                <span>{book.price === 0 ? "Écouter Gratuitement" : "Écouter le Livre Complet"}</span>
+                <Headphones className="w-4 h-4" />
+                <span>Extrait Gratuit</span>
               </button>
-            ) : (
-              <button
-                onClick={() => {
-                  onBuy(book);
-                }}
-                className="w-full sm:w-auto flex-1 btn-gradient py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2.5 text-sm font-bold shadow-xl shadow-purple-600/30 group"
-              >
-                <div className="flex items-center gap-1.5">
+
+              {/* Télécharger MP3 */}
+              {(isPurchased || book.price === 0 || book.is_free_for_members) && (
+                <button
+                  onClick={handleDownloadMp3}
+                  disabled={isDownloading}
+                  className="sm:w-auto px-4 py-3 rounded-2xl bg-purple-500/12 hover:bg-purple-500/22 text-purple-200 border border-purple-500/25 font-bold text-xs flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                >
+                  {isDownloading ? (
+                    <span className="w-4 h-4 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Download className="w-4 h-4 text-purple-400" />
+                  )}
+                  <span>Télécharger MP3</span>
+                </button>
+              )}
+
+              {/* Bouton principal Écouter / Acheter */}
+              {(isPurchased || book.price === 0 || book.is_free_for_members) ? (
+                <button
+                  onClick={() => { playBook(book, 0, 0); trackAction('play_full', book.id); onClose(); }}
+                  className="flex-1 btn-gradient py-3 px-6 rounded-2xl flex items-center justify-center gap-2 text-sm font-bold shadow-lg"
+                >
+                  <Play className="w-4 h-4 fill-white" />
+                  <span>{book.price === 0 ? 'Écouter Gratuitement' : 'Écouter le Livre Complet'}</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => { trackAction('buy_click', book.id); onBuy(book); }}
+                  className="flex-1 btn-gradient py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2.5 text-sm font-bold shadow-xl shadow-purple-600/30"
+                >
                   <Smartphone className="w-4 h-4" />
                   <span>Acheter l'Audio Complet</span>
-                </div>
-                <span className="w-1.5 h-1.5 rounded-full bg-white/60"></span>
-                <span className="text-amber-300 font-extrabold">
-                  {book.discount_price ? `${book.discount_price} FCFA` : `${book.price} FCFA`}
-                </span>
-              </button>
-            )}
-          </div>
+                  <span className="w-1 h-1 rounded-full bg-white/60" />
+                  <span className="text-amber-300 font-extrabold">
+                    {book.discount_price ? `${book.discount_price} FCFA` : `${book.price} FCFA`}
+                  </span>
+                </button>
+              )}
+            </div>
 
-          {/* Mentions de paiement sécurisé */}
-          <div className="mt-3 flex items-center justify-center gap-4 text-[11px] text-slate-400">
-            <span className="flex items-center gap-1">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Paiement 100% sécurisé</span>
-            </span>
-            <span>•</span>
-            <span>Orange Money / MTN MoMo / Carte</span>
+            {/* Mentions paiement sécurisé */}
+            <div className="flex items-center justify-center gap-4 text-[10px] text-slate-500">
+              <span className="flex items-center gap-1">
+                <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                Paiement 100% sécurisé
+              </span>
+              <span>•</span>
+              <span>Orange Money / MTN MoMo / Carte</span>
+            </div>
           </div>
         </div>
       </div>
