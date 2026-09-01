@@ -483,6 +483,42 @@ export const AdminStudioView = ({ onBookCreated }) => {
   const [chapters, setChapters] = useState([
     { title: 'Chapitre 1 : Introduction', duration_seconds: 1800, uploadData: null },
   ]);
+  const [isAiGenerating, setIsAiGenerating] = useState(false);
+  const [aiSuccessMessage, setAiSuccessMessage] = useState('');
+
+  const handleDeepSeekEnrich = async () => {
+    if (!title.trim()) {
+      alert('Veuillez saisir au moins le titre de l\'œuvre pour guider la génération IA.');
+      return;
+    }
+    setIsAiGenerating(true);
+    setAiSuccessMessage('');
+    try {
+      const res = await apiClient.enrichWithAI({
+        title,
+        author,
+        description,
+        synopsis,
+        content_type: contentType
+      });
+      if (res.success && res.data) {
+        if (res.data.description) setDescription(res.data.description);
+        if (res.data.synopsis) setSynopsis(res.data.synopsis);
+        if (res.data.suggested_category) {
+          const matchCat = categories.find(c => c.name.toLowerCase().includes(res.data.suggested_category.toLowerCase()));
+          if (matchCat) setCategoryId(matchCat.id);
+        }
+        setAiSuccessMessage('✓ Description, synopsis et métadonnées générés par DeepSeek !');
+        setTimeout(() => setAiSuccessMessage(''), 4000);
+      } else {
+        alert(res.error || 'Erreur lors de la génération IA.');
+      }
+    } catch (e) {
+      alert(`Erreur: ${e.message}`);
+    } finally {
+      setIsAiGenerating(false);
+    }
+  };
 
   // ── État Studio IA (TTS) ──
   const [ttsText, setTtsText] = useState('');
@@ -2201,7 +2237,51 @@ export const AdminStudioView = ({ onBookCreated }) => {
                       placeholder={activeTypeConfig.discountPricePlaceholder}
                       className="rg-input"
                     />
+                  {/* Assistant IA DeepSeek */}
+                  <div className="sm:col-span-2 p-4 rounded-2xl bg-gradient-to-r from-purple-950/70 via-indigo-950/50 to-slate-900/80 border border-purple-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg shadow-purple-950/40">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center text-white shadow-md flex-shrink-0">
+                        <Sparkles className="w-5 h-5 animate-pulse" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs sm:text-sm font-bold text-white">Assistant IA DeepSeek</h4>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-extrabold border border-purple-500/40">
+                            DeepSeek-V3
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400">
+                          Générez instantanément l'accroche, le synopsis, la catégorie et les mots-clés en 1 clic.
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleDeepSeekEnrich}
+                      disabled={isAiGenerating || !title.trim()}
+                      className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-40 text-white font-bold text-xs flex items-center gap-2 shadow-md transition-all self-stretch sm:self-auto justify-center cursor-pointer"
+                    >
+                      {isAiGenerating ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin text-purple-200" />
+                          <span>Génération IA en cours...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Wand2 className="w-4 h-4" />
+                          <span>✨ Auto-générer avec l'IA</span>
+                        </>
+                      )}
+                    </button>
                   </div>
+
+                  {aiSuccessMessage && (
+                    <div className="sm:col-span-2 p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-bold flex items-center gap-2 animate-fadeIn">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                      <span>{aiSuccessMessage}</span>
+                    </div>
+                  )}
 
                   <div className="sm:col-span-2">
                     <label className="text-xs font-bold text-slate-300 block mb-1.5">

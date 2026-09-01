@@ -66,6 +66,9 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
     }
   });
 
+  const [aiSearchReason, setAiSearchReason] = useState('');
+  const [isAiSearching, setIsAiSearching] = useState(false);
+
   const { playPreview, playBook } = useAudio();
 
   const loadData = async (showLoading = false) => {
@@ -80,10 +83,49 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
         }),
       ]);
       if (cats && cats.length > 0) setCategories(cats);
-      if (books && Array.isArray(books)) {
-        setAudiobooks(books);
-        if (books.length > 0) {
-          const featured = books.find(b => Boolean(b.is_featured)) || books[0];
+      
+      let finalBooks = Array.isArray(books) ? books : [];
+
+      // Recherche sémantique IA si la requête contient du texte
+      if (searchQuery && searchQuery.trim().length >= 4) {
+        try {
+          setIsAiSearching(true);
+          const aiRes = await apiClient.semanticSearch(searchQuery);
+          if (aiRes && aiRes.success && Array.isArray(aiRes.matched_ids) && aiRes.matched_ids.length > 0) {
+            setAiSearchReason(aiRes.reason || 'Recommandation IA personnalisée pour votre intention');
+            const allAvailable = await apiClient.getAudiobooks({ category: 'all', type: 'all' });
+            const matchedBooks = [];
+            const otherBooks = [];
+            const matchedSet = new Set(aiRes.matched_ids);
+
+            for (const id of aiRes.matched_ids) {
+              const found = (allAvailable || []).find(b => b.id === id);
+              if (found && !matchedBooks.some(m => m.id === found.id)) {
+                matchedBooks.push(found);
+              }
+            }
+            for (const b of finalBooks) {
+              if (!matchedSet.has(b.id)) otherBooks.push(b);
+            }
+            if (matchedBooks.length > 0) {
+              finalBooks = [...matchedBooks, ...otherBooks];
+            }
+          } else {
+            setAiSearchReason('');
+          }
+        } catch (_) {
+          setAiSearchReason('');
+        } finally {
+          setIsAiSearching(false);
+        }
+      } else {
+        setAiSearchReason('');
+      }
+
+      if (finalBooks && Array.isArray(finalBooks)) {
+        setAudiobooks(finalBooks);
+        if (finalBooks.length > 0) {
+          const featured = finalBooks.find(b => Boolean(b.is_featured)) || finalBooks[0];
           setFeaturedBook(featured);
         } else {
           setFeaturedBook(null);
@@ -407,6 +449,24 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
               </p>
             </div>
           </div>
+
+          {/* Bannière Recommandation Sémantique DeepSeek */}
+          {aiSearchReason && searchQuery && (
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-950/80 via-indigo-950/60 to-slate-900/90 border border-purple-500/40 flex items-start sm:items-center gap-3 text-xs text-purple-200 shadow-xl animate-fadeIn">
+              <div className="w-8 h-8 rounded-xl bg-purple-500/25 flex items-center justify-center flex-shrink-0 text-purple-300 border border-purple-500/30">
+                <Sparkles className="w-4 h-4 text-purple-300 animate-pulse" />
+              </div>
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-white text-xs">Recherche Intelligente DeepSeek</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-extrabold border border-purple-500/30">
+                    IA Active
+                  </span>
+                </div>
+                <p className="text-slate-300 text-xs">{aiSearchReason}</p>
+              </div>
+            </div>
+          )}
 
           {isLoading ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5 sm:gap-4">

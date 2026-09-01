@@ -6,10 +6,12 @@ import {
 import { useAudio } from '../context/AudioContext';
 import { downloadAudioMp3 } from '../utils/offlineAudioCache';
 import { trackAction } from '../services/tracker';
+import { BookChatModal } from './BookChatModal';
 
 export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased }) => {
   const { playPreview, playBook, currentBook, isPlaying } = useAudio();
   const [activeTab, setActiveTab] = useState('synopsis');
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   const [userRating, setUserRating] = useState(5);
   const [hoverRating, setHoverRating] = useState(0);
@@ -425,6 +427,16 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
                 <span>Extrait Gratuit</span>
               </button>
 
+              {/* Bouton Tuteur IA */}
+              <button
+                onClick={() => setIsChatOpen(true)}
+                className="sm:w-auto px-4 py-3 rounded-2xl bg-purple-600/20 hover:bg-purple-600/35 text-purple-300 border border-purple-500/35 font-bold text-xs flex items-center justify-center gap-1.5 transition-all hover:scale-[1.02] shadow-sm"
+                title="Poser une question à ce livre (IA)"
+              >
+                <Sparkles className="w-4 h-4 text-purple-400 animate-pulse" />
+                <span>Tuteur IA</span>
+              </button>
+
               {/* Télécharger MP3 */}
               {(isPurchased || book.price === 0 || book.is_free_for_members) && (
                 <button
@@ -477,6 +489,12 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
           </div>
         </div>
       </div>
+
+      <BookChatModal
+        book={book}
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+      />
     </div>
   );
 };

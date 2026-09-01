@@ -741,6 +741,59 @@ export const apiClient = {
       console.warn('Erreur récupération admin analytics:', e);
     }
     return null;
+  },
+
+  // 🤖 DeepSeek AI : Génération de synthèse, key takeaways & tags (Cas #2 & #9)
+  async enrichWithAI(bookInfo) {
+    try {
+      const res = await fetch(`${API_BASE}/ai/enrich`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bookInfo),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+      const err = await res.json().catch(() => ({}));
+      return { success: false, error: err.error || 'Erreur lors de la génération IA' };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  },
+
+  // 🤖 DeepSeek AI : Discuter avec le Livre / Tuteur Interactif (Cas #1)
+  async chatWithBook(chatData) {
+    try {
+      const res = await fetch(`${API_BASE}/ai/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(chatData),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+      const err = await res.json().catch(() => ({}));
+      return { success: false, error: err.error || 'Erreur réponse tuteur IA' };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  },
+
+  // 🤖 DeepSeek AI : Recherche sémantique par intention (Cas #8)
+  async semanticSearch(query) {
+    try {
+      const res = await fetch(`${API_BASE}/ai/search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query }),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+      return { success: false, matched_ids: [], reason: '' };
+    } catch (e) {
+      return { success: false, matched_ids: [], reason: '' };
+    }
   }
 };
 

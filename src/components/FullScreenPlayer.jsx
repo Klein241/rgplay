@@ -10,6 +10,7 @@ import { shareAudioWithCover } from '../utils/shareUtils';
 import { SpeedSelectorModal } from './SpeedSelectorModal';
 import { SleepTimerModal } from './SleepTimerModal';
 import { UserProfileModal } from './UserProfileModal';
+import { BookChatModal } from './BookChatModal';
 
 export const FullScreenPlayer = () => {
   const {
@@ -71,6 +72,7 @@ export const FullScreenPlayer = () => {
   });
   const [dismissedRegister, setDismissedRegister] = useState(false);
   const [shareToast, setShareToast] = useState('');
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   // Vérifier statut d'avis existant pour ce livre
   useEffect(() => {
@@ -438,6 +440,15 @@ export const FullScreenPlayer = () => {
                 <Share2 className="w-3.5 h-3.5 text-purple-400" />
                 <span>Partager</span>
               </button>
+
+              <button
+                onClick={() => setIsChatOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-purple-600/20 hover:bg-purple-600/40 text-purple-300 border border-purple-500/40 transition-colors shadow-sm"
+                title="Poser une question à ce livre (IA)"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-purple-400 animate-pulse" />
+                <span className="font-bold">Tuteur IA</span>
+              </button>
             </div>
 
             {/* Contrôles Principaux de Lecture */}
@@ -700,6 +711,12 @@ export const FullScreenPlayer = () => {
           setIsUserRegistered(true);
           setDismissedRegister(true);
         }}
+      />
+
+      <BookChatModal
+        book={currentBook}
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
       />
     </div>
   );

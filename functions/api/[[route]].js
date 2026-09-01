@@ -1709,6 +1709,240 @@ export async function onRequest(context) {
       }, corsHeaders);
     }
 
+    // ─── POST /api/ai/enrich (Synthèse, Key Takeaways & Tags DeepSeek pour Admin) ─
+    if (path === '/ai/enrich' && method === 'POST') {
+      const body = await request.json();
+      const { title, author, description, synopsis } = body;
+      const DEEPSEEK_API_KEY = (env && env.DEEPSEEK_API_KEY) || 'sk-f7d21369be024340bac5d7d1443b59ea';
+
+      const prompt = `Tu es un directeur éditorial et expert marketing pour RG Play, la première plateforme de livres audio et masterclasses d'excellence en Afrique.
+À partir des informations suivantes :
+- Titre : "${title || ''}"
+- Auteur / Narrateur : "${author || ''}"
+- Description existante : "${description || ''}"
+- Synopsis existant : "${synopsis || ''}"
+
+Génère en français un objet JSON valide et strict avec :
+1. "description": une phrase d'accroche percutante et captivante (max 160 caractères) pour donner envie d'écouter.
+2. "synopsis": un résumé éditorial approfondi, clair et motivant (2 paragraphes, environ 100-150 mots).
+3. "key_takeaways": un tableau de 5 leçons clés concrètes (Key Takeaways) formulées de façon active et mémorable.
+4. "tags": un tableau de 5 à 7 mots-clés stratégiques pour la recherche et le SEO.
+5. "suggested_category": la catégorie la plus adaptée parmi : "Business & Finance", "Développement Personnel", "Intelligence Artificielle & Tech", "Psychologie & Mental", "Histoire & Stratégie", "Foi & Spiritualité", "Romans & Fiction".
+
+Ne réponds rien d'autre que l'objet JSON (sans texte d'accompagnement ni balises de code markdown).`;
+
+      try {
+        const dsRes = await fetch('https://api.deepseek.com/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: 'deepseek-chat',
+            messages: [
+              { role: 'system', content: 'Tu es une API qui répond exclusivement par du JSON strict et valide.' },
+              { role: 'user', content: prompt }
+            ],
+            temperature: 0.7,
+            max_tokens: 1500,
+          }),
+        });
+
+        if (!dsRes.ok) {
+          const errTxt = await dsRes.text();
+          return jsonResponse({ success: false, error: `Erreur DeepSeek (${dsRes.status}): ${errTxt}` }, corsHeaders, 502);
+        }
+
+        const dsData = await dsRes.json();
+        const rawContent = dsData.choices?.[0]?.message?.content || '{}';
+        const cleaned = rawContent.replace(/```json\s*/gi, '').replace(/```\s*$/gi, '').trim();
+        let parsed = {};
+        try {
+          parsed = JSON.parse(cleaned);
+        } catch (parseErr) {
+          console.warn('[DeepSeek] JSON parse error, raw:', cleaned);
+          parsed = { description: rawContent, synopsis: rawContent, key_takeaways: [], tags: [] };
+        }
+
+        return jsonResponse({
+          success: true,
+          data: parsed
+        }, corsHeaders);
+      } catch (err) {
+        console.error('[DeepSeek Enrich] Erreur:', err);
+        return jsonResponse({ success: false, error: err.message }, corsHeaders, 500);
+      }
+    }
+
+    // ─── POST /api/ai/chat (Discuter avec le Livre - Tuteur Interactif) ─────────
+    if (path === '/ai/chat' && method === 'POST') {
+      const body = await request.json();
+      const { book_id, book_title, author, synopsis, description, key_takeaways, messages = [], user_message } = body;
+      const DEEPSEEK_API_KEY = (env && env.DEEPSEEK_API_KEY) || 'sk-f7d21369be024340bac5d7d1443b59ea';
+
+      if (!user_message && messages.length === 0) {
+        return jsonResponse({ success: false, error: 'Message requis' }, corsHeaders, 400);
+      }
+
+      let chapterInfo = '';
+      if (env.DB && book_id) {
+        try {
+          const { results: chs } = await env.DB.prepare('SELECT title, chapter_number FROM chapters WHERE audiobook_id = ? ORDER BY chapter_number ASC').bind(book_id).all();
+          if (chs && chs.length > 0) {
+            chapterInfo = '\nChapitres du livre :\n' + chs.map(c => `- Chapitre ${c.chapter_number} : ${c.title}`).join('\n');
+          }
+        } catch (_) {}
+      }
+
+      const systemPrompt = `Tu es le tuteur et mentor IA officiel pour l'œuvre audio "${book_title || 'cet audio'}" de ${author || 'l\'auteur'} sur la plateforme RG Play.
+Contexte du livre :
+- Titre : ${book_title || 'Inconnu'}
+- Auteur : ${author || 'Inconnu'}
+- Résumé / Synopsis : ${synopsis || description || 'Non renseigné'}
+${key_takeaways ? '- Points clés connus : ' + (Array.isArray(key_takeaways) ? key_takeaways.join(' ; ') : key_takeaways) : ''}
+${chapterInfo}
+
+Règles de discussion :
+1. Réponds avec bienveillance, autorité constructive et dynamisme.
+2. Appuie-toi fidèlement sur les enseignements et la philosophie de cette œuvre.
+3. Sois très pragmatique et orienté passage à l'action pour les entrepreneurs et auditeurs.
+4. Garde tes réponses structurées, claires et concises (2 à 3 paragraphes ou listes claires, maximum 200 mots).
+5. Reste poli, direct et motivant.`;
+
+      const dsMessages = [{ role: 'system', content: systemPrompt }];
+      for (const m of messages.slice(-8)) {
+        if (m.role && m.content) {
+          dsMessages.push({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content });
+        }
+      }
+      if (user_message) {
+        dsMessages.push({ role: 'user', content: user_message });
+      }
+
+      try {
+        const dsRes = await fetch('https://api.deepseek.com/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: 'deepseek-chat',
+            messages: dsMessages,
+            temperature: 0.7,
+            max_tokens: 800,
+          }),
+        });
+
+        if (!dsRes.ok) {
+          const errTxt = await dsRes.text();
+          return jsonResponse({ success: false, error: `Erreur DeepSeek (${dsRes.status}): ${errTxt}` }, corsHeaders, 502);
+        }
+
+        const dsData = await dsRes.json();
+        const reply = dsData.choices?.[0]?.message?.content || 'Je n\'ai pas pu générer de réponse pour le moment.';
+
+        return jsonResponse({
+          success: true,
+          reply
+        }, corsHeaders);
+      } catch (err) {
+        console.error('[DeepSeek Chat] Erreur:', err);
+        return jsonResponse({ success: false, error: err.message }, corsHeaders, 500);
+      }
+    }
+
+    // ─── POST /api/ai/search (Recherche Sémantique par Intention) ─────────────
+    if (path === '/ai/search' && method === 'POST') {
+      const body = await request.json();
+      const { query } = body;
+      const DEEPSEEK_API_KEY = (env && env.DEEPSEEK_API_KEY) || 'sk-f7d21369be024340bac5d7d1443b59ea';
+
+      if (!query || query.trim().length < 2) {
+        return jsonResponse({ success: true, matched_ids: [], reason: '' }, corsHeaders);
+      }
+
+      let books = [];
+      if (env.DB) {
+        try {
+          const { results } = await env.DB.prepare(`
+            SELECT a.id, a.title, a.author, a.description, a.synopsis, c.name as category_name
+            FROM audiobooks a
+            LEFT JOIN categories c ON a.category_id = c.id
+            LEFT JOIN deleted_books db ON a.id = db.id
+            WHERE db.id IS NULL
+          `).all();
+          books = results || [];
+        } catch (_) {}
+      }
+
+      if (books.length === 0) {
+        return jsonResponse({ success: true, matched_ids: [], reason: '' }, corsHeaders);
+      }
+
+      const catalogContext = books.map(b => 
+        `ID: ${b.id} | Titre: "${b.title}" | Auteur: "${b.author}" | Catégorie: "${b.category_name || ''}" | Résumé: "${(b.description || b.synopsis || '').slice(0, 150)}"`
+      ).join('\n');
+
+      const searchPrompt = `Tu es le moteur de recommandation sémantique de RG Play.
+L'utilisateur a entré la recherche suivante : "${query}"
+
+Catalogue de livres audio disponibles :
+${catalogContext}
+
+Tâche :
+Analyse l'intention, l'émotion ou le besoin de l'utilisateur.
+Identifie les 1 à 4 livres les plus pertinents pour cette recherche, classés du plus pertinent au moins pertinent.
+Fournis une courte phrase d'explication (max 1 phrase) pour guider l'auditeur.
+
+Réponds STRICTEMENT sous format JSON :
+{
+  "matched_ids": ["id1", "id2"],
+  "reason": "Explication courte pour l'auditeur"
+}`;
+
+      try {
+        const dsRes = await fetch('https://api.deepseek.com/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: 'deepseek-chat',
+            messages: [
+              { role: 'system', content: 'Tu es un moteur de recherche sémantique JSON strict.' },
+              { role: 'user', content: searchPrompt }
+            ],
+            temperature: 0.3,
+            max_tokens: 400,
+          }),
+        });
+
+        if (!dsRes.ok) {
+          return jsonResponse({ success: false, error: 'Recherche IA indisponible', matched_ids: [] }, corsHeaders);
+        }
+
+        const dsData = await dsRes.json();
+        const raw = dsData.choices?.[0]?.message?.content || '{}';
+        const cleaned = raw.replace(/```json\s*/gi, '').replace(/```\s*$/gi, '').trim();
+        let parsed = { matched_ids: [], reason: '' };
+        try {
+          parsed = JSON.parse(cleaned);
+        } catch (_) {}
+
+        return jsonResponse({
+          success: true,
+          matched_ids: Array.isArray(parsed.matched_ids) ? parsed.matched_ids : [],
+          reason: parsed.reason || ''
+        }, corsHeaders);
+      } catch (err) {
+        console.error('[DeepSeek Search] Erreur:', err);
+        return jsonResponse({ success: false, error: err.message, matched_ids: [] }, corsHeaders);
+      }
+    }
+
     return jsonResponse({ error: 'Endpoint non trouvé', path }, corsHeaders, 404);
 
   } catch (error) {

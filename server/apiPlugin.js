@@ -805,6 +805,185 @@ export function viteApiPlugin() {
             return;
           }
 
+          // ─── POST /api/ai/enrich (Synthèse & Tags DeepSeek) ─────────
+          if (apiPath === '/ai/enrich' && req.method === 'POST') {
+            const body = await parseBody(req);
+            const { title, author, description, synopsis } = body;
+            const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || 'sk-f7d21369be024340bac5d7d1443b59ea';
+
+            const prompt = `Tu es un directeur éditorial et expert marketing pour RG Play, la première plateforme de livres audio et masterclasses d'excellence en Afrique.
+À partir des informations suivantes :
+- Titre : "${title || ''}"
+- Auteur / Narrateur : "${author || ''}"
+- Description existante : "${description || ''}"
+- Synopsis existant : "${synopsis || ''}"
+
+Génère en français un objet JSON valide et strict avec :
+1. "description": une phrase d'accroche percutante et captivante (max 160 caractères) pour donner envie d'écouter.
+2. "synopsis": un résumé éditorial approfondi, clair et motivant (2 paragraphes, environ 100-150 mots).
+3. "key_takeaways": un tableau de 5 leçons clés concrètes (Key Takeaways) formulées de façon active et mémorable.
+4. "tags": un tableau de 5 à 7 mots-clés stratégiques pour la recherche et le SEO.
+5. "suggested_category": la catégorie la plus adaptée parmi : "Business & Finance", "Développement Personnel", "Intelligence Artificielle & Tech", "Psychologie & Mental", "Histoire & Stratégie", "Foi & Spiritualité", "Romans & Fiction".
+
+Ne réponds rien d'autre que l'objet JSON (sans texte d'accompagnement ni balises de code markdown).`;
+
+            try {
+              const dsRes = await fetch('https://api.deepseek.com/chat/completions', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+                },
+                body: JSON.stringify({
+                  model: 'deepseek-chat',
+                  messages: [
+                    { role: 'system', content: 'Tu es une API qui répond exclusivement par du JSON strict et valide.' },
+                    { role: 'user', content: prompt }
+                  ],
+                  temperature: 0.7,
+                  max_tokens: 1500,
+                }),
+              });
+
+              if (!dsRes.ok) {
+                const errTxt = await dsRes.text();
+                res.statusCode = 502;
+                res.end(JSON.stringify({ success: false, error: `Erreur DeepSeek: ${errTxt}` }));
+                return;
+              }
+
+              const dsData = await dsRes.json();
+              const rawContent = dsData.choices?.[0]?.message?.content || '{}';
+              const cleaned = rawContent.replace(/```json\s*/gi, '').replace(/```\s*$/gi, '').trim();
+              let parsed = {};
+              try { parsed = JSON.parse(cleaned); } catch (_) { parsed = { description: rawContent, synopsis: rawContent, key_takeaways: [], tags: [] }; }
+
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: true, data: parsed }));
+              return;
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ success: false, error: err.message }));
+              return;
+            }
+          }
+
+          // ─── POST /api/ai/chat (Discuter avec le Livre) ──────────────
+          if (apiPath === '/ai/chat' && req.method === 'POST') {
+            const body = await parseBody(req);
+            const { book_title, author, synopsis, description, key_takeaways, messages = [], user_message } = body;
+            const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || 'sk-f7d21369be024340bac5d7d1443b59ea';
+
+            const systemPrompt = `Tu es le tuteur et mentor IA officiel pour l'œuvre audio "${book_title || 'cet audio'}" de ${author || 'l\'auteur'} sur la plateforme RG Play.
+Contexte du livre :
+- Titre : ${book_title || 'Inconnu'}
+- Auteur : ${author || 'Inconnu'}
+- Résumé / Synopsis : ${synopsis || description || 'Non renseigné'}
+${key_takeaways ? '- Points clés connus : ' + (Array.isArray(key_takeaways) ? key_takeaways.join(' ; ') : key_takeaways) : ''}
+
+Règles de discussion :
+1. Réponds avec bienveillance, autorité constructive et dynamisme.
+2. Appuie-toi fidèlement sur les enseignements et la philosophie de cette œuvre.
+3. Sois très pragmatique et orienté passage à l'action pour les auditeurs.
+4. Garde tes réponses structurées, claires et concises (2 à 3 paragraphes ou listes claires, maximum 200 mots).
+5. Reste poli, direct et motivant.`;
+
+            const dsMessages = [{ role: 'system', content: systemPrompt }];
+            for (const m of messages.slice(-8)) {
+              if (m.role && m.content) dsMessages.push({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content });
+            }
+            if (user_message) dsMessages.push({ role: 'user', content: user_message });
+
+            try {
+              const dsRes = await fetch('https://api.deepseek.com/chat/completions', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+                },
+                body: JSON.stringify({
+                  model: 'deepseek-chat',
+                  messages: dsMessages,
+                  temperature: 0.7,
+                  max_tokens: 800,
+                }),
+              });
+
+              const dsData = await dsRes.json();
+              const reply = dsData.choices?.[0]?.message?.content || 'Je n\'ai pas pu formuler de réponse.';
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: true, reply }));
+              return;
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ success: false, error: err.message }));
+              return;
+            }
+          }
+
+          // ─── POST /api/ai/search (Recherche Sémantique par Intention) ─
+          if (apiPath === '/ai/search' && req.method === 'POST') {
+            const body = await parseBody(req);
+            const { query } = body;
+            const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || 'sk-f7d21369be024340bac5d7d1443b59ea';
+
+            const db = readDb();
+            const books = db.audiobooks || [];
+            const catalogContext = books.map(b => 
+              `ID: ${b.id} | Titre: "${b.title}" | Auteur: "${b.author}" | Résumé: "${(b.description || b.synopsis || '').slice(0, 150)}"`
+            ).join('\n');
+
+            const searchPrompt = `Tu es le moteur de recommandation sémantique de RG Play.
+L'utilisateur a entré la recherche suivante : "${query}"
+
+Catalogue de livres audio disponibles :
+${catalogContext}
+
+Tâche :
+Analyse l'intention, l'émotion ou le besoin de l'utilisateur.
+Identifie les 1 à 4 livres les plus pertinents pour cette recherche, classés du plus pertinent au moins pertinent.
+Fournis une courte phrase d'explication (max 1 phrase) pour guider l'auditeur.
+
+Réponds STRICTEMENT sous format JSON :
+{
+  "matched_ids": ["id1", "id2"],
+  "reason": "Explication courte pour l'auditeur"
+}`;
+
+            try {
+              const dsRes = await fetch('https://api.deepseek.com/chat/completions', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+                },
+                body: JSON.stringify({
+                  model: 'deepseek-chat',
+                  messages: [
+                    { role: 'system', content: 'Tu es un moteur de recherche sémantique JSON strict.' },
+                    { role: 'user', content: searchPrompt }
+                  ],
+                  temperature: 0.3,
+                  max_tokens: 400,
+                }),
+              });
+
+              const dsData = await dsRes.json();
+              const raw = dsData.choices?.[0]?.message?.content || '{}';
+              const cleaned = raw.replace(/```json\s*/gi, '').replace(/```\s*$/gi, '').trim();
+              let parsed = { matched_ids: [], reason: '' };
+              try { parsed = JSON.parse(cleaned); } catch (_) {}
+
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: true, matched_ids: parsed.matched_ids || [], reason: parsed.reason || '' }));
+              return;
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ success: false, error: err.message, matched_ids: [] }));
+              return;
+            }
+          }
+
           // ── Fallback 404 ─────────────────────────────────────────────
           res.statusCode = 404;
           res.end(JSON.stringify({ error: `Endpoint API non trouvé : ${apiPath}` }));
