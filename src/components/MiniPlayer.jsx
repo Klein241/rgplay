@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Pause, RotateCw, RotateCcw, Maximize2, ChevronUp } from 'lucide-react';
+import { Play, Pause, RotateCw, RotateCcw, Maximize2, ChevronUp, Square } from 'lucide-react';
 import { useAudio } from '../context/AudioContext';
 
 export const MiniPlayer = () => {
@@ -10,6 +10,7 @@ export const MiniPlayer = () => {
     currentTime,
     duration,
     togglePlay,
+    stopAudio,
     skipForward,
     skipBackward,
     setIsFullScreenOpen,
@@ -170,6 +171,20 @@ export const MiniPlayer = () => {
               }}
             >
               <RotateCcw className="w-4 h-4" />
+            </button>
+
+            {/* STOP */}
+            <button
+              onClick={stopAudio}
+              title="Arrêt"
+              className="p-2 rounded-full transition-all hover:scale-110 active:scale-95"
+              style={{
+                color: 'rgba(239, 68, 68, 0.85)',
+                background: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid rgba(239, 68, 68, 0.20)',
+              }}
+            >
+              <Square className="w-3.5 h-3.5 fill-current" />
             </button>
 
             {/* Play / Pause PRINCIPAL */}

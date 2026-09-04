@@ -1,17 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   X, Star, Play, Headphones, CheckCircle2, ShieldCheck,
-  Smartphone, Sparkles, Share2, Download, AlertCircle, ChevronDown, ChevronUp, EyeOff, Eye
+  Smartphone, Sparkles, Share2, Download, AlertCircle, ChevronDown, ChevronUp, EyeOff, Eye,
+  BookOpen, Gift, Lock
 } from 'lucide-react';
 import { useAudio } from '../context/AudioContext';
-import { downloadAudioMp3 } from '../utils/offlineAudioCache';
+import { useXp } from '../context/XpContext';
+import { downloadAudioMp3, downloadBookForOffline, isAudioOffline, removeOfflineAudio } from '../utils/offlineAudioCache';
 import { trackAction } from '../services/tracker';
 import { BookChatModal } from './BookChatModal';
+import { PdfReaderModal } from './PdfReaderModal';
+import { AdBanner } from './AdBanner';
+import { apiClient } from '../services/api';
 
 export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased }) => {
   const { playPreview, playBook, currentBook, isPlaying } = useAudio();
+  const { points, unlockBookWithPoints } = useXp();
   const [activeTab, setActiveTab] = useState('synopsis');
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isPdfReaderOpen, setIsPdfReaderOpen] = useState(false);
+  const [pointsUnlocking, setPointsUnlocking] = useState(false);
+  const [pointsError, setPointsError] = useState(null);
 
   const [userRating, setUserRating] = useState(5);
   const [hoverRating, setHoverRating] = useState(0);
@@ -21,6 +30,70 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadStatus, setDownloadStatus] = useState(null);
   const [reviewsHidden, setReviewsHidden] = useState(false); // admin toggle
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const isAudioXpDisabled = typeof window !== 'undefined' && localStorage.getItem('rg_settings_audio_xp_disabled') !== 'false';
+
+  // ── État réactif du cache hors-ligne ───────────────────────────────────────
+  // IMPORTANT: On utilise un useState + useEffect pour être réactif aux mises
+  // à jour du cache. Un simple `isAudioOffline(book.id)` calculé une seule fois
+  // ne se mettrait jamais à jour après un téléchargement.
+  const [isDownloaded, setIsDownloaded] = useState(() => book ? isAudioOffline(book.id) : false);
+
+  useEffect(() => {
+    // Recalculer quand le livre change
+    setIsDownloaded(book ? isAudioOffline(book.id) : false);
+  }, [book?.id]);
+
+  useEffect(() => {
+    // Écouter les mises à jour du cache hors-ligne
+    const onCacheUpdate = () => {
+      setIsDownloaded(book ? isAudioOffline(book.id) : false);
+    };
+    window.addEventListener('rg_offline_cache_updated', onCacheUpdate);
+    return () => window.removeEventListener('rg_offline_cache_updated', onCacheUpdate);
+  }, [book?.id]);
+
+  const handleDownloadOffline = useCallback(async () => {
+    if (!book) return;
+    setIsDownloading(true);
+    setDownloadProgress(0);
+    try {
+      if (isDownloaded) {
+        await removeOfflineAudio(book.id);
+        setIsDownloaded(false);
+        setDownloadStatus({ type: 'warn', text: 'Retiré du mode hors-ligne' });
+      } else {
+        await downloadBookForOffline(book, (pct) => setDownloadProgress(pct));
+        setIsDownloaded(true);
+        setDownloadStatus({ type: 'success', text: '✓ Disponible hors-ligne — Écoutez sans connexion !' });
+      }
+    } catch (e) {
+      console.error('[Offline] Erreur:', e);
+      setDownloadStatus({ type: 'error', text: 'Erreur lors du téléchargement. Vérifiez votre connexion.' });
+    } finally {
+      setIsDownloading(false);
+      setDownloadProgress(0);
+      setTimeout(() => setDownloadStatus(null), 4000);
+    }
+  }, [book, isDownloaded]);
+
+  // ── Téléchargement MP3 physique sur l'appareil ─────────────────────────────
+  const handleDownloadMp3 = useCallback(async () => {
+    if (!book) return;
+    setIsDownloading(true);
+    setDownloadStatus(null);
+    trackAction('download_mp3', book.id);
+    const res = await downloadAudioMp3(book, null, isPurchased);
+    if (res === 'ok') {
+      setDownloadStatus({ type: 'success', text: '✓ Téléchargement MP3 démarré' });
+    } else if (res === 'not_purchased') {
+      setDownloadStatus({ type: 'error', text: 'Achetez ce livre pour télécharger le MP3' });
+    } else {
+      setDownloadStatus({ type: 'warn', text: 'Ouverture du flux audio...' });
+    }
+    setIsDownloading(false);
+    setTimeout(() => setDownloadStatus(null), 4000);
+  }, [book, isPurchased]);
 
   // Admin check
   const isAdmin = (() => {
@@ -33,17 +106,28 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
       const stored = localStorage.getItem(`rg_reviews_${book.id}`);
       if (stored) return JSON.parse(stored);
     } catch (_) {}
-    return [
-      { id: 'rev-1', author_name: 'Christian N.', rating: 5, date: 'Il y a 3 jours', comment: 'Une narration absolument captivante et une clarté audio exceptionnelle !' },
-      { id: 'rev-2', author_name: 'Aline M.', rating: 5, date: 'Il y a 1 semaine', comment: 'Très enrichissant, je recommande vivement cette version audio.' },
-    ];
+    return []; // Zéro faux avis par défaut
   };
 
   const [reviews, setReviews] = useState([]);
 
   React.useEffect(() => {
     if (book) {
-      setReviews(getStoredReviews());
+      // Charger les avis réels depuis D1
+      apiClient.getBookReviews(book.id).then(d1Reviews => {
+        if (Array.isArray(d1Reviews) && d1Reviews.length > 0) {
+          setReviews(d1Reviews.map(r => ({
+            id: r.id,
+            author_name: r.user_name || r.author_name || 'Auditeur RG Play',
+            rating: r.rating || 5,
+            date: r.created_at ? new Date(r.created_at).toLocaleDateString('fr-FR') : (r.date || "Récemment"),
+            comment: r.comment || r.text || ''
+          })));
+        } else {
+          setReviews(getStoredReviews());
+        }
+      });
+
       setReviewSubmitted(false);
       setUserReviewText('');
       setUserRating(5);
@@ -68,9 +152,9 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
     }
   }, [book?.id]);
 
-  const handleSubmitReview = () => {
+  const handleSubmitReview = async () => {
     if (!userRating || !userReviewText.trim() || !book) return;
-    let userName = 'Utilisateur';
+    let userName = 'Auditeur RG Play';
     try {
       const p = JSON.parse(localStorage.getItem('rg_user_profile') || '{}');
       if (p.name) userName = p.name;
@@ -86,29 +170,21 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
 
     const updated = [newRev, ...reviews];
     setReviews(updated);
-    try { localStorage.setItem(`rg_reviews_${book.id}`, JSON.stringify(updated)); } catch (_) {}
     setReviewSubmitted(true);
     setUserReviewText('');
+
+    // Persister dans Cloudflare D1
+    await apiClient.addBookReview(book.id, {
+      rating: userRating,
+      comment: newRev.comment,
+      author: userName,
+    });
+
     window.dispatchEvent(new CustomEvent('rg:book-rated', { detail: { bookId: book.id, rating: userRating } }));
   };
 
+  // NOTE: All handler functions must be declared BEFORE the early return below
   if (!isOpen || !book) return null;
-
-  const handleDownloadMp3 = async () => {
-    setIsDownloading(true);
-    setDownloadStatus(null);
-    trackAction('download_mp3', book.id);
-    const res = await downloadAudioMp3(book, null, isPurchased);
-    if (res === 'ok') {
-      setDownloadStatus({ type: 'success', text: '✓ Fichier MP3 en cours de téléchargement' });
-    } else if (res === 'not_purchased') {
-      setDownloadStatus({ type: 'error', text: 'Veuillez acheter cet audio pour télécharger le MP3' });
-    } else {
-      setDownloadStatus({ type: 'warn', text: 'Ouverture du flux audio...' });
-    }
-    setIsDownloading(false);
-    setTimeout(() => setDownloadStatus(null), 4000);
-  };
 
   const fmtCount = (n) => {
     if (!n || n === 0) return null;
@@ -119,6 +195,8 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
 
   const isCurrentPlaying = currentBook?.id === book.id && isPlaying;
   const formattedDuration = `${Math.floor(book.duration_seconds / 3600)}h ${Math.floor((book.duration_seconds % 3600) / 60)}m`;
+  const isEbookItem = book?.content_type === 'ebook' || book?.content_type === 'epub' ||
+    (typeof book?.pdf_url === 'string' && book.pdf_url.trim().length > 0);
 
   const DEFAULT_COVER = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80';
   const coverSrc = !book.cover_url
@@ -201,7 +279,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
         </div>
 
         {/* Métadonnées clés */}
-        <div className="px-5 py-3 bg-white/4 border-y border-white/6 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+        <div className="px-5 py-3 bg-white/4 border-y border-white/6 grid grid-cols-3 gap-2 text-center text-xs">
           <div className="space-y-0.5">
             <span className="text-[9px] text-slate-400 font-medium block">Lectures</span>
             <p className="font-bold text-purple-300 flex items-center justify-center gap-1">
@@ -214,18 +292,11 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
             <p className="font-bold text-slate-200">{formattedDuration}</p>
           </div>
           <div className="space-y-0.5">
-            <span className="text-[9px] text-slate-400 font-medium block">Note</span>
-            <p className="font-bold text-amber-400 flex items-center justify-center gap-1">
-              <Star className="w-3 h-3 fill-amber-400" />
-              {book.display_rating || book.rating || 4.9}
-              <span className="text-slate-400 font-normal">({fmtCount(book.display_reviews_count) || book.rating_count || 120})</span>
-            </p>
-          </div>
-          <div className="space-y-0.5">
             <span className="text-[9px] text-slate-400 font-medium block">Format</span>
             <p className="font-bold text-emerald-400 text-[10px]">Audio HD Stéréo</p>
           </div>
         </div>
+
 
         {/* Corps de la modale — aéré */}
         <div className="px-5 py-5 space-y-5">
@@ -235,7 +306,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
             {[
               { id: 'synopsis', label: 'Synopsis' },
               { id: 'chapters', label: `Chapitres (${book.chapters?.length || 1})` },
-              { id: 'reviews', label: `Avis (${reviews.length})`, icon: <Star className="w-3 h-3 fill-amber-400 text-amber-400" /> },
+              { id: 'reviews', label: `Avis (${book.display_reviews_count || book.rating_count || reviews.length})`, icon: <Star className="w-3 h-3 fill-amber-400 text-amber-400" /> },
             ].map(tab => (
               <button
                 key={tab.id}
@@ -271,28 +342,69 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
           {/* ── Chapitres ── */}
           {activeTab === 'chapters' && (
             <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-              {(book.chapters?.length ? book.chapters : [{ id: 'ch0', title: 'Chapitre 1 : Introduction', duration_seconds: 1800 }]).map((chap, idx) => (
-                <div
-                  key={chap.id || idx}
-                  className="p-3 rounded-xl bg-white/4 border border-white/6 flex items-center justify-between text-xs hover:bg-white/7 transition-colors"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="w-6 h-6 rounded-lg bg-purple-500/20 text-purple-300 font-bold flex items-center justify-center text-[10px] flex-shrink-0">
-                      {idx + 1}
-                    </span>
-                    <span className="font-semibold text-slate-200 truncate">{chap.title}</span>
+              {(book.chapters?.length ? book.chapters : [{ id: 'ch0', title: 'Chapitre 1 : Introduction', duration_seconds: 1800 }]).map((chap, idx) => {
+                const isFreePreviewChap = idx <= 1;
+                const canPlay = isPurchased || book.price === 0 || isFreePreviewChap;
+
+                return (
+                  <div
+                    key={chap.id || idx}
+                    onClick={() => {
+                      if (canPlay) {
+                        playBook(book, idx, 0);
+                        onClose();
+                      } else {
+                        onBuy(book);
+                      }
+                    }}
+                    className={`p-3 rounded-xl border flex items-center justify-between text-xs transition-all cursor-pointer ${
+                      canPlay
+                        ? 'bg-white/6 hover:bg-white/12 border-white/10 hover:border-purple-400/40'
+                        : 'bg-white/2 border-white/5 opacity-70 hover:opacity-100 hover:bg-white/5'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className={`w-6 h-6 rounded-lg font-bold flex items-center justify-center text-[10px] flex-shrink-0 ${
+                        isFreePreviewChap && !isPurchased && book.price > 0
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                          : 'bg-purple-500/20 text-purple-300'
+                      }`}>
+                        {idx + 1}
+                      </span>
+                      <span className="font-semibold text-slate-200 truncate">{chap.title}</span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                      {isFreePreviewChap && !isPurchased && book.price > 0 && (
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 text-[9px] font-extrabold border border-emerald-500/30 whitespace-nowrap">
+                          Extrait Gratuit 🎁
+                        </span>
+                      )}
+                      {!canPlay && (
+                        <Lock className="w-3.5 h-3.5 text-slate-500" />
+                      )}
+                      <span className="text-slate-400 text-[11px] font-mono">
+                        {Math.floor((chap.duration_seconds || 1800) / 60)} min
+                      </span>
+                    </div>
                   </div>
-                  <span className="text-slate-400 text-[11px] font-mono flex-shrink-0 ml-2">
-                    {Math.floor((chap.duration_seconds || 1800) / 60)} min
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
           {/* ── Avis & Notes ── */}
           {activeTab === 'reviews' && (
             <div className="space-y-4">
+              {/* Bannière d'information réelle pour l'Admin */}
+              {isAdmin && (
+                <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 font-bold">
+                    <ShieldCheck className="w-4 h-4 text-amber-400" />
+                    Vue Admin : {reviews.length} avis réels • Effet de masse public ({book.display_reviews_count || 0} avis, {book.display_rating || book.rating || 5}★)
+                  </span>
+                </div>
+              )}
+
               {/* Bouton masquer/afficher avis (admin uniquement) */}
               {isAdmin && (
                 <div className="flex justify-end">
@@ -311,8 +423,49 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
                 </div>
               )}
 
+              {/* Résumé de note (effet de masse — visible du public) */}
+              {!reviewsHidden && (
+                <div className="flex items-center gap-4 p-4 rounded-2xl bg-amber-500/8 border border-amber-500/20">
+                  <div className="text-center shrink-0">
+                    <div className="text-4xl font-extrabold text-amber-400 leading-none">
+                      {book.display_rating || book.rating || 4.9}
+                    </div>
+                    <div className="flex items-center justify-center gap-0.5 mt-1">
+                      {[1,2,3,4,5].map(s => (
+                        <Star key={s} className={`w-3 h-3 ${s <= Math.round(book.display_rating || book.rating || 5) ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}`} />
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-amber-300/70 mt-0.5">
+                      {book.display_reviews_count || book.rating_count || 0} avis
+                    </p>
+                  </div>
+                  <div className="flex-1 space-y-1">
+                    {[5,4,3,2,1].map(star => {
+                      const total = book.display_reviews_count || book.rating_count || 1;
+                      const rating = book.display_rating || book.rating || 5;
+                      // Distribution réaliste centrée sur la note affichée
+                      const pct = star === Math.round(rating) ? 70 : star === Math.round(rating) - 1 ? 18 : star === Math.round(rating) + 1 ? 8 : 2;
+                      return (
+                        <div key={star} className="flex items-center gap-1.5">
+                          <span className="text-[10px] text-slate-400 w-2 text-right">{star}</span>
+                          <Star className="w-2.5 h-2.5 fill-amber-400/50 text-amber-400/50 shrink-0" />
+                          <div className="flex-1 h-1.5 rounded-full bg-white/8 overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-gradient-to-r from-amber-500 to-orange-400 transition-all duration-700"
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] text-slate-500 w-5 text-right">{pct}%</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Formulaire de dépôt d'avis */}
               {!reviewsHidden && (
+
                 <div className="p-4 rounded-2xl bg-purple-500/8 border border-purple-500/20 space-y-3">
                   <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-amber-400" />
@@ -353,7 +506,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
                     <button
                       onClick={handleSubmitReview}
                       disabled={!userRating || !userReviewText.trim()}
-                      className="btn-gradient px-4 py-1.5 rounded-xl text-xs font-bold disabled:opacity-40"
+                      className="btn-gradient px-4 py-1.5 rounded-xl text-xs font-bold disabled:opacity-40 cursor-pointer"
                     >
                       {reviewSubmitted ? '✓ Publié !' : 'Publier mon avis'}
                     </button>
@@ -361,8 +514,17 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
                 </div>
               )}
 
+              {/* État vide si 0 avis */}
+              {!reviewsHidden && reviews.length === 0 && (
+                <div className="py-8 text-center text-xs text-slate-400 border border-dashed border-white/10 rounded-2xl space-y-2">
+                  <Star className="w-6 h-6 mx-auto text-amber-400/50" />
+                  <p className="font-semibold text-slate-300">Aucun avis rédigé pour le moment</p>
+                  <p className="text-[11px] text-slate-500">Soyez le premier auditeur à partager votre expérience ci-dessus !</p>
+                </div>
+              )}
+
               {/* Liste des avis */}
-              {!reviewsHidden && (
+              {!reviewsHidden && reviews.length > 0 && (
                 <div className="space-y-3 max-h-48 overflow-y-auto pr-1">
                   {reviews.map((rev) => (
                     <div key={rev.id} className="p-3.5 rounded-2xl bg-white/4 border border-white/6 space-y-2">
@@ -373,11 +535,28 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
                           </div>
                           <span className="text-xs font-bold text-white">{rev.author_name}</span>
                         </div>
-                        <div className="flex items-center gap-0.5">
-                          {[1, 2, 3, 4, 5].map((s) => (
-                            <Star key={s} className={`w-3 h-3 ${s <= rev.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}`} />
-                          ))}
-                          <span className="text-[10px] text-slate-400 ml-1.5">{rev.date}</span>
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-0.5">
+                            {[1, 2, 3, 4, 5].map((s) => (
+                              <Star key={s} className={`w-3 h-3 ${s <= rev.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}`} />
+                            ))}
+                            <span className="text-[10px] text-slate-400 ml-1.5">{rev.date}</span>
+                          </div>
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (window.confirm('Supprimer cet avis ?')) {
+                                  setReviews(prev => prev.filter(r => r.id !== rev.id));
+                                  await apiClient.deleteReview(rev.id);
+                                }
+                              }}
+                              className="text-rose-400 hover:text-rose-300 p-1 text-xs"
+                              title="Supprimer cet avis (Admin)"
+                            >
+                              ✕
+                            </button>
+                          )}
                         </div>
                       </div>
                       <p className="text-xs text-slate-300 leading-relaxed">{rev.comment}</p>
@@ -407,6 +586,13 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
             </div>
           )}
 
+          {/* ── BANNIÈRE SPONSORISÉE FICHE LIVRE ── */}
+          <AdBanner
+            placement="book_detail"
+            onOpenRewardModal={() => window.dispatchEvent(new Event('rg:open-reward-ad'))}
+            className="my-2"
+          />
+
           {/* ── Zone Actions ── */}
           <div className="pt-4 border-t border-white/10 space-y-3">
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
@@ -427,55 +613,168 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
                 <span>Extrait Gratuit</span>
               </button>
 
-              {/* Bouton Tuteur IA */}
+              {/* Bouton Agent SKY */}
               <button
                 onClick={() => setIsChatOpen(true)}
-                className="sm:w-auto px-4 py-3 rounded-2xl bg-purple-600/20 hover:bg-purple-600/35 text-purple-300 border border-purple-500/35 font-bold text-xs flex items-center justify-center gap-1.5 transition-all hover:scale-[1.02] shadow-sm"
-                title="Poser une question à ce livre (IA)"
+                className="sm:w-auto px-4 py-3 rounded-2xl bg-gradient-to-r from-cyan-500/20 to-indigo-500/20 hover:from-cyan-500/35 hover:to-indigo-500/35 text-cyan-200 border border-cyan-500/40 font-bold text-xs flex items-center justify-center gap-2 transition-all hover:scale-[1.02] shadow-md shadow-cyan-950/40 cursor-pointer"
+                title="Discuter avec l'Agent SKY (Mentor & Tuteur IA)"
               >
-                <Sparkles className="w-4 h-4 text-purple-400 animate-pulse" />
-                <span>Tuteur IA</span>
+                <Sparkles className="w-4 h-4 text-cyan-400 animate-pulse" />
+                <span>Agent SKY (Mentor IA)</span>
               </button>
 
-              {/* Télécharger MP3 */}
-              {(isPurchased || book.price === 0 || book.is_free_for_members) && (
-                <button
-                  onClick={handleDownloadMp3}
-                  disabled={isDownloading}
-                  className="sm:w-auto px-4 py-3 rounded-2xl bg-purple-500/12 hover:bg-purple-500/22 text-purple-200 border border-purple-500/25 font-bold text-xs flex items-center justify-center gap-2 transition-all disabled:opacity-50"
-                >
-                  {isDownloading ? (
-                    <span className="w-4 h-4 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <Download className="w-4 h-4 text-purple-400" />
+              {/* Téléchargement Hors-Ligne (YouTube Style) & MP3 */}
+              <div className="flex flex-col gap-1.5 w-full sm:w-auto">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleDownloadOffline}
+                    disabled={isDownloading}
+                    className={`flex-1 sm:flex-none px-4 py-3 rounded-2xl border font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                      isDownloading
+                        ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
+                        : isDownloaded
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-md hover:bg-emerald-500/30'
+                          : 'bg-indigo-500/15 hover:bg-indigo-500/30 text-indigo-200 border-indigo-500/30 hover:scale-[1.02]'
+                    }`}
+                    title={isDownloaded ? 'Cliquez pour supprimer du cache hors-ligne' : 'Télécharger pour écouter sans connexion (comme YouTube)'}
+                  >
+                    {isDownloading ? (
+                      <>
+                        <span className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                        <span>{downloadProgress > 0 ? `${downloadProgress}%` : 'Préparation...'}</span>
+                      </>
+                    ) : isDownloaded ? (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                        <span>Hors-ligne ✓</span>
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-4 h-4 text-indigo-400 flex-shrink-0" />
+                        <span>Mode Hors-ligne</span>
+                      </>
+                    )}
+                  </button>
+
+                  {(isPurchased || book.price === 0 || book.is_free_for_members) && (
+                    <button
+                      onClick={handleDownloadMp3}
+                      disabled={isDownloading}
+                      className="p-3 rounded-2xl bg-white/5 hover:bg-white/10 text-purple-300 border border-white/10 font-bold text-xs flex items-center justify-center transition-all disabled:opacity-50 cursor-pointer"
+                      title="Télécharger le fichier MP3 sur votre appareil"
+                    >
+                      <Download className="w-4 h-4 text-purple-400" />
+                    </button>
                   )}
-                  <span>Télécharger MP3</span>
+                </div>
+
+                {/* Barre de progression téléchargement hors-ligne */}
+                {isDownloading && downloadProgress > 0 && (
+                  <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-300"
+                      style={{ width: `${downloadProgress}%` }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Bouton E-Book Compagnon Read's Great — si audio */}
+              {!isEbookItem && (book.companion_ebook_id || book.companion_ebook || (book.pdf_url && book.pdf_url.length > 0)) && (
+                <button
+                  onClick={() => setIsPdfReaderOpen(true)}
+                  className="sm:w-auto px-4 py-3 rounded-2xl bg-gradient-to-r from-purple-600/20 to-pink-600/20 hover:from-purple-600/35 hover:to-pink-600/35 text-purple-200 border border-purple-500/40 font-bold text-xs flex items-center justify-center gap-2 transition-all hover:scale-[1.02] shadow-md shadow-purple-950/40 cursor-pointer"
+                  title="Ouvrir la version livre numérique E-Book & PDF Read's Great"
+                >
+                  <BookOpen className="w-4 h-4 text-purple-400" />
+                  <span>Lire l’E-Book Compagnon 📖</span>
                 </button>
               )}
 
-              {/* Bouton principal Écouter / Acheter */}
-              {(isPurchased || book.price === 0 || book.is_free_for_members) ? (
+              {/* Bouton Audio Lié — si e-book */}
+              {isEbookItem && (book.companion_audio_id || book.companion_audio) && (
                 <button
-                  onClick={() => { playBook(book, 0, 0); trackAction('play_full', book.id); onClose(); }}
-                  className="flex-1 btn-gradient py-3 px-6 rounded-2xl flex items-center justify-center gap-2 text-sm font-bold shadow-lg"
+                  onClick={() => {
+                    const audio = book.companion_audio || book;
+                    playBook(audio);
+                    onClose();
+                  }}
+                  className="sm:w-auto px-4 py-3 rounded-2xl bg-gradient-to-r from-purple-600/20 to-pink-600/20 hover:from-purple-600/35 hover:to-pink-600/35 text-purple-200 border border-purple-500/40 font-bold text-xs flex items-center justify-center gap-2 transition-all hover:scale-[1.02] shadow-md shadow-purple-950/40 cursor-pointer"
+                  title="Écouter la version audio liée sur RG Play"
                 >
-                  <Play className="w-4 h-4 fill-white" />
-                  <span>{book.price === 0 ? 'Écouter Gratuitement' : 'Écouter le Livre Complet'}</span>
-                </button>
-              ) : (
-                <button
-                  onClick={() => { trackAction('buy_click', book.id); onBuy(book); }}
-                  className="flex-1 btn-gradient py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2.5 text-sm font-bold shadow-xl shadow-purple-600/30"
-                >
-                  <Smartphone className="w-4 h-4" />
-                  <span>Acheter l'Audio Complet</span>
-                  <span className="w-1 h-1 rounded-full bg-white/60" />
-                  <span className="text-amber-300 font-extrabold">
-                    {book.discount_price ? `${book.discount_price} FCFA` : `${book.price} FCFA`}
-                  </span>
+                  <Headphones className="w-4 h-4 text-purple-400" />
+                  <span>Écouter l'Audio Lié 🎧</span>
                 </button>
               )}
+
+              {/* Bouton principal Écouter / Lire / Acheter / Débloquer par Points */}
+              {(isPurchased || book.price === 0 || book.is_free_for_members) ? (
+                isEbookItem ? (
+                  <button
+                    onClick={() => setIsPdfReaderOpen(true)}
+                    className="flex-1 btn-gradient py-3 px-6 rounded-2xl flex items-center justify-center gap-2 text-sm font-bold shadow-lg cursor-pointer"
+                  >
+                    <BookOpen className="w-4 h-4 text-white" />
+                    <span>{book.price === 0 ? 'Lire Gratuitement 📖' : 'Lire le Livre Numérique 📖'}</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => { playBook(book, 0, 0); trackAction('play_full', book.id); onClose(); }}
+                    className="flex-1 btn-gradient py-3 px-6 rounded-2xl flex items-center justify-center gap-2 text-sm font-bold shadow-lg"
+                  >
+                    <Play className="w-4 h-4 fill-white" />
+                    <span>{book.price === 0 ? 'Écouter Gratuitement' : 'Écouter le Livre Complet'}</span>
+                  </button>
+                )
+              ) : (
+                <div className="flex-1 flex flex-col sm:flex-row gap-2">
+                  {/* ── PAIEMENT RÉEL — Mobile Money (FCFA) ── */}
+                  <button
+                    onClick={() => { trackAction('buy_click', book.id); onBuy(book); }}
+                    className="flex-1 btn-gradient py-3.5 px-4 rounded-2xl flex items-center justify-center gap-2 text-xs sm:text-sm font-bold shadow-xl shadow-purple-600/30"
+                  >
+                    <Smartphone className="w-4 h-4" />
+                    <span>
+                      {(book.discount_price || book.price || 1500).toLocaleString('fr-FR')} FCFA
+                      <span className="block text-[10px] font-normal opacity-80">Payer par Mobile Money</span>
+                    </span>
+                  </button>
+
+                  {/* ── POINTS DE FIDÉLITÉ — Option secondaire (clairement séparée) ── */}
+                  {(isEbookItem || !isAudioXpDisabled) && (
+                    <button
+                      onClick={async () => {
+                        setPointsUnlocking(true);
+                        setPointsError(null);
+                        const cost = Number(book.unlock_points) || 100;
+                        const res = await unlockBookWithPoints(book, cost);
+                        if (!res.success) {
+                          setPointsError(res.message);
+                        }
+                        setPointsUnlocking(false);
+                      }}
+                      disabled={pointsUnlocking}
+                      className="px-4 py-3.5 rounded-2xl font-bold text-xs flex items-center justify-center gap-1.5 bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/35 hover:to-orange-500/35 text-amber-300 border border-amber-500/40 hover:scale-[1.02] transition-all cursor-pointer whitespace-nowrap"
+                      title={`Débloquer avec vos points de fidélité (Solde : ${points} pts)`}
+                    >
+                      <Gift className="w-3.5 h-3.5" />
+                      <span>
+                        {Number(book.unlock_points) || 100} pts ⭐
+                        <span className="block text-[9px] font-normal opacity-70">Fidélité ({points} dispo)</span>
+                      </span>
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
+
+            {/* Message d'erreur de solde de points */}
+            {pointsError && (
+              <div className="px-3 py-2 rounded-xl text-xs font-semibold bg-rose-500/15 text-rose-300 border border-rose-500/30 flex items-center gap-2 animate-fadeIn">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{pointsError}</span>
+              </div>
+            )}
 
             {/* Mentions paiement sécurisé */}
             <div className="flex items-center justify-center gap-4 text-[10px] text-slate-500">
@@ -484,7 +783,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
                 Paiement 100% sécurisé
               </span>
               <span>•</span>
-              <span>Orange Money / MTN MoMo / Carte</span>
+              <span>Orange Money / MTN MoMo{!isAudioXpDisabled ? ' / Points ⭐' : ''}</span>
             </div>
           </div>
         </div>
@@ -494,6 +793,13 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
         book={book}
         isOpen={isChatOpen}
         onClose={() => setIsChatOpen(false)}
+      />
+
+      {/* Liseuse E-Book / PDF Read's Great */}
+      <PdfReaderModal
+        book={book}
+        isOpen={isPdfReaderOpen}
+        onClose={() => setIsPdfReaderOpen(false)}
       />
     </div>
   );

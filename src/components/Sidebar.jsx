@@ -1,5 +1,5 @@
 import React from 'react';
-import { Compass, BookMarked, User, PlayCircle, Pause, Smartphone, ShieldCheck } from 'lucide-react';
+import { Compass, BookMarked, User, PlayCircle, Pause, Smartphone, ShieldCheck, ShoppingBag } from 'lucide-react';
 import { useAudio } from '../context/AudioContext';
 
 export const Sidebar = ({ activeTab, setActiveTab, onOpenInstallModal }) => {
@@ -8,18 +8,25 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenInstallModal }) => {
   const menuItems = [
     {
       id: 'discover',
-      label: 'Boutique & Découverte',
+      label: 'DÉCOUVRIR',
       icon: Compass,
       badge: 'Nouveau',
     },
     {
       id: 'library',
-      label: 'Ma Bibliothèque',
+      label: 'E-BOOKS & PDF',
       icon: BookMarked,
+      badge: 'Read\'s Great',
+    },
+    {
+      id: 'store',
+      label: 'BOUTIQUE & PASS',
+      icon: ShoppingBag,
+      badge: 'VIP',
     },
     {
       id: 'profile',
-      label: 'Profil & Paramètres',
+      label: 'COMPTE & STATUTS',
       icon: User,
     },
   ];

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node --max-old-space-size=4096 ./node_modules/vite/bin/vite.js build",
     "preview": "vite preview",
     "cf:d1:init": "wrangler d1 execute rg-play-db --local --file=./migrations/0001_init.sql",
     "cf:d1:init:remote": "wrangler d1 execute rg-play-db --remote --file=./migrations/0001_init.sql",

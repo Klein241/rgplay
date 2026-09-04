@@ -356,8 +356,77 @@ const TOOLS = [
     }
   },
   {
+    name: 'rgplay_ingest_file_to_r2',
+    description: 'Rapatrie un fichier distant (ex: URL temporaire manuscdn, CDN externe ou fichier audio/PDF) et l\'enregistre définitivement dans le bucket Cloudflare R2 RG Play pour un stockage pérenne.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        url: {
+          type: 'string',
+          description: 'URL source du fichier distant à rapatrier (ex: https://files.manuscdn.com/...)'
+        },
+        file_name: {
+          type: 'string',
+          description: 'Nom de fichier cible (ex: rgplay_series1_episode01.wav ou guide_ia.pdf)'
+        },
+        type: {
+          type: 'string',
+          enum: ['audio', 'ebook', 'cover', 'preview'],
+          description: 'Type de ressource',
+          default: 'audio'
+        }
+      },
+      required: ['url']
+    }
+  },
+  {
+    name: 'rgplay_publish_ebook',
+    description: 'Publie un livre numérique (E-Book au format PDF ou EPUB) dans la bibliothèque Read\'s Great avec pagination, points de déblocage (100 Pts par défaut) et liseuse.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'ID unique du livre (optionnel)' },
+        title: { type: 'string', description: 'Titre du livre numérique' },
+        author: { type: 'string', description: 'Auteur(e)' },
+        publisher: { type: 'string', description: 'Maison d\'édition ou collection', default: "Éditions Read's Great" },
+        category_id: { type: 'string', description: 'ID de la catégorie', default: 'cat-1' },
+        format: { type: 'string', enum: ['pdf', 'epub', 'hybrid'], default: 'pdf' },
+        pdf_url: { type: 'string', description: 'URL permanente Cloudflare R2 ou URL du document PDF/EPUB' },
+        page_count: { type: 'number', description: 'Nombre total de pages du livre', default: 180 },
+        unlock_points: { type: 'number', description: 'Points Read\'s Great pour déblocage gratuit', default: 100 },
+        price: { type: 'number', description: 'Prix en FCFA (0 pour gratuit)', default: 0 },
+        discount_price: { type: 'number', description: 'Prix barré promotionnel' },
+        description: { type: 'string', description: 'Présentation / pitch du livre' },
+        synopsis: { type: 'string', description: 'Sommaire et chapitres' },
+        cover_url: { type: 'string', description: 'URL de la couverture' },
+        is_featured: { type: 'boolean', description: 'Mettre en vedette' },
+        is_pinned: { type: 'boolean', description: 'Épingler en tête de bibliothèque' }
+      },
+      required: ['title', 'author', 'pdf_url']
+    }
+  },
+  {
+    name: 'rgplay_generate_ai_tts',
+    description: 'Génère un flux audio de synthèse vocale IA haute fidélité (voix françaises Henri, Denise, Alain, Brigitte, Guy, Jenny) pour un chapitre ou extrait.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        text: { type: 'string', description: 'Texte ou script à synthétiser en voix' },
+        voice: {
+          type: 'string',
+          enum: ['fr-FR-HenriNeural', 'fr-FR-DeniseNeural', 'fr-FR-AlainNeural', 'fr-FR-BrigitteNeural', 'en-US-JennyNeural', 'en-US-GuyNeural'],
+          default: 'fr-FR-HenriNeural',
+          description: 'Profil vocal'
+        },
+        speed: { type: 'number', default: 1.0, description: 'Vitesse de lecture (0.8 à 1.5)' },
+        pitch: { type: 'number', default: 1.0, description: 'Tonalité (0.8 à 1.3)' }
+      },
+      required: ['text']
+    }
+  },
+  {
     name: 'rgplay_get_system_status',
-    description: 'Effectue un diagnostic complet de l\'état de la plateforme RG Play (Cloudflare D1, Cloudflare R2, KV Cache, CamerPay API).',
+    description: 'Vérifie l\'état opérationnel complet de la plateforme RG Play (Cloudflare D1 SQL, Stockage R2, KV Cache, Passerelle CamerPay).',
     inputSchema: {
       type: 'object',
       properties: {}
@@ -497,6 +566,44 @@ async function handleToolCall(name, args) {
 
       case 'rgplay_track_event': {
         const res = await fetch(`${apiBase}/analytics/event`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(args)
+        });
+        const data = await res.json();
+        return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+      }
+
+      case 'rgplay_ingest_file_to_r2': {
+        const res = await fetch(`${apiBase}/r2/upload-from-url`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(args)
+        });
+        const data = await res.json();
+        return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+      }
+
+      case 'rgplay_publish_ebook': {
+        const ebookData = {
+          ...args,
+          content_type: 'ebook',
+          format: args.format || 'pdf',
+          unlock_points: args.unlock_points !== undefined ? args.unlock_points : 100,
+          page_count: args.page_count || 180,
+          price: args.price !== undefined ? args.price : 0,
+        };
+        const res = await fetch(`${apiBase}/admin/books`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(ebookData)
+        });
+        const data = await res.json();
+        return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+      }
+
+      case 'rgplay_generate_ai_tts': {
+        const res = await fetch(`${apiBase}/ai/tts`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(args)

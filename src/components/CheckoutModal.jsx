@@ -2,11 +2,13 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   X, Smartphone, CreditCard,
   ArrowRight, Loader2, AlertCircle, ShieldCheck,
-  Phone, Clock, XCircle, Wifi, ExternalLink, CheckCircle2
+  Phone, Clock, XCircle, Wifi, ExternalLink, CheckCircle2,
+  Lock, RefreshCw
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { apiClient } from '../services/api';
 import { useAudio } from '../context/AudioContext';
+import { useXp } from '../context/XpContext';
 
 // ─── Constantes ────────────────────────────────────────────────────────────
 const POLL_INTERVAL_MS = 3000;  // Polling toutes les 3 secondes
@@ -51,6 +53,7 @@ const METHODS = [
 
 export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
   const { playBook } = useAudio();
+  const { points, unlockBookWithPoints } = useXp();
 
   // ── Formulaire ──────────────────────────────────────────────────────────
   const [paymentMethod, setPaymentMethod] = useState('orange_money');
@@ -71,8 +74,30 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
   const timerIntervalRef = useRef(null);
   const isMountedRef = useRef(true);
 
+  const isSubscriptionPlan = book?.id?.startsWith?.('pass_');
+  const isAudioXpDisabled = typeof window !== 'undefined' && localStorage.getItem('rg_settings_audio_xp_disabled') === 'true';
+  const canUsePoints = !isSubscriptionPlan && (book?.content_type === 'ebook' || !isAudioXpDisabled);
+  const pointsCost = Number(book?.unlock_points) || 100;
+  const hasEnoughPoints = points >= pointsCost;
+  const isPoints = paymentMethod === 'points';
+
+  const availableMethods = [
+    ...METHODS,
+    ...(canUsePoints ? [{
+      id: 'points',
+      label: 'Points RG',
+      icon: '⭐',
+      borderColor: 'border-amber-500',
+      bgColor: 'bg-amber-500/10',
+      textColor: 'text-amber-300',
+      ringColor: 'ring-amber-400',
+      hint: `${pointsCost} Pts ⭐`,
+      needsPhone: false,
+    }] : [])
+  ];
+
   const finalPrice = book?.discount_price || book?.price;
-  const methodInfo = METHODS.find(m => m.id === paymentMethod) || METHODS[0];
+  const methodInfo = availableMethods.find(m => m.id === paymentMethod) || availableMethods[0];
   const isCard = paymentMethod === 'card';
 
   // ── Nettoyage à la fermeture ─────────────────────────────────────────────
@@ -119,6 +144,36 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
     e.preventDefault();
     setPhoneError('');
     setInitError('');
+
+    if (isPoints) {
+      if (!hasEnoughPoints) {
+        setInitError(`Solde insuffisant (${points}/${pointsCost} pts). Regardez une vidéo publicitaire pour en gagner !`);
+        return;
+      }
+      setStep('initiating');
+      try {
+        const res = await unlockBookWithPoints(book, pointsCost);
+        if (res.success) {
+          clearAllIntervals();
+          apiClient._addToLocalLibrary(book);
+          setStep('success');
+          confetti({
+            particleCount: 150,
+            spread: 90,
+            origin: { y: 0.5 },
+            colors: ['#9d4edd', '#c77dff', '#f72585', '#06d6a0', '#ffbe0b'],
+          });
+          if (onSuccess) onSuccess(book);
+        } else {
+          setInitError(res.message || 'Erreur lors du déblocage par points.');
+          setStep('form');
+        }
+      } catch (err) {
+        setInitError(err.message || 'Erreur lors du déblocage par points.');
+        setStep('form');
+      }
+      return;
+    }
 
     const cleanPhone = phoneNumber.replace(/\D/g, '');
 
@@ -318,7 +373,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
               {/* Résumé du produit */}
               <div className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10">
                 <img
-                  src={book.cover_url}
+                  src={book.cover_url || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=200&q=80'}
                   alt={book.title}
                   className="w-16 h-16 rounded-xl object-cover flex-shrink-0 shadow-lg"
                   onError={e => { e.target.src = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=200&q=80'; }}
@@ -342,8 +397,8 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                 <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2.5">
                   Méthode de paiement
                 </p>
-                <div className="grid grid-cols-3 gap-2">
-                  {METHODS.map(m => (
+                <div className={`grid ${canUsePoints ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'} gap-2`}>
+                  {availableMethods.map(m => (
                     <button
                       key={m.id}
                       type="button"
@@ -363,7 +418,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
               </div>
 
               {/* Numéro de téléphone (Mobile Money uniquement) */}
-              {!isCard && (
+              {!isCard && !isPoints && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
                     Votre numéro de téléphone
@@ -415,6 +470,40 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                 </div>
               )}
 
+              {/* Info Points Read's Great */}
+              {isPoints && (
+                <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-amber-300 font-bold text-sm flex items-center gap-2">
+                      ⭐ Déblocage par Points Read's Great
+                    </span>
+                    <span className="text-xs font-extrabold px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-200 border border-amber-500/30">
+                      Votre solde : {points} Pts
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Coût du déblocage : <strong className="text-amber-300 font-black">{pointsCost} Points</strong>. Ce titre sera définitivement ajouté à votre bibliothèque personnelle.
+                  </p>
+                  {!hasEnoughPoints && (
+                    <div className="pt-2 border-t border-amber-500/20 flex flex-col sm:flex-row items-center justify-between gap-2">
+                      <span className="text-[11px] text-amber-400 font-medium">
+                        Il vous manque {pointsCost - points} points pour débloquer ce livre gratuitement.
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onClose();
+                          window.dispatchEvent(new Event('rg:open-reward-ad'));
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
+                      >
+                        <span>🎬 Gagner des points (+30 pts)</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Erreur d'initiation avec solutions immédiates */}
               {initError && (
                 <div className="p-3.5 rounded-2xl bg-red-500/10 border border-red-500/30 space-y-2.5">
@@ -423,7 +512,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                     <p className="text-red-300 text-sm leading-snug">{initError}</p>
                   </div>
 
-                  {!isCard && (
+                  {!isCard && !isPoints && (
                     <div className="pt-2 border-t border-red-500/20 flex flex-col sm:flex-row gap-2">
                       <button
                         type="button"
@@ -447,7 +536,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                         className="py-2 px-3 rounded-xl bg-white/10 hover:bg-white/20 text-slate-200 text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
                       >
                         <Lock size={13} />
-                        <span>Validation PIN manuelle</span>
+                        <span>Confirmer manuellement</span>
                       </button>
                     </div>
                   )}
@@ -455,7 +544,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
               )}
 
               {/* Info sécurité Mobile Money */}
-              {!isCard && (
+              {!isCard && !isPoints && (
                 <div className="flex items-center gap-2.5 text-xs text-slate-500">
                   <ShieldCheck size={14} className="text-emerald-500 flex-shrink-0" />
                   <span>Vous recevrez un message sur votre téléphone. <strong className="text-slate-400">Votre PIN n'est jamais saisi ici.</strong></span>
@@ -465,19 +554,22 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
               {/* Bouton principal */}
               <button
                 type="submit"
-                disabled={step === 'initiating'}
-                className="w-full py-4 rounded-2xl font-bold text-white text-base
-                  bg-gradient-to-r from-purple-600 to-fuchsia-600
-                  hover:from-purple-500 hover:to-fuchsia-500
-                  disabled:opacity-60 disabled:cursor-not-allowed
-                  flex items-center justify-center gap-2.5
-                  shadow-lg shadow-purple-500/30
-                  transition-all duration-200 active:scale-[0.98]"
+                disabled={step === 'initiating' || (isPoints && !hasEnoughPoints)}
+                className={`w-full py-4 rounded-2xl font-bold text-base flex items-center justify-center gap-2.5 shadow-lg transition-all duration-200 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed ${
+                  isPoints
+                    ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 text-slate-950 shadow-amber-500/30 hover:opacity-95 cursor-pointer'
+                    : 'bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white shadow-purple-500/30 hover:from-purple-500 hover:to-fuchsia-500'
+                }`}
               >
                 {step === 'initiating' ? (
                   <>
                     <Loader2 size={20} className="animate-spin" />
-                    {isCard ? 'Préparation de la page de paiement...' : `Connexion à ${methodInfo.label}...`}
+                    {isPoints ? 'Déblocage avec vos points...' : isCard ? 'Préparation de la page de paiement...' : `Connexion à ${methodInfo.label}...`}
+                  </>
+                ) : isPoints ? (
+                  <>
+                    <span>Débloquer avec {pointsCost} Points ⭐</span>
+                    <ArrowRight size={20} />
                   </>
                 ) : (
                   <>
@@ -722,7 +814,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
 
               <div className="flex items-center gap-4 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30">
                 <img
-                  src={book.cover_url}
+                  src={book.cover_url || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=200&q=80'}
                   alt={book.title}
                   className="w-14 h-14 rounded-xl object-cover flex-shrink-0 shadow-lg"
                   onError={e => { e.target.src = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=200&q=80'; }}

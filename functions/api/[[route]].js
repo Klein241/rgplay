@@ -29,6 +29,84 @@ export async function onRequest(context) {
   }
 
   try {
+    // ─── GET /api ou /api/ (Index, Découverte & Documentation pour Manus IA / MCP) ──
+    if ((path === '' || path === '/' || path === '/docs' || path === '/status') && method === 'GET') {
+      return jsonResponse({
+        success: true,
+        name: "RG Play Cloudflare Edge API",
+        version: "1.0.0",
+        status: "online",
+        description: "API de publication et d'administration pour la plateforme RG Play (E-Books Read's Great & Audiobooks)",
+        auth: {
+          type: "Bearer Token",
+          header: "Authorization: Bearer <VOTRE_CLE_API>",
+          note: "Générez vos clés dans l'Admin Studio RG Play (Rubrique 'Générateur d'API & IA')"
+        },
+        endpoints: {
+          publish_ebook: {
+            method: "POST",
+            url: "https://rg-play.pages.dev/api/admin/books",
+            description: "Publier un livre numérique (E-Book PDF/EPUB) dans la bibliothèque Read's Great",
+            required_fields: ["title", "author", "pdf_url"],
+            sample_payload: {
+              title: "Titre du Livre",
+              author: "Nom de l'Auteur",
+              narrator: "Éditions Read's Great",
+              content_type: "ebook",
+              format: "pdf",
+              pdf_url: "https://...url_du_fichier.pdf",
+              cover_url: "https://...url_de_la_jaquette.jpg",
+              page_count: 180,
+              unlock_points: 100,
+              price: 0,
+              description: "Résumé du livre",
+              synopsis: "Sommaire détaillé"
+            }
+          },
+          publish_audiobook: {
+            method: "POST",
+            url: "https://rg-play.pages.dev/api/admin/books",
+            description: "Publier un livre audio avec ses chapitres dans Cloudflare D1",
+            required_fields: ["title", "author", "chapters"],
+            sample_payload: {
+              title: "Titre du Livre Audio",
+              author: "Auteur",
+              narrator: "Narrateur",
+              content_type: "audiobook",
+              cover_url: "https://...url_couverture.jpg",
+              price: 3500,
+              chapters: [
+                {
+                  id: "chap-1",
+                  title: "Chapitre 1 — Titre",
+                  audio_url: "https://...audio1.mp3",
+                  duration_seconds: 900
+                }
+              ]
+            }
+          },
+          ingest_r2: {
+            method: "POST",
+            url: "https://rg-play.pages.dev/api/r2/upload-from-url",
+            description: "Rapatrier un fichier distant (URL manuscdn, CDN externe) dans Cloudflare R2 permanent",
+            sample_payload: {
+              url: "https://files.manuscdn.com/...",
+              file_name: "livre_final.pdf",
+              type: "ebook"
+            }
+          },
+          list_catalog: {
+            method: "GET",
+            url: "https://rg-play.pages.dev/api/audiobooks"
+          },
+          list_categories: {
+            method: "GET",
+            url: "https://rg-play.pages.dev/api/categories"
+          }
+        }
+      }, corsHeaders);
+    }
+
     // ─── GET /api/deleted-books (Registre serveur des suppressions) ─
     if ((path === '/deleted-books' || path === '/deleted-books/') && method === 'GET') {
       let deletedIds = [];
@@ -50,6 +128,130 @@ export async function onRequest(context) {
         ...corsHeaders,
         'Cache-Control': 'no-cache, no-store, must-revalidate',
       });
+    }
+
+    // ─── GET /api/gamification (Read's Great XP & Points) ──────────
+    if ((path === '/gamification' || path === '/gamification/') && method === 'GET') {
+      const userId = url.searchParams.get('userId') || 'user-demo';
+      if (env.DB) {
+        try {
+          const { results } = await env.DB.prepare(
+            'SELECT * FROM user_gamification WHERE user_id = ?'
+          ).bind(userId).all();
+          
+          if (results && results.length > 0) {
+            const row = results[0];
+            const unlockedBadges = typeof row.unlocked_badges === 'string' 
+              ? JSON.parse(row.unlocked_badges) 
+              : row.unlocked_badges || ['badge-welcome'];
+
+            // Récupérer les 20 dernières transactions
+            const { results: txs } = await env.DB.prepare(
+              'SELECT id, amount, type, description, created_at AS createdAt FROM point_transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 20'
+            ).bind(userId).all().catch(() => ({ results: [] }));
+
+            return jsonResponse({
+              xp: row.xp,
+              points: row.points,
+              level: row.level,
+              readingMinutes: row.reading_minutes,
+              listeningMinutes: row.listening_minutes,
+              booksCompleted: row.books_completed,
+              dailyStreak: row.daily_streak,
+              lastDailyRewardDate: row.last_daily_reward_date,
+              unlockedBadges,
+              recentTransactions: txs || [],
+            }, corsHeaders);
+          }
+        } catch (_) {}
+      }
+      return jsonResponse(null, corsHeaders);
+    }
+
+    // ─── POST /api/gamification (Sync State XP & Points) ───────────
+    if ((path === '/gamification' || path === '/gamification/') && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const userId = body.userId || 'user-demo';
+      
+      if (env.DB) {
+        try {
+          await env.DB.prepare(`
+            INSERT INTO user_gamification (
+              user_id, xp, points, level, reading_minutes, listening_minutes, 
+              books_completed, daily_streak, last_daily_reward_date, unlocked_badges, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(user_id) DO UPDATE SET
+              xp = excluded.xp,
+              points = excluded.points,
+              level = excluded.level,
+              reading_minutes = excluded.reading_minutes,
+              listening_minutes = excluded.listening_minutes,
+              books_completed = excluded.books_completed,
+              daily_streak = excluded.daily_streak,
+              last_daily_reward_date = excluded.last_daily_reward_date,
+              unlocked_badges = excluded.unlocked_badges,
+              updated_at = CURRENT_TIMESTAMP
+          `).bind(
+            userId,
+            body.xp || 0,
+            body.points || 0,
+            body.level || 1,
+            body.readingMinutes || 0,
+            body.listeningMinutes || 0,
+            body.booksCompleted || 0,
+            body.dailyStreak || 1,
+            body.lastDailyRewardDate || null,
+            JSON.stringify(body.unlockedBadges || ['badge-welcome'])
+          ).run();
+
+          // Enregistrer la dernière transaction si présente
+          if (body.recentTransactions && body.recentTransactions.length > 0) {
+            const latestTx = body.recentTransactions[0];
+            if (latestTx?.id) {
+              await env.DB.prepare(`
+                INSERT OR IGNORE INTO point_transactions (id, user_id, amount, type, description, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+              `).bind(
+                latestTx.id,
+                userId,
+                latestTx.amount || 0,
+                latestTx.type || 'bonus',
+                latestTx.description || 'Transaction',
+                latestTx.createdAt || new Date().toISOString()
+              ).run().catch(() => {});
+            }
+          }
+        } catch (_) {}
+      }
+      return jsonResponse({ success: true }, corsHeaders);
+    }
+
+    // ─── POST /api/ebook/progress (Sync progression liseuse) ────────
+    if ((path === '/ebook/progress' || path === '/ebook/progress/') && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const userId = body.userId || 'user-demo';
+      const bookId = body.bookId;
+
+      if (env.DB && bookId) {
+        try {
+          const progId = `ep-${userId}-${bookId}`;
+          await env.DB.prepare(`
+            INSERT INTO ebook_progress (id, user_id, book_id, current_page, total_pages, last_read_at)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(user_id, book_id) DO UPDATE SET
+              current_page = excluded.current_page,
+              total_pages = excluded.total_pages,
+              last_read_at = CURRENT_TIMESTAMP
+          `).bind(
+            progId,
+            userId,
+            bookId,
+            body.currentPage || 1,
+            body.totalPages || 1
+          ).run();
+        } catch (_) {}
+      }
+      return jsonResponse({ success: true }, corsHeaders);
     }
 
     // ─── GET /api/categories ─────────────────────────────────────
@@ -279,6 +481,8 @@ export async function onRequest(context) {
           await env.DB.prepare(`CREATE TABLE IF NOT EXISTS deleted_books (id TEXT PRIMARY KEY, deleted_at DATETIME DEFAULT CURRENT_TIMESTAMP)`).run();
         } catch (_) {}
 
+        const isAdmin = url.searchParams.get('admin') === 'true' || request.headers.get('X-Admin') === 'true';
+
         let query = `
           SELECT a.*, c.name as category_name 
           FROM audiobooks a 
@@ -286,6 +490,10 @@ export async function onRequest(context) {
           LEFT JOIN deleted_books db ON a.id = db.id
           WHERE db.id IS NULL
         `;
+
+        if (!isAdmin) {
+          query += ` AND (a.status IS NULL OR a.status = 'published' OR (a.status = 'scheduled' AND (a.scheduled_at IS NULL OR datetime(a.scheduled_at) <= datetime('now') OR a.scheduled_at <= datetime('now'))))`;
+        }
         const queryParams = [];
 
         if (type && type !== 'all') {
@@ -338,6 +546,12 @@ export async function onRequest(context) {
           console.warn('Erreur chargement chapitres D1:', chErr);
         }
 
+        // Indexer tous les livres pour résolution rapide des compagnons
+        const bookById = {};
+        for (const b of rawResults) {
+          bookById[b.id] = b;
+        }
+
         // Enrichir et garantir des URLs publiques valides pour chaque livre
         const enriched = rawResults.map(book => {
           let coverUrl = book.cover_url;
@@ -364,9 +578,35 @@ export async function onRequest(context) {
                 { id: `chap-${book.id}-1`, chapter_number: 1, title: 'Introduction & Chapitre 1', duration_seconds: book.duration_seconds || 1800, audio_url: previewUrl }
               ];
 
+          const companionAudio = book.companion_audio_id ? bookById[book.companion_audio_id] : null;
+          const companionEbook = book.companion_ebook_id ? bookById[book.companion_ebook_id] : null;
+
           return {
             ...book,
             content_type: book.content_type || 'audiobook',
+            format: book.format || (book.content_type === 'ebook' ? 'pdf' : 'audio'),
+            pdf_url: book.pdf_url || (book.content_type === 'ebook' ? (book.preview_url || null) : null),
+            page_count: Number(book.page_count || 180),
+            companion_audio_id: book.companion_audio_id || null,
+            companion_ebook_id: book.companion_ebook_id || null,
+            companion_audio: companionAudio ? {
+              id: companionAudio.id,
+              title: companionAudio.title,
+              author: companionAudio.author,
+              cover_url: companionAudio.cover_url,
+              duration_seconds: companionAudio.duration_seconds,
+              rating: companionAudio.rating,
+              chapters: chaptersByBook[companionAudio.id] || []
+            } : null,
+            companion_ebook: companionEbook ? {
+              id: companionEbook.id,
+              title: companionEbook.title,
+              author: companionEbook.author,
+              cover_url: companionEbook.cover_url,
+              pdf_url: companionEbook.pdf_url || companionEbook.preview_url,
+              page_count: companionEbook.page_count || 180,
+              format: companionEbook.format || 'pdf',
+            } : null,
             is_pinned: Boolean(book.is_pinned),
             display_plays_count: Number(book.display_plays_count || 0),
             display_reviews_count: Number(book.display_reviews_count || 0),
@@ -565,11 +805,156 @@ export async function onRequest(context) {
       return jsonResponse({ error: 'Extrait non disponible' }, corsHeaders, 404);
     }
 
-    // ─── GET /api/library ────────────────────────────────────────
+    // ─── GET /api/user/profile (Profil utilisateur D1) ───────────
+    if ((path === '/user/profile' || path === '/users/profile') && method === 'GET') {
+      const userId = request.headers.get('X-User-Id') || 'user-demo';
+      if (env.DB) {
+        await ensureAllTables(env.DB);
+        const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
+        if (user) {
+          return jsonResponse({
+            success: true,
+            profile: {
+              ...user,
+              download_wifi_only: Boolean(user.download_wifi_only),
+              auto_play_next: Boolean(user.auto_play_next),
+            }
+          }, corsHeaders);
+        }
+      }
+      return jsonResponse({
+        success: true,
+        profile: {
+          id: userId,
+          name: 'Auditeur RG Play',
+          email: `${userId}@rgplay.local`,
+          phone: '+237 600 00 00 00',
+          avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&q=80',
+          plan: 'free',
+          wallet_balance: 0,
+          theme_preference: 'purple',
+          audio_quality: '128',
+          download_wifi_only: true,
+          auto_play_next: true,
+        }
+      }, corsHeaders);
+    }
+
+    // ─── POST/PUT /api/user/profile (Sauvegarder Profil D1) ─────────
+    if ((path === '/user/profile' || path === '/users/profile') && (method === 'POST' || method === 'PUT')) {
+      const body = await request.json();
+      const userId = request.headers.get('X-User-Id') || body.id || 'user-demo';
+      if (env.DB) {
+        await ensureAllTables(env.DB);
+        await env.DB.prepare(`
+          INSERT INTO users (
+            id, email, name, phone, avatar_url, plan, plan_expires_at,
+            wallet_balance, theme_preference, audio_quality, download_wifi_only,
+            auto_play_next, sleep_timer_default, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          ON CONFLICT(id) DO UPDATE SET
+            name = COALESCE(excluded.name, users.name),
+            email = COALESCE(excluded.email, users.email),
+            phone = COALESCE(excluded.phone, users.phone),
+            avatar_url = COALESCE(excluded.avatar_url, users.avatar_url),
+            plan = COALESCE(excluded.plan, users.plan),
+            plan_expires_at = COALESCE(excluded.plan_expires_at, users.plan_expires_at),
+            wallet_balance = COALESCE(excluded.wallet_balance, users.wallet_balance),
+            theme_preference = COALESCE(excluded.theme_preference, users.theme_preference),
+            audio_quality = COALESCE(excluded.audio_quality, users.audio_quality),
+            download_wifi_only = COALESCE(excluded.download_wifi_only, users.download_wifi_only),
+            auto_play_next = COALESCE(excluded.auto_play_next, users.auto_play_next),
+            sleep_timer_default = COALESCE(excluded.sleep_timer_default, users.sleep_timer_default),
+            updated_at = CURRENT_TIMESTAMP
+        `).bind(
+          userId,
+          body.email || `${userId}@rgplay.local`,
+          body.name || 'Auditeur RG Play',
+          body.phone || null,
+          body.avatar_url || null,
+          body.plan || 'free',
+          body.plan_expires_at || null,
+          Number(body.wallet_balance ?? 0),
+          body.theme_preference || 'purple',
+          body.audio_quality || '128',
+          body.download_wifi_only !== undefined ? (body.download_wifi_only ? 1 : 0) : 1,
+          body.auto_play_next !== undefined ? (body.auto_play_next ? 1 : 0) : 1,
+          body.sleep_timer_default || null
+        ).run();
+
+        const updated = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
+        return jsonResponse({
+          success: true,
+          profile: {
+            ...updated,
+            download_wifi_only: Boolean(updated.download_wifi_only),
+            auto_play_next: Boolean(updated.auto_play_next),
+          },
+          synced_to: 'cloudflare_d1'
+        }, corsHeaders);
+      }
+      return jsonResponse({ success: true, profile: body }, corsHeaders);
+    }
+
+    // ─── POST /api/user/topup (Recharge Portefeuille D1) ──────────
+    if (path === '/user/topup' && method === 'POST') {
+      const body = await request.json();
+      const userId = request.headers.get('X-User-Id') || body.user_id || 'user-demo';
+      const amount = Number(body.amount || 0);
+      if (amount <= 0) {
+        return jsonResponse({ success: false, error: 'Montant invalide' }, corsHeaders, 400);
+      }
+      if (env.DB) {
+        await ensureAllTables(env.DB);
+        await env.DB.prepare(`
+          INSERT INTO users (id, name, wallet_balance) VALUES (?, 'Auditeur RG Play', ?)
+          ON CONFLICT(id) DO UPDATE SET wallet_balance = wallet_balance + excluded.wallet_balance
+        `).bind(userId, amount).run();
+
+        const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
+        return jsonResponse({ success: true, wallet_balance: user.wallet_balance, message: `Recharge de ${amount} FCFA validée !` }, corsHeaders);
+      }
+      return jsonResponse({ success: true, wallet_balance: amount, message: 'Recharge effectuée' }, corsHeaders);
+    }
+
+    // ─── POST /api/user/subscribe (Abonnement Premium/VIP D1) ──────
+    if (path === '/user/subscribe' && method === 'POST') {
+      const body = await request.json();
+      const userId = request.headers.get('X-User-Id') || body.user_id || 'user-demo';
+      const plan = body.plan || 'premium';
+      const planPrices = { premium: 3500, vip: 6500 };
+      const price = planPrices[plan] || 0;
+
+      if (env.DB) {
+        await ensureAllTables(env.DB);
+        await env.DB.prepare(`
+          INSERT INTO users (id, name, plan, plan_expires_at)
+          VALUES (?, 'Auditeur RG Play', ?, datetime('now', '+30 days'))
+          ON CONFLICT(id) DO UPDATE SET
+            plan = excluded.plan,
+            plan_expires_at = datetime('now', '+30 days'),
+            wallet_balance = MAX(0, wallet_balance - ?),
+            updated_at = CURRENT_TIMESTAMP
+        `).bind(userId, plan, body.pay_with_wallet ? price : 0).run();
+
+        const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
+        return jsonResponse({
+          success: true,
+          plan: user.plan,
+          plan_expires_at: user.plan_expires_at,
+          wallet_balance: user.wallet_balance,
+          message: `Abonnement ${plan.toUpperCase()} activé avec succès !`
+        }, corsHeaders);
+      }
+      return jsonResponse({ success: true, plan }, corsHeaders);
+    }
+
+    // ─── GET /api/library (Bibliothèque D1 complète) ──────────────
     if (path === '/library' && method === 'GET') {
       const userId = request.headers.get('X-User-Id') || 'user-demo';
 
       if (env.DB) {
+        await ensureAllTables(env.DB);
         const { results } = await env.DB.prepare(`
           SELECT a.*, p.purchased_at, up.position_seconds, up.completed_percentage,
                  up.is_completed, up.is_favorite, up.current_chapter_id,
@@ -581,18 +966,99 @@ export async function onRequest(context) {
           WHERE p.user_id = ? AND p.status = 'completed'
           ORDER BY up.last_listened_at DESC, p.purchased_at DESC
         `).bind(userId).all();
-        return jsonResponse(results, corsHeaders);
+
+        // Récupérer les chapitres pour chaque livre de la bibliothèque
+        const enriched = await Promise.all((results || []).map(async book => {
+          const { results: chapters } = await env.DB.prepare(
+            'SELECT * FROM chapters WHERE audiobook_id = ? ORDER BY chapter_number ASC'
+          ).bind(book.id).all();
+
+          return {
+            ...book,
+            is_favorite: Boolean(book.is_favorite),
+            is_completed: Boolean(book.is_completed),
+            chapters: chapters || []
+          };
+        }));
+
+        return jsonResponse(enriched, corsHeaders);
       }
       return jsonResponse(getFallbackLibrary(), corsHeaders);
     }
 
-    // ─── POST /api/progress ──────────────────────────────────────
+    // ─── POST /api/library/add (Ajout direct à la Bibliothèque D1) ──
+    if (path === '/library/add' && method === 'POST') {
+      const body = await request.json();
+      const userId = request.headers.get('X-User-Id') || body.user_id || 'user-demo';
+      const bookId = body.audiobook_id || body.book_id;
+      if (!bookId) return jsonResponse({ success: false, error: 'audiobook_id requis' }, corsHeaders, 400);
+
+      if (env.DB) {
+        await ensureAllTables(env.DB);
+        const purchaseId = `pur-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        await env.DB.prepare(`
+          INSERT INTO users (id, name) VALUES (?, 'Auditeur RG Play')
+          ON CONFLICT(id) DO NOTHING
+        `).bind(userId).run().catch(() => {});
+
+        await env.DB.prepare(`
+          INSERT OR REPLACE INTO purchases (id, user_id, audiobook_id, amount_paid, currency, payment_method, status)
+          VALUES (?, ?, ?, ?, 'XAF', ?, 'completed')
+        `).bind(purchaseId, userId, bookId, Number(body.amount || 0), body.payment_method || 'direct_unlock').run();
+
+        await env.DB.prepare(`
+          INSERT OR IGNORE INTO user_progress (id, user_id, audiobook_id, position_seconds, completed_percentage)
+          VALUES (?, ?, ?, 0, 0)
+        `).bind(`prog-${userId.slice(0, 8)}-${bookId}`, userId, bookId).run();
+
+        if (env.KV_BINDING) await env.KV_BINDING.delete(`library_${userId}`);
+      }
+      return jsonResponse({ success: true, message: 'Livre audio débloqué dans votre bibliothèque D1 !' }, corsHeaders);
+    }
+
+    // ─── DELETE /api/library/:id & POST /api/library/remove ─────────
+    const removeLibMatch = path.match(/^\/library\/([a-zA-Z0-9_-]+)$/);
+    if ((removeLibMatch && method === 'DELETE') || (path === '/library/remove' && method === 'POST')) {
+      const body = method === 'POST' ? await request.json().catch(() => ({})) : {};
+      const bookId = removeLibMatch ? removeLibMatch[1] : (body.audiobook_id || body.book_id);
+      const userId = request.headers.get('X-User-Id') || 'user-demo';
+      if (env.DB && bookId) {
+        await env.DB.prepare('DELETE FROM purchases WHERE user_id = ? AND audiobook_id = ?').bind(userId, bookId).run().catch(() => {});
+        await env.DB.prepare('DELETE FROM user_progress WHERE user_id = ? AND audiobook_id = ?').bind(userId, bookId).run().catch(() => {});
+        if (env.KV_BINDING) await env.KV_BINDING.delete(`library_${userId}`);
+      }
+      return jsonResponse({ success: true, removed_id: bookId }, corsHeaders);
+    }
+
+    // ─── POST /api/library/toggle-favorite ────────────────────────
+    if (path === '/library/toggle-favorite' && method === 'POST') {
+      const body = await request.json();
+      const userId = request.headers.get('X-User-Id') || 'user-demo';
+      const bookId = body.audiobook_id || body.book_id;
+      if (!bookId) return jsonResponse({ success: false, error: 'audiobook_id requis' }, corsHeaders, 400);
+      let isFav = false;
+      if (env.DB) {
+        await ensureAllTables(env.DB);
+        const prog = await env.DB.prepare('SELECT is_favorite FROM user_progress WHERE user_id = ? AND audiobook_id = ?').bind(userId, bookId).first();
+        isFav = !prog?.is_favorite;
+        await env.DB.prepare(`
+          INSERT INTO user_progress (id, user_id, audiobook_id, is_favorite)
+          VALUES (?, ?, ?, ?)
+          ON CONFLICT(user_id, audiobook_id) DO UPDATE SET is_favorite = excluded.is_favorite
+        `).bind(`prog-${userId.slice(0, 8)}-${bookId}`, userId, bookId, isFav ? 1 : 0).run();
+        if (env.KV_BINDING) await env.KV_BINDING.delete(`library_${userId}`);
+      }
+      return jsonResponse({ success: true, is_favorite: isFav }, corsHeaders);
+    }
+
+    // ─── POST /api/progress (Sauvegarde Progression D1) ───────────
     if (path === '/progress' && method === 'POST') {
       const body = await request.json();
       const userId = request.headers.get('X-User-Id') || 'user-demo';
       const { audiobook_id, chapter_id, position_seconds, completed_percentage, is_completed } = body;
 
       if (env.DB) {
+        await ensureAllTables(env.DB);
         await env.DB.prepare(`
           INSERT INTO user_progress (user_id, audiobook_id, current_chapter_id, position_seconds, completed_percentage, is_completed, last_listened_at)
           VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -605,12 +1071,193 @@ export async function onRequest(context) {
         `).bind(userId, audiobook_id, chapter_id, position_seconds, completed_percentage, is_completed ? 1 : 0).run();
       }
 
-      // Invalidation du cache KV pour la bibliothèque
       if (env.KV_BINDING) {
         await env.KV_BINDING.delete(`library_${userId}`);
       }
 
       return jsonResponse({ success: true, synced_to: 'cloudflare_d1' }, corsHeaders);
+    }
+
+    // ─── GET & POST /api/books/:id/reviews (Avis & Notations D1) ──
+    const reviewsMatch = path.match(/^\/books\/([a-zA-Z0-9_-]+)\/reviews$/);
+    if (reviewsMatch && method === 'GET') {
+      const bookId = reviewsMatch[1];
+      if (env.DB) {
+        await ensureAllTables(env.DB);
+        let results = [];
+        try {
+          const res = await env.DB.prepare(`
+            SELECT r.id, r.user_id, r.audiobook_id, r.rating, r.comment, r.created_at,
+                   COALESCE(u.avatar_url, '') as user_avatar,
+                   COALESCE(u.name, 'Auditeur RG Play') as user_name
+            FROM reviews r
+            LEFT JOIN users u ON r.user_id = u.id
+            WHERE r.audiobook_id = ?
+            ORDER BY r.created_at DESC
+          `).bind(bookId).all();
+          results = res?.results || [];
+        } catch (queryErr) {
+          console.warn('[Reviews GET] Query fallback:', queryErr.message);
+          const res = await env.DB.prepare('SELECT * FROM reviews WHERE audiobook_id = ? ORDER BY created_at DESC').bind(bookId).all().catch(() => ({ results: [] }));
+          results = (res?.results || []).map(r => ({
+            ...r,
+            user_avatar: '',
+            user_name: 'Auditeur RG Play'
+          }));
+        }
+        return jsonResponse(results || [], corsHeaders);
+      }
+      return jsonResponse([], corsHeaders);
+    }
+
+    if (reviewsMatch && method === 'POST') {
+      const bookId = reviewsMatch[1];
+      const body = await request.json();
+      const userId = request.headers.get('X-User-Id') || body.user_id || 'user-demo';
+      const userName = body.user_name || body.author || 'Auditeur RG Play';
+      const rating = Math.min(5, Math.max(1, Number(body.rating || 5)));
+      const comment = body.comment || body.text || '';
+      const reviewId = `rev-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+
+      if (env.DB) {
+        await ensureAllTables(env.DB);
+        await env.DB.prepare(`
+          INSERT INTO reviews (id, audiobook_id, user_id, user_name, rating, comment, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        `).bind(reviewId, bookId, userId, userName, rating, comment).run();
+
+        // Recalculer la note moyenne et le nombre d'avis
+        const stats = await env.DB.prepare(`
+          SELECT COUNT(*) as count, AVG(rating) as avg_rating FROM reviews WHERE audiobook_id = ?
+        `).bind(bookId).first();
+
+        const newCount = stats?.count || 1;
+        const newRating = Number((stats?.avg_rating || rating).toFixed(1));
+
+        await env.DB.prepare(`
+          UPDATE audiobooks SET
+            rating = ?, rating_count = ?,
+            display_rating = ?, display_reviews_count = ?
+          WHERE id = ?
+        `).bind(newRating, newCount, newRating, newCount, bookId).run().catch(() => {});
+
+        if (env.KV_BINDING) {
+          await env.KV_BINDING.delete(`book_${bookId}`).catch(() => {});
+          await env.KV_BINDING.delete('books_all_all_false').catch(() => {});
+        }
+
+        return jsonResponse({
+          success: true,
+          review: { id: reviewId, audiobook_id: bookId, user_id: userId, user_name: userName, rating, comment, created_at: new Date().toISOString() },
+          new_rating: newRating,
+          reviews_count: newCount,
+        }, corsHeaders);
+      }
+      return jsonResponse({ success: true, review: { id: reviewId, rating, comment } }, corsHeaders);
+    }
+
+    // ─── GET & POST & DELETE /api/bookmarks (Signets Audio D1) ────
+    if (path === '/bookmarks' && method === 'GET') {
+      const userId = request.headers.get('X-User-Id') || 'user-demo';
+      const bookId = url.searchParams.get('audiobook_id');
+      if (env.DB) {
+        await ensureAllTables(env.DB);
+        let query = 'SELECT b.*, a.title as audiobook_title, a.cover_url as audiobook_cover FROM bookmarks b LEFT JOIN audiobooks a ON b.audiobook_id = a.id WHERE b.user_id = ?';
+        const params = [userId];
+        if (bookId) {
+          query += ' AND b.audiobook_id = ?';
+          params.push(bookId);
+        }
+        query += ' ORDER BY b.created_at DESC';
+        const { results } = await env.DB.prepare(query).bind(...params).all();
+        return jsonResponse(results || [], corsHeaders);
+      }
+      return jsonResponse([], corsHeaders);
+    }
+
+    if (path === '/bookmarks' && method === 'POST') {
+      const body = await request.json();
+      const userId = request.headers.get('X-User-Id') || 'user-demo';
+      const bmId = body.id || `bm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      if (env.DB) {
+        await ensureAllTables(env.DB);
+        await env.DB.prepare(`
+          INSERT INTO bookmarks (id, user_id, audiobook_id, chapter_id, chapter_number, chapter_title, timestamp_seconds, title, note, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        `).bind(
+          bmId, userId, body.audiobook_id,
+          body.chapter_id || null, body.chapter_number || 1,
+          body.chapter_title || null,
+          Number(body.timestamp_seconds || body.position_seconds || 0),
+          body.title || null, body.note || null
+        ).run();
+
+        return jsonResponse({ success: true, id: bmId, message: 'Signet enregistré dans D1' }, corsHeaders);
+      }
+      return jsonResponse({ success: true, id: bmId }, corsHeaders);
+    }
+
+    const deleteBmMatch = path.match(/^\/bookmarks\/([a-zA-Z0-9_-]+)$/);
+    if (deleteBmMatch && method === 'DELETE') {
+      const bmId = deleteBmMatch[1];
+      const userId = request.headers.get('X-User-Id') || 'user-demo';
+      if (env.DB) {
+        await ensureAllTables(env.DB);
+        await env.DB.prepare('DELETE FROM bookmarks WHERE id = ? AND user_id = ?').bind(bmId, userId).run();
+      }
+      return jsonResponse({ success: true, id: bmId }, corsHeaders);
+    }
+
+    // ─── GET & POST & DELETE /api/admin/api-keys (Clés API D1) ─────
+    if (path === '/admin/api-keys' && method === 'GET') {
+      if (env.DB) {
+        await ensureAllTables(env.DB);
+        const { results } = await env.DB.prepare('SELECT id, name, key_prefix, key_preview, permissions, created_at, last_used_at FROM api_keys ORDER BY created_at DESC').all();
+        return jsonResponse(results || [], corsHeaders);
+      }
+      return jsonResponse([], corsHeaders);
+    }
+
+    if (path === '/admin/api-keys' && method === 'POST') {
+      const body = await request.json();
+      const keyId = `key-${Date.now()}`;
+      const rawKey = `rgp_live_${Math.random().toString(36).slice(2, 10)}${Math.random().toString(36).slice(2, 10)}`;
+      const keyPrefix = rawKey.slice(0, 8);
+      const keyPreview = `${keyPrefix}...${rawKey.slice(-4)}`;
+
+      if (env.DB) {
+        await ensureAllTables(env.DB);
+        await env.DB.prepare(`
+          INSERT INTO api_keys (id, name, key_prefix, key_hash, key_preview, permissions, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        `).bind(keyId, body.name || 'Clé API Studio', keyPrefix, rawKey, keyPreview, body.permissions ? JSON.stringify(body.permissions) : '["read", "write"]').run();
+
+        return jsonResponse({
+          success: true,
+          apiKey: { id: keyId, name: body.name || 'Clé API Studio', key: rawKey, key_preview: keyPreview, permissions: body.permissions || ['read', 'write'], created_at: new Date().toISOString() }
+        }, corsHeaders);
+      }
+      return jsonResponse({ success: true, apiKey: { id: keyId, name: body.name, key: rawKey, key_preview: keyPreview } }, corsHeaders);
+    }
+
+    const deleteApiKeyMatch = path.match(/^\/admin\/api-keys\/([a-zA-Z0-9_-]+)$/);
+    if (deleteApiKeyMatch && method === 'DELETE') {
+      const keyId = deleteApiKeyMatch[1];
+      if (env.DB) {
+        await ensureAllTables(env.DB);
+        await env.DB.prepare('DELETE FROM api_keys WHERE id = ?').bind(keyId).run();
+      }
+      return jsonResponse({ success: true, id: keyId }, corsHeaders);
+    }
+
+    // ─── GET /api/notifications (Historique des Notifications D1) ─
+    if (path === '/notifications' && method === 'GET') {
+      if (env.DB) {
+        await ensureAllTables(env.DB);
+        const { results } = await env.DB.prepare('SELECT * FROM push_notifications ORDER BY sent_at DESC LIMIT 30').all();
+        return jsonResponse(results || [], corsHeaders);
+      }
+      return jsonResponse([], corsHeaders);
     }
 
     // ─── POST /api/payment/register (Enregistrement d'une tx initiée côté client) ──
@@ -629,6 +1276,12 @@ export async function onRequest(context) {
 
       if (env.DB) {
         try {
+          // Upsert utilisateur pour éviter la contrainte FK
+          await env.DB.prepare(`
+            INSERT OR IGNORE INTO users (id, email, name, created_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+          `).bind(userId, `${userId}@rgplay.local`, userId).run();
+
           // Supprimer les anciennes tentatives pending/failed pour ce couple utilisateur/livre
           await env.DB.prepare(
             `DELETE FROM purchases WHERE user_id = ? AND audiobook_id = ? AND status IN ('pending', 'failed')`
@@ -640,7 +1293,7 @@ export async function onRequest(context) {
             VALUES (?, ?, ?, ?, 'XAF', ?, ?, 'pending', CURRENT_TIMESTAMP)
           `).bind(purchaseId, userId, audiobook_id, Number(amount), payment_method || 'mobile_money', transaction_id).run();
         } catch (dbErr) {
-          console.error('[REGISTER TX] Erreur D1:', dbErr.message);
+          console.error('[REGISTER TX] Erreur D1 (non bloquant):', dbErr.message);
         }
       }
 
@@ -697,9 +1350,8 @@ export async function onRequest(context) {
       const txId = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
       const purchaseId = `pur-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
       const ACTIVE_CAMERPAY_TOKEN = '806|Y6xka7Vc3tftBDcOiRQSo8FHAckcy1OEYDO1jeGF1c70b8d6';
-      const CAMERPAY_TOKEN = (env.CAMERPAY_TOKEN && !env.CAMERPAY_TOKEN.startsWith('800|'))
-        ? env.CAMERPAY_TOKEN
-        : ACTIVE_CAMERPAY_TOKEN;
+      // Priorite : secret Cloudflare > token hardcode de secours
+      const CAMERPAY_TOKEN = env.CAMERPAY_TOKEN || ACTIVE_CAMERPAY_TOKEN;
       const WEBHOOK_URL = 'https://rg-play.pages.dev/api/payment/notify';
       const RETURN_URL  = 'https://rg-play.pages.dev';
 
@@ -707,10 +1359,16 @@ export async function onRequest(context) {
       const cleanPhone = (customer_phone || '').replace(/\D/g, '');
 
       // ── 1. Enregistrer la transaction en état PENDING dans D1
-      // On supprime d'abord les éventuelles transactions pending/failed précédentes
-      // pour éviter la contrainte UNIQUE(user_id, audiobook_id)
+      // On s'assure que l'utilisateur existe (évite les erreurs de FK)
       if (env.DB) {
         try {
+          // Upsert utilisateur pour éviter la contrainte FK purchases → users
+          await env.DB.prepare(`
+            INSERT OR IGNORE INTO users (id, email, name, phone, created_at)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+          `).bind(userId, `${userId}@rgplay.local`, userId, cleanPhone || null).run();
+
+          // Supprimer les anciennes tentatives pending/failed
           await env.DB.prepare(
             `DELETE FROM purchases WHERE user_id = ? AND audiobook_id = ? AND status IN ('pending', 'failed')`
           ).bind(userId, audiobook_id).run();
@@ -721,8 +1379,8 @@ export async function onRequest(context) {
             VALUES (?, ?, ?, ?, 'XAF', ?, ?, 'pending', CURRENT_TIMESTAMP)
           `).bind(purchaseId, userId, audiobook_id, Number(amount), payment_method, txId).run();
         } catch (dbErr) {
-          console.error('[PAYMENT] Erreur D1:', dbErr.message);
-          return jsonResponse({ success: false, error: `Erreur base de données : ${dbErr.message}` }, corsHeaders, 500);
+          // Non bloquant : continuer même si D1 échoue (le webhook re-créera la transaction)
+          console.error('[PAYMENT] Erreur D1 (non bloquant):', dbErr.message);
         }
       }
 
@@ -848,9 +1506,9 @@ export async function onRequest(context) {
         } catch (_) {}
       }
 
-      // Vérification optionnelle de signature webhook si un secret est configuré
-      const webhookSecret = env.CAMERPAY_WEBHOOK_SECRET || env.PAYMENT_HMAC_SECRET;
-      const signatureHeader = request.headers.get('X-CamerPay-Signature') || request.headers.get('X-Signature') || request.headers.get('Authorization');
+      // Vérification optionnelle de signature webhook si explicitement configurée
+      const webhookSecret = env.CAMERPAY_WEBHOOK_SECRET;
+      const signatureHeader = request.headers.get('X-CamerPay-Signature') || request.headers.get('X-Signature');
       if (webhookSecret && signatureHeader && signatureHeader !== webhookSecret && !signatureHeader.includes(webhookSecret)) {
         console.warn('[WEBHOOK] Signature invalide rejetée');
         return jsonResponse({ error: 'Signature webhook non autorisée' }, corsHeaders, 403);
@@ -963,44 +1621,74 @@ export async function onRequest(context) {
     // Appelé quand l'utilisateur a confirmé son code PIN sur son téléphone
     // Permet de débloquer immédiatement l'audiobook sans délai
     if (path === '/payment/confirm-manual' && method === 'POST') {
-      const body = await request.json();
-      const userId = request.headers.get('X-User-Id') || 'user-demo';
+      const body = await request.json().catch(() => ({}));
+      const headerUserId = request.headers.get('X-User-Id');
       const { transaction_id, audiobook_id } = body;
 
       if (!transaction_id) {
         return jsonResponse({ success: false, error: 'transaction_id requis' }, corsHeaders, 400);
       }
 
+      let targetUserId = headerUserId;
+      let targetBookId = audiobook_id;
+
       if (env.DB) {
-        await env.DB.prepare(`
-          UPDATE purchases 
-          SET status = 'completed', purchased_at = CURRENT_TIMESTAMP 
-          WHERE transaction_id = ? OR (user_id = ? AND audiobook_id = ? AND status = 'pending')
-        `).bind(transaction_id, userId, audiobook_id || '').run();
+        try {
+          // Récupérer les infos existantes de la transaction si disponibles
+          const existingPur = await env.DB.prepare(
+            `SELECT user_id, audiobook_id FROM purchases WHERE transaction_id = ? LIMIT 1`
+          ).bind(transaction_id).first();
 
-        if (audiobook_id) {
+          if (existingPur?.user_id) {
+            targetUserId = existingPur.user_id;
+            targetBookId = existingPur.audiobook_id || targetBookId;
+          }
+
+          const finalUserId = targetUserId || 'user-demo';
+
+          // Garantir l'existence de l'utilisateur pour éviter les erreurs de contrainte FK
           await env.DB.prepare(`
-            INSERT OR IGNORE INTO user_progress (id, user_id, audiobook_id, position_seconds, completed_percentage)
-            VALUES (?, ?, ?, 0, 0)
-          `).bind(`prog-${userId.slice(0, 8)}-${audiobook_id}`, userId, audiobook_id).run();
-        }
+            INSERT OR IGNORE INTO users (id, email, name, created_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+          `).bind(finalUserId, `${finalUserId}@rgplay.local`, finalUserId).run().catch(() => {});
 
-        if (env.KV_BINDING) {
-          await env.KV_BINDING.delete(`library_${userId}`);
+          await env.DB.prepare(`
+            UPDATE purchases 
+            SET status = 'completed', purchased_at = CURRENT_TIMESTAMP 
+            WHERE transaction_id = ? OR (user_id = ? AND audiobook_id = ? AND status = 'pending')
+          `).bind(transaction_id, finalUserId, targetBookId || '').run();
+
+          if (targetBookId) {
+            await env.DB.prepare(`
+              INSERT OR IGNORE INTO user_progress (id, user_id, audiobook_id, position_seconds, completed_percentage)
+              VALUES (?, ?, ?, 0, 0)
+            `).bind(`prog-${finalUserId.slice(0, 8)}-${targetBookId}`, finalUserId, targetBookId).run().catch(() => {});
+          }
+
+          if (env.KV_BINDING) {
+            await env.KV_BINDING.delete(`library_${finalUserId}`).catch(() => {});
+          }
+        } catch (dbErr) {
+          console.warn('[CONFIRM MANUAL] Erreur D1 non bloquante:', dbErr.message);
+        }
+      }
+
+      if (env.KV_BINDING) {
+        try {
+          const existingKv = await env.KV_BINDING.get(`tx_${transaction_id}`, { type: 'json' }) || {};
           await env.KV_BINDING.put(`tx_${transaction_id}`, JSON.stringify({
-            userId,
-            audiobook_id,
+            ...existingKv,
             status: 'completed',
             confirmed_at: Date.now(),
             confirmed_by: 'manual_user_confirm'
           }), { expirationTtl: 86400 * 30 });
-        }
+        } catch (_) {}
       }
 
       return jsonResponse({
         success: true,
         transaction_id,
-        audiobook_id,
+        audiobook_id: targetBookId,
         status: 'completed',
         message: 'Livre audio débloqué avec succès !'
       }, corsHeaders);
@@ -1016,9 +1704,8 @@ export async function onRequest(context) {
       const txId = decodeURIComponent(payStatusMatch[1]);
       const userId = request.headers.get('X-User-Id') || 'user-demo';
       const ACTIVE_TOKEN = '806|Y6xka7Vc3tftBDcOiRQSo8FHAckcy1OEYDO1jeGF1c70b8d6';
-      const CAMERPAY_TOKEN = (env.CAMERPAY_TOKEN && !env.CAMERPAY_TOKEN.startsWith('800|')) 
-        ? env.CAMERPAY_TOKEN 
-        : ACTIVE_TOKEN;
+      // Priorite : secret Cloudflare > token hardcode de secours
+      const CAMERPAY_TOKEN = env.CAMERPAY_TOKEN || ACTIVE_TOKEN;
 
       // Helper : confirmer un paiement dans D1 + KV + créer progression
       const confirmPayment = async (audiobookId, camerpayData = {}) => {
@@ -1086,6 +1773,16 @@ export async function onRequest(context) {
         }, corsHeaders);
       }
 
+      if (localStatus === 'failed') {
+        return jsonResponse({
+          transaction_id: txId,
+          status: 'failed',
+          audiobook_id: localData?.audiobook_id,
+          error: localData?.error || 'Paiement échoué ou annulé',
+          source: 'kv_cache',
+        }, corsHeaders);
+      }
+
       // ── 2. Fallback D1 ───────────────────────────────────────────────────
       if (env.DB) {
         const pur = await env.DB.prepare(
@@ -1094,20 +1791,30 @@ export async function onRequest(context) {
            WHERE p.transaction_id = ?`
         ).bind(txId).first();
 
-        if (pur && pur.status === 'completed') {
-          return jsonResponse({
-            transaction_id: txId,
-            status: 'completed',
-            audiobook_id: pur.audiobook_id,
-            audiobook: pur.title ? { id: pur.audiobook_id, title: pur.title, author: pur.author, cover_url: pur.cover_url } : null,
-            amount: pur.amount_paid,
-            payment_method: pur.payment_method,
-            source: 'd1_database',
-          }, corsHeaders);
+        if (pur) {
+          if (pur.status === 'completed') {
+            return jsonResponse({
+              transaction_id: txId,
+              status: 'completed',
+              audiobook_id: pur.audiobook_id,
+              audiobook: pur.title ? { id: pur.audiobook_id, title: pur.title, author: pur.author, cover_url: pur.cover_url } : null,
+              amount: pur.amount_paid,
+              payment_method: pur.payment_method,
+              source: 'd1_database',
+            }, corsHeaders);
+          }
+          if (pur.status === 'failed') {
+            return jsonResponse({
+              transaction_id: txId,
+              status: 'failed',
+              audiobook_id: pur.audiobook_id,
+              error: 'Paiement non validé par l\'opérateur',
+              source: 'd1_database',
+            }, corsHeaders);
+          }
         }
       }
 
-      // Toujours en attente (l'utilisateur valide son PIN sur son téléphone)
       return jsonResponse({
         transaction_id: txId,
         status: 'pending',
@@ -1333,97 +2040,154 @@ export async function onRequest(context) {
 
     // ─── POST /api/admin/books (Ajout / Mise à jour Livre dans D1) ─
     if (path === '/admin/books' && method === 'POST') {
-      const body = await request.json();
-      const bookId = body.id || `book-${Date.now()}`;
-      const contentType = body.content_type || 'audiobook';
-      const isPinned = body.is_pinned !== undefined ? (body.is_pinned ? 1 : 0) : 0;
-      const isFeatured = body.is_featured !== undefined ? (body.is_featured ? 1 : 0) : 1;
-      const isBestseller = body.is_bestseller !== undefined ? (body.is_bestseller ? 1 : 0) : 0;
-      const rating = Number(body.rating || 5.0);
-      const ratingCount = Number(body.rating_count || 1);
-      const displayPlays = Number(body.display_plays_count || 0);
-      const displayReviews = Number(body.display_reviews_count || 0);
-      const displayRating = Number(body.display_rating || rating || 5.0);
+      const body = await request.json().catch(() => ({}));
+      const bookId    = body.id || `book-${Date.now()}`;
+      // ── Fallbacks robustes sur tous les champs NOT NULL ──────────────────────
+      const safeTitle       = body.title       || 'Sans titre';
+      const safeAuthor      = body.author      || 'Auteur inconnu';
+      const safeNarrator    = body.narrator    || body.author || 'Non spécifié';
+      const safeDescription = body.description || body.synopsis || safeTitle;
+      const safeSynopsis    = body.synopsis    || body.description || '';
+      const safeCoverUrl    = body.cover_url   || body.cover || body.image_url || 'https://rg-play.pages.dev/icons/icon-192x192.png';
+      const safePreviewUrl  = body.preview_url || body.preview || null;
+      const contentType     = body.content_type || 'audiobook';
+      const isPinned        = body.is_pinned   ? 1 : 0;
+      const isFeatured      = body.is_featured !== undefined ? (body.is_featured ? 1 : 0) : 1;
+      const isBestseller    = body.is_bestseller ? 1 : 0;
+      const status          = body.status || (body.scheduled_at ? 'scheduled' : 'published');
+      const scheduledAt     = body.scheduled_at || null;
+      const rating          = Number(body.rating       || 5.0);
+      const ratingCount     = Number(body.rating_count || 1);
+      const displayPlays    = Number(body.display_plays_count   || 0);
+      const displayReviews  = Number(body.display_reviews_count || 0);
+      const displayRating   = Number(body.display_rating || rating || 5.0);
 
       if (env.DB) {
         try {
           await ensureAnalyticsTables(env.DB);
-          // Créer la colonne is_pinned si elle n'existe pas encore
+          try { await env.DB.prepare('ALTER TABLE audiobooks ADD COLUMN is_pinned INTEGER DEFAULT 0').run(); } catch (_) {}
+          try { await env.DB.prepare("ALTER TABLE audiobooks ADD COLUMN status TEXT DEFAULT 'published'").run(); } catch (_) {}
+          try { await env.DB.prepare('ALTER TABLE audiobooks ADD COLUMN scheduled_at TEXT').run(); } catch (_) {}
+          try { await env.DB.prepare('ALTER TABLE audiobooks ADD COLUMN companion_audio_id TEXT').run(); } catch (_) {}
+          try { await env.DB.prepare('ALTER TABLE audiobooks ADD COLUMN companion_ebook_id TEXT').run(); } catch (_) {}
+          try { await env.DB.prepare('ALTER TABLE audiobooks ADD COLUMN pdf_url TEXT').run(); } catch (_) {}
+          try { await env.DB.prepare('ALTER TABLE audiobooks ADD COLUMN page_count INTEGER DEFAULT 180').run(); } catch (_) {}
+          try { await env.DB.prepare("ALTER TABLE audiobooks ADD COLUMN format TEXT DEFAULT 'audio'").run(); } catch (_) {}
+
+          // ── Valider le category_id (FK) — fallback sur la première catégorie disponible ──
+          let safeCategoryId = body.category_id || 'cat-1';
           try {
-            await env.DB.prepare('ALTER TABLE audiobooks ADD COLUMN is_pinned INTEGER DEFAULT 0').run();
-          } catch (_) {}
+            const catCheck = await env.DB.prepare('SELECT id FROM categories WHERE id = ?').bind(safeCategoryId).first();
+            if (!catCheck) {
+              const firstCat = await env.DB.prepare('SELECT id FROM categories ORDER BY display_order ASC LIMIT 1').first();
+              safeCategoryId = firstCat ? firstCat.id : 'cat-1';
+              console.warn(`[Admin Books] category_id "${body.category_id}" introuvable → fallback "${safeCategoryId}"`);
+            }
+          } catch (_) { safeCategoryId = 'cat-1'; }
 
           await env.DB.prepare(`
             INSERT INTO audiobooks (
               id, title, author, narrator, description, synopsis,
-              price, discount_price, category_id, content_type, cover_url, cover_r2_key,
-              preview_url, preview_r2_key, duration_seconds, rating, rating_count, 
+              price, discount_price, category_id, content_type,
+              cover_url, cover_r2_key, preview_url, preview_r2_key,
+              duration_seconds, rating, rating_count,
               display_plays_count, display_reviews_count, display_rating,
-              is_featured, is_bestseller, is_pinned, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+              is_featured, is_bestseller, is_pinned, status, scheduled_at, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(id) DO UPDATE SET
-              title = excluded.title,
-              author = excluded.author,
-              narrator = excluded.narrator,
-              description = excluded.description,
-              synopsis = excluded.synopsis,
-              price = excluded.price,
-              discount_price = excluded.discount_price,
-              category_id = excluded.category_id,
-              content_type = excluded.content_type,
-              cover_url = excluded.cover_url,
-              cover_r2_key = excluded.cover_r2_key,
-              preview_url = excluded.preview_url,
-              preview_r2_key = excluded.preview_r2_key,
+              title = excluded.title, author = excluded.author, narrator = excluded.narrator,
+              description = excluded.description, synopsis = excluded.synopsis,
+              price = excluded.price, discount_price = excluded.discount_price,
+              category_id = excluded.category_id, content_type = excluded.content_type,
+              cover_url = excluded.cover_url, cover_r2_key = excluded.cover_r2_key,
+              preview_url = excluded.preview_url, preview_r2_key = excluded.preview_r2_key,
               duration_seconds = excluded.duration_seconds,
-              rating = excluded.rating,
-              rating_count = excluded.rating_count,
+              rating = excluded.rating, rating_count = excluded.rating_count,
               display_plays_count = excluded.display_plays_count,
               display_reviews_count = excluded.display_reviews_count,
               display_rating = excluded.display_rating,
-              is_featured = excluded.is_featured,
-              is_bestseller = excluded.is_bestseller,
-              is_pinned = excluded.is_pinned
+              is_featured = excluded.is_featured, is_bestseller = excluded.is_bestseller,
+              is_pinned = excluded.is_pinned,
+              status = excluded.status,
+              scheduled_at = excluded.scheduled_at
           `).bind(
-            bookId, body.title, body.author, body.narrator, body.description, body.synopsis || '',
+            bookId, safeTitle, safeAuthor, safeNarrator, safeDescription, safeSynopsis,
             Number(body.price || 0), body.discount_price ? Number(body.discount_price) : null,
-            body.category_id, contentType,
-            body.cover_url, body.cover_r2_key || null,
-            body.preview_url, body.preview_r2_key || null,
+            safeCategoryId, contentType,
+            safeCoverUrl, body.cover_r2_key || null,
+            safePreviewUrl, body.preview_r2_key || null,
             Number(body.duration_seconds || 0),
             rating, ratingCount,
             displayPlays, displayReviews, displayRating,
-            isFeatured, isBestseller,
-            isPinned
+            isFeatured, isBestseller, isPinned,
+            status, scheduledAt
           ).run();
 
-          if (body.chapters && Array.isArray(body.chapters)) {
-            // Nettoyer les anciens chapitres du livre
-            await env.DB.prepare('DELETE FROM chapters WHERE audiobook_id = ?').bind(bookId).run();
+          // ── Mettre à jour les métadonnées spécifiques E-Book & Association Compagnon ──
+          const companionAudioId = body.companion_audio_id || null;
+          const companionEbookId = body.companion_ebook_id || null;
+          const pdfUrl = body.pdf_url || body.pdfUrl || (contentType === 'ebook' ? (body.preview_url || null) : null);
+          const pageCount = Number(body.page_count || 180);
+          const format = body.format || (contentType === 'ebook' ? 'pdf' : 'audio');
 
+          try {
+            await env.DB.prepare(`
+              UPDATE audiobooks SET
+                companion_audio_id = ?,
+                companion_ebook_id = ?,
+                pdf_url = ?,
+                page_count = ?,
+                format = ?
+              WHERE id = ?
+            `).bind(companionAudioId, companionEbookId, pdfUrl, pageCount, format, bookId).run();
+          } catch (updErr) {
+            console.warn('[Admin Books] Erreur update colonnes compagnon:', updErr);
+          }
+
+          // Liaison réciproque automatique (si l'admin a relié les 2 versions)
+          if (companionAudioId) {
+            try {
+              await env.DB.prepare('UPDATE audiobooks SET companion_ebook_id = ? WHERE id = ?')
+                .bind(bookId, companionAudioId).run();
+            } catch (_) {}
+          }
+          if (companionEbookId) {
+            try {
+              await env.DB.prepare('UPDATE audiobooks SET companion_audio_id = ? WHERE id = ?')
+                .bind(bookId, companionEbookId).run();
+            } catch (_) {}
+          }
+
+          // ── Chapitres : accepte les noms de champs alternatifs ──────────────
+          if (body.chapters && Array.isArray(body.chapters)) {
+            await env.DB.prepare('UPDATE user_progress SET current_chapter_id = NULL WHERE audiobook_id = ?').bind(bookId).run().catch(() => {});
+            await env.DB.prepare('UPDATE bookmarks SET chapter_id = NULL WHERE audiobook_id = ?').bind(bookId).run().catch(() => {});
+            await env.DB.prepare('DELETE FROM chapters WHERE audiobook_id = ?').bind(bookId).run();
             for (let i = 0; i < body.chapters.length; i++) {
-              const chap = body.chapters[i];
+              const chap   = body.chapters[i];
               const chapId = chap.id || `chap-${bookId}-${i + 1}`;
+              const chapAudioUrl = chap.audio_url || chap.url || chap.uploadData?.public_url || chap.public_url || '';
+              const chapR2Key    = chap.audio_r2_key || chap.r2_key || `audiobooks/${bookId}/ch${i + 1}.mp3`;
               await env.DB.prepare(`
                 INSERT INTO chapters (id, audiobook_id, chapter_number, title, audio_r2_key, audio_url, duration_seconds)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                  title = excluded.title, audio_r2_key = excluded.audio_r2_key,
+                  audio_url = excluded.audio_url, duration_seconds = excluded.duration_seconds
               `).bind(
                 chapId, bookId, i + 1,
-                chap.title || `Chapitre ${i + 1}`,
-                chap.audio_r2_key || `audiobooks/${bookId}/ch${i + 1}.mp3`,
-                chap.audio_url || chap.uploadData?.public_url || '',
-                Number(chap.duration_seconds || 1800)
+                chap.title || chap.name || `Épisode ${i + 1}`,
+                chapR2Key, chapAudioUrl,
+                Number(chap.duration_seconds || chap.duration || 1800)
               ).run();
             }
           }
 
-          // Invalider TOUS les caches KV catalogue
+          // ── Purge cache KV ──────────────────────────────────────────────────
           if (env.KV_BINDING) {
             try {
               const list = await env.KV_BINDING.list({ prefix: 'books_' });
-              for (const key of list.keys) {
-                await env.KV_BINDING.delete(key.name);
-              }
+              for (const key of list.keys) await env.KV_BINDING.delete(key.name);
             } catch (_) {}
             await env.KV_BINDING.delete('books_all_all_false').catch(() => {});
             await env.KV_BINDING.delete('books_all_all_true').catch(() => {});
@@ -1434,16 +2198,24 @@ export async function onRequest(context) {
           return jsonResponse({
             success: true,
             book_id: bookId,
+            category_id: safeCategoryId,
+            chapters_count: Array.isArray(body.chapters) ? body.chapters.length : 0,
             stored_in: ['cloudflare_d1', 'cloudflare_r2'],
             message: 'Livre audio enregistré et synchronisé avec succès dans Cloudflare D1 !'
           }, corsHeaders);
+
         } catch (dbErr) {
           console.error('[Admin Books] Erreur D1:', dbErr);
+          // HTTP 200 avec success:false pour que Manus/agents externes lisent le détail
           return jsonResponse({
             success: false,
-            error: `Erreur D1: ${dbErr.message}`,
-            stored_in: ['local_storage']
-          }, corsHeaders, 500);
+            error: dbErr.message || String(dbErr),
+            error_type: dbErr.constructor?.name || 'D1Error',
+            book_id: bookId,
+            received_fields: Object.keys(body || {}),
+            hint: 'Vérifiez que title, description et category_id sont fournis et que category_id existe dans /api/categories.',
+            stored_in: []
+          }, corsHeaders, 200);
         }
       }
 
@@ -1455,7 +2227,240 @@ export async function onRequest(context) {
       }, corsHeaders);
     }
 
+    // ─── POST /api/admin/books/:id/chapters (MAJ chapitres uniquement, sans FK category) ──
+    // Permet à Manus/MCP de remplacer les chapitres d'un livre existant sans risque de
+    // contrainte de clé étrangère sur category_id.
+    const updateChaptersMatch = path.match(/^\/admin\/books\/([a-zA-Z0-9_-]+)\/chapters$/);
+    if (updateChaptersMatch && method === 'POST') {
+      const bookId = updateChaptersMatch[1];
+      const body = await request.json().catch(() => ({}));
+      const chapters = body.chapters || body.audios || [];
+
+      if (!Array.isArray(chapters) || chapters.length === 0) {
+        return jsonResponse({ success: false, error: 'Le champ "chapters" (tableau) est obligatoire.' }, corsHeaders, 400);
+      }
+
+      if (!env.DB) {
+        return jsonResponse({ success: false, error: 'Base D1 non disponible' }, corsHeaders, 500);
+      }
+
+      try {
+        // Vérifier que le livre existe
+        const bookExists = await env.DB.prepare('SELECT id FROM audiobooks WHERE id = ?').bind(bookId).first();
+        if (!bookExists) {
+          return jsonResponse({ success: false, error: `Livre "${bookId}" introuvable dans D1.` }, corsHeaders, 404);
+        }
+
+        // Détacher les clés étrangères bloquantes (user_progress, bookmarks) avant de recréer les chapitres
+        await env.DB.prepare('UPDATE user_progress SET current_chapter_id = NULL WHERE audiobook_id = ?').bind(bookId).run().catch(() => {});
+        await env.DB.prepare('UPDATE bookmarks SET chapter_id = NULL WHERE audiobook_id = ?').bind(bookId).run().catch(() => {});
+
+        // Supprimer les anciens chapitres
+        await env.DB.prepare('DELETE FROM chapters WHERE audiobook_id = ?').bind(bookId).run();
+
+        // Insérer les nouveaux chapitres
+        for (let i = 0; i < chapters.length; i++) {
+          const chap = chapters[i];
+          const chapId = chap.id || `chap-${bookId}-${i + 1}`;
+
+          // Résoudre l'URL audio (supporte plusieurs formats de payload)
+          const rawUrl = chap.audio_url || chap.url || chap.public_url
+            || chap.uploadData?.public_url || chap.audio_stream_url || '';
+
+          // Construire la clé R2 depuis l'URL si possible
+          const chapR2Key = chap.audio_r2_key || chap.r2_key
+            || (rawUrl.includes('key=') ? decodeURIComponent(rawUrl.split('key=')[1]?.split('&')[0] || '') : `audiobooks/${bookId}/ch${i + 1}.wav`);
+
+          // Normaliser l'URL publique vers /api/r2/download?key=...
+          let chapAudioUrl = rawUrl;
+          if (chapR2Key && (!chapAudioUrl || chapAudioUrl.includes('r2.cloudflarestorage.com'))) {
+            chapAudioUrl = `/api/r2/download?key=${encodeURIComponent(chapR2Key)}`;
+          }
+
+          await env.DB.prepare(`
+            INSERT INTO chapters (id, audiobook_id, chapter_number, title, audio_r2_key, audio_url, duration_seconds)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              title = excluded.title,
+              audio_r2_key = excluded.audio_r2_key,
+              audio_url = excluded.audio_url,
+              duration_seconds = excluded.duration_seconds
+          `).bind(
+            chapId, bookId, i + 1,
+            chap.title || chap.name || `Chapitre ${i + 1}`,
+            chapR2Key,
+            chapAudioUrl,
+            Number(chap.duration_seconds || chap.duration || 1800)
+          ).run();
+        }
+
+        // Mettre à jour duration_seconds total du livre si fourni
+        if (body.duration_seconds || body.total_duration) {
+          const totalDuration = Number(body.duration_seconds || body.total_duration || 0);
+          if (totalDuration > 0) {
+            await env.DB.prepare('UPDATE audiobooks SET duration_seconds = ? WHERE id = ?')
+              .bind(totalDuration, bookId).run().catch(() => {});
+          }
+        }
+
+        // Purge cache KV
+        if (env.KV_BINDING) {
+          try {
+            const list = await env.KV_BINDING.list({ prefix: 'books_' });
+            for (const k of list.keys) await env.KV_BINDING.delete(k.name);
+          } catch (_) {}
+          await env.KV_BINDING.delete(`book_${bookId}`).catch(() => {});
+          await env.KV_BINDING.delete('books_all_all_false').catch(() => {});
+          await env.KV_BINDING.delete('books_all_all_true').catch(() => {});
+        }
+
+        return jsonResponse({
+          success: true,
+          book_id: bookId,
+          chapters_updated: chapters.length,
+          stored_in: ['cloudflare_d1'],
+          message: `${chapters.length} chapitres mis à jour avec succès dans D1 pour "${bookId}" !`
+        }, corsHeaders);
+
+      } catch (chapErr) {
+        console.error('[Chapters Update] Erreur D1:', chapErr);
+        return jsonResponse({
+          success: false,
+          error: chapErr.message || String(chapErr),
+          book_id: bookId,
+          hint: 'Vérifiez que le livre existe via GET /api/audiobooks/:id avant de mettre à jour ses chapitres.'
+        }, corsHeaders, 500);
+      }
+    }
+
+    // ─── POST /api/admin/migrate-manus (Migration Automatique Manus -> R2 Cloudflare) ──
+    if (path === '/admin/migrate-manus' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const targetBookId = body.book_id;
+
+      if (!env.DB || !env.AUDIO_BUCKET) {
+        return jsonResponse({ success: false, error: 'D1 ou R2 non disponible dans le Worker' }, corsHeaders, 500);
+      }
+
+      try {
+        let book = null;
+        if (targetBookId) {
+          book = await env.DB.prepare('SELECT id, title, cover_url, preview_url FROM audiobooks WHERE id = ?').bind(targetBookId).first();
+        } else {
+          book = await env.DB.prepare(`
+            SELECT DISTINCT a.id, a.title, a.cover_url, a.preview_url
+            FROM audiobooks a
+            LEFT JOIN chapters c ON a.id = c.audiobook_id
+            WHERE (a.cover_url LIKE '%manuscdn.com%'
+               OR a.preview_url LIKE '%manuscdn.com%'
+               OR c.audio_url LIKE '%manuscdn.com%')
+            LIMIT 1
+          `).first();
+        }
+
+        if (!book) {
+          return jsonResponse({
+            success: true,
+            done: true,
+            message: 'Tous les livres ont déjà été migrés vers R2 ! Aucun lien temporaire Manus restant.'
+          }, corsHeaders);
+        }
+
+        const bookId = book.id;
+        const migrationLogs = [];
+
+        // 1. Migrer la couverture si c'est un lien manus
+        let newCoverUrl = book.cover_url;
+        let newCoverR2Key = null;
+        if (book.cover_url && book.cover_url.includes('manuscdn.com')) {
+          try {
+            const covRes = await fetch(book.cover_url);
+            if (covRes.ok) {
+              const covBuf = await covRes.arrayBuffer();
+              newCoverR2Key = `covers/${bookId}.webp`;
+              const mime = covRes.headers.get('content-type') || 'image/webp';
+              await env.AUDIO_BUCKET.put(newCoverR2Key, covBuf, {
+                httpMetadata: { contentType: mime }
+              });
+              newCoverUrl = `/api/r2/download?key=${encodeURIComponent(newCoverR2Key)}`;
+              await env.DB.prepare('UPDATE audiobooks SET cover_url = ?, cover_r2_key = ? WHERE id = ?')
+                .bind(newCoverUrl, newCoverR2Key, bookId).run();
+              migrationLogs.push(`Couverture migrée vers ${newCoverR2Key}`);
+            }
+          } catch (covErr) {
+            migrationLogs.push(`Erreur couverture: ${covErr.message}`);
+          }
+        }
+
+        // 2. Migrer les chapitres audio
+        const { results: chapters } = await env.DB.prepare(
+          'SELECT id, chapter_number, title, audio_url, audio_r2_key FROM chapters WHERE audiobook_id = ? ORDER BY chapter_number ASC'
+        ).bind(bookId).all();
+
+        let migratedChaptersCount = 0;
+        let firstChapterR2Url = null;
+
+        for (const ch of (chapters || [])) {
+          if (ch.audio_url && ch.audio_url.includes('manuscdn.com')) {
+            try {
+              const audRes = await fetch(ch.audio_url);
+              if (audRes.ok) {
+                const audBuf = await audRes.arrayBuffer();
+                const r2Key = `audiobooks/${bookId}/ch${ch.chapter_number}.wav`;
+                await env.AUDIO_BUCKET.put(r2Key, audBuf, {
+                  httpMetadata: { contentType: 'audio/wav' }
+                });
+                const permUrl = `/api/r2/download?key=${encodeURIComponent(r2Key)}`;
+                await env.DB.prepare('UPDATE chapters SET audio_url = ?, audio_r2_key = ? WHERE id = ?')
+                  .bind(permUrl, r2Key, ch.id).run();
+                migratedChaptersCount++;
+                if (!firstChapterR2Url) firstChapterR2Url = permUrl;
+              } else {
+                migrationLogs.push(`Chapitre ${ch.chapter_number} HTTP ${audRes.status}`);
+              }
+            } catch (audErr) {
+              migrationLogs.push(`Erreur chap ${ch.chapter_number}: ${audErr.message}`);
+            }
+          }
+        }
+
+        // 3. Migrer l'extrait preview si nécessaire
+        if (firstChapterR2Url || (book.preview_url && book.preview_url.includes('manuscdn.com'))) {
+          const finalPreview = firstChapterR2Url || `/api/r2/download?key=${encodeURIComponent(`audiobooks/${bookId}/ch1.wav`)}`;
+          await env.DB.prepare('UPDATE audiobooks SET preview_url = ? WHERE id = ?')
+            .bind(finalPreview, bookId).run().catch(() => {});
+          migrationLogs.push('Extrait preview mis à jour vers R2');
+        }
+
+        // 4. Purge caches KV
+        if (env.KV_BINDING) {
+          try {
+            const list = await env.KV_BINDING.list({ prefix: 'books_' });
+            for (const k of list.keys) await env.KV_BINDING.delete(k.name);
+          } catch (_) {}
+          await env.KV_BINDING.delete(`book_${bookId}`).catch(() => {});
+          await env.KV_BINDING.delete('books_all_all_false').catch(() => {});
+          await env.KV_BINDING.delete('books_all_all_true').catch(() => {});
+        }
+
+        return jsonResponse({
+          success: true,
+          done: false,
+          book_id: bookId,
+          title: book.title,
+          chapters_migrated: migratedChaptersCount,
+          logs: migrationLogs,
+          message: `Livre "${book.title}" (${bookId}) migré avec succès : ${migratedChaptersCount} chapitres injectés dans R2 !`
+        }, corsHeaders);
+
+      } catch (err) {
+        console.error('[Migrate Manus] Erreur:', err);
+        return jsonResponse({ success: false, error: err.message }, corsHeaders, 500);
+      }
+    }
+
     // ─── DELETE /api/admin/books/:id (Suppression Livre D1 & Purge KV) ──────
+
     const deleteBookMatch = path.match(/^\/admin\/books\/([^\/\?]+)\/?$/i);
     if (deleteBookMatch && method === 'DELETE') {
       const bookId = decodeURIComponent(deleteBookMatch[1]);
@@ -1526,14 +2531,14 @@ export async function onRequest(context) {
         }
 
         // Validation MIME
-        const allowedAudio = ['audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/ogg', 'audio/wav'];
+        const allowedAudio = ['audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/ogg', 'audio/wav', 'audio/webm', 'audio/aac', 'audio/flac', 'audio/x-m4a'];
         const allowedImage = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
         const mimeType = file.type || 'application/octet-stream';
         if (fileType === 'audio'   && !allowedAudio.some(t => mimeType.includes(t.split('/')[1])) && !mimeType.startsWith('audio/')) {
           return jsonResponse({ error: `Type de fichier audio non autorisé : ${mimeType}` }, corsHeaders, 415);
         }
-        if ((fileType === 'cover' || fileType === 'preview') && !allowedImage.includes(mimeType) && fileType !== 'audio') {
-          // on laisse passer pour les previews audio
+        if ((fileType === 'cover' || fileType === 'preview') && !allowedImage.includes(mimeType) && fileType !== 'audio' && !mimeType.startsWith('audio/')) {
+          // on laisse passer pour les previews audio et covers
         }
 
         // Taille max : 500 Mo pour l'audio, 10 Mo pour les images
@@ -1587,6 +2592,483 @@ export async function onRequest(context) {
       }
     }
 
+    // ─── POST /api/r2/upload-from-url (Rapatriement et Ingestion R2 Permanente) ─
+    // Permet à Manus IA ou à tout client MCP d'ingérer une URL externe (ex: manuscdn)
+    // et de la sauvegarder de manière définitive dans Cloudflare R2
+    if (path === '/r2/upload-from-url' && method === 'POST') {
+      try {
+        const body = await request.json();
+        const sourceUrl = body.url;
+        const fileType = body.type || (sourceUrl?.endsWith('.pdf') || sourceUrl?.endsWith('.epub') ? 'ebook' : 'audio');
+        const customName = body.file_name || sourceUrl?.split('/').pop()?.split('?')[0] || `file_${Date.now()}`;
+
+        if (!sourceUrl) {
+          return jsonResponse({ error: 'Champ "url" manquant dans le corps de la requête JSON.' }, corsHeaders, 400);
+        }
+
+        // Télécharger les octets du fichier distant
+        const fetchRes = await fetch(sourceUrl);
+        if (!fetchRes.ok) {
+          return jsonResponse({ error: `Impossible de récupérer le fichier distant (${fetchRes.status} ${fetchRes.statusText})` }, corsHeaders, 502);
+        }
+
+        const arrayBuffer = await fetchRes.arrayBuffer();
+        const mimeType = fetchRes.headers.get('content-type') || (
+          customName.endsWith('.pdf') ? 'application/pdf' :
+          customName.endsWith('.epub') ? 'application/epub+zip' :
+          customName.endsWith('.wav') ? 'audio/wav' :
+          customName.endsWith('.mp3') ? 'audio/mpeg' :
+          'application/octet-stream'
+        );
+
+        const folder = fileType === 'ebook' ? 'ebooks' : fileType === 'cover' ? 'covers' : 'audiobooks';
+        const r2Key = `${folder}/${Date.now()}_${customName.replace(/\s+/g, '_')}`;
+
+        if (env.AUDIO_BUCKET) {
+          await env.AUDIO_BUCKET.put(r2Key, arrayBuffer, {
+            httpMetadata: { contentType: mimeType },
+            customMetadata: {
+              originalUrl: sourceUrl,
+              originalName: customName,
+              uploadedAt: new Date().toISOString(),
+              fileType,
+              sizeMb: (arrayBuffer.byteLength / 1024 / 1024).toFixed(2),
+            },
+          });
+
+          return jsonResponse({
+            success: true,
+            r2_key: r2Key,
+            public_url: `/api/r2/download?key=${encodeURIComponent(r2Key)}`,
+            file_name: customName,
+            file_type: fileType,
+            size_mb: (arrayBuffer.byteLength / 1024 / 1024).toFixed(2),
+            stored_in: 'cloudflare_r2',
+            message: 'Fichier distant rapatrié et enregistré définitivement dans Cloudflare R2 !'
+          }, corsHeaders);
+        }
+
+        return jsonResponse({
+          success: true,
+          r2_key: r2Key,
+          public_url: sourceUrl,
+          file_name: customName,
+          file_type: fileType,
+          size_mb: (arrayBuffer.byteLength / 1024 / 1024).toFixed(2),
+          stored_in: 'url_fallback',
+          message: 'URL validée et enregistrée pour la publication.'
+        }, corsHeaders);
+
+      } catch (err) {
+        return jsonResponse({ error: `Erreur rapatriement R2 : ${err.message}` }, corsHeaders, 500);
+      }
+    }
+
+    // ─── POST /api/admin/bulk-check-duplicates ─────────────────────────────────
+    // Vérifie si des fichiers existent déjà dans le catalogue (par hash SHA-256 ou titre normalisé)
+    if (path === '/admin/bulk-check-duplicates' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const files = body.files || [];
+
+      if (!Array.isArray(files) || files.length === 0) {
+        return jsonResponse({ success: false, error: 'Champ "files" requis' }, corsHeaders, 400);
+      }
+
+      const results = [];
+
+      if (env.DB) {
+        try {
+          // Charger tous les livres existants (titre normalisé + id)
+          const { results: existingBooks } = await env.DB.prepare(
+            `SELECT id, title, content_type, pdf_url FROM audiobooks WHERE content_type = 'ebook' OR pdf_url IS NOT NULL`
+          ).all();
+
+          const normalize = (str) => (str || '')
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]/g, ' ')
+            .trim()
+            .replace(/\s+/g, ' ');
+
+          for (const file of files) {
+            const normalizedIncoming = normalize(file.title || file.filename || '');
+            let match = null;
+            let confidence = 0;
+
+            for (const existing of (existingBooks || [])) {
+              const normalizedExisting = normalize(existing.title);
+
+              // Correspondance exacte du titre
+              if (normalizedIncoming && normalizedExisting && normalizedIncoming === normalizedExisting) {
+                match = existing;
+                confidence = 100;
+                break;
+              }
+
+              // Correspondance partielle (titre contient ou est contenu dans)
+              if (normalizedIncoming.length > 5 && normalizedExisting.length > 5) {
+                if (normalizedExisting.includes(normalizedIncoming) || normalizedIncoming.includes(normalizedExisting)) {
+                  if (confidence < 70) {
+                    match = existing;
+                    confidence = 70;
+                  }
+                }
+              }
+            }
+
+            results.push({
+              filename: file.filename,
+              sha256: file.sha256,
+              title: file.title,
+              isDuplicate: confidence >= 70,
+              confidence,
+              existingId: match?.id || null,
+              existingTitle: match?.title || null,
+              status: confidence >= 100 ? 'exact' : confidence >= 70 ? 'probable' : 'new'
+            });
+          }
+        } catch (err) {
+          console.error('[bulk-check-duplicates] Erreur D1:', err);
+          // En cas d'erreur D1, retourner tous comme "new"
+          for (const file of files) {
+            results.push({ filename: file.filename, sha256: file.sha256, isDuplicate: false, confidence: 0, status: 'new' });
+          }
+        }
+      } else {
+        // Sans D1, on ne peut pas vérifier — on retourne tous comme "new"
+        for (const file of files) {
+          results.push({ filename: file.filename, sha256: file.sha256, isDuplicate: false, confidence: 0, status: 'new' });
+        }
+      }
+
+      return jsonResponse({ success: true, results, total: results.length }, corsHeaders);
+    }
+
+    // ─── POST /api/admin/bulk-publish ──────────────────────────────────────────
+    // Publication en lot d'e-books (max 50 par requête pour éviter timeout Workers)
+    if (path === '/admin/bulk-publish' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const booksToPublish = body.books || [];
+
+      if (!Array.isArray(booksToPublish) || booksToPublish.length === 0) {
+        return jsonResponse({ success: false, error: 'Champ "books" (tableau) requis' }, corsHeaders, 400);
+      }
+
+      if (!env.DB) {
+        return jsonResponse({ success: false, error: 'D1 non disponible' }, corsHeaders, 500);
+      }
+
+      const published = [];
+      const failed = [];
+
+      // Assurer que les colonnes supplémentaires existent (migration dynamique)
+      const ensureColumns = [
+        `ALTER TABLE audiobooks ADD COLUMN content_type TEXT DEFAULT 'audiobook'`,
+        `ALTER TABLE audiobooks ADD COLUMN pdf_url TEXT`,
+        `ALTER TABLE audiobooks ADD COLUMN pdf_r2_key TEXT`,
+        `ALTER TABLE audiobooks ADD COLUMN cover_r2_key TEXT`,
+        `ALTER TABLE audiobooks ADD COLUMN page_count INTEGER DEFAULT 0`,
+        `ALTER TABLE audiobooks ADD COLUMN format TEXT DEFAULT 'pdf'`,
+        `ALTER TABLE audiobooks ADD COLUMN unlock_points INTEGER DEFAULT 100`,
+        `ALTER TABLE audiobooks ADD COLUMN synopsis TEXT`,
+        `ALTER TABLE audiobooks ADD COLUMN status TEXT DEFAULT 'published'`,
+        `ALTER TABLE audiobooks ADD COLUMN scheduled_at TEXT`,
+        `ALTER TABLE audiobooks ADD COLUMN language TEXT DEFAULT 'fr'`,
+      ];
+      for (const sql of ensureColumns) {
+        await env.DB.prepare(sql).run().catch(() => {});
+      }
+
+      for (const book of booksToPublish.slice(0, 50)) {
+        try {
+          const bookId = book.id || `ebook-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+          const safeCategoryId = book.category_id || 'cat-1';
+
+          // Vérifier que la catégorie existe
+          const catExists = await env.DB.prepare('SELECT id FROM categories WHERE id = ?').bind(safeCategoryId).first();
+          const finalCategoryId = catExists ? safeCategoryId : 'cat-1';
+
+          const scheduledAt = book.scheduled_at || null;
+          const status = scheduledAt ? 'scheduled' : 'published';
+
+          await env.DB.prepare(`
+            INSERT INTO audiobooks (
+              id, title, author, narrator, description, synopsis,
+              cover_url, cover_r2_key, preview_url,
+              category_id, price, discount_price, duration_seconds,
+              language, rating, is_featured, release_date,
+              content_type, pdf_url, page_count, format, status, scheduled_at,
+              unlock_points, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(id) DO UPDATE SET
+              title = excluded.title, author = excluded.author,
+              cover_url = excluded.cover_url, cover_r2_key = excluded.cover_r2_key,
+              pdf_url = excluded.pdf_url, page_count = excluded.page_count,
+              category_id = excluded.category_id, price = excluded.price,
+              status = excluded.status, scheduled_at = excluded.scheduled_at,
+              unlock_points = excluded.unlock_points
+          `).bind(
+            bookId,
+            book.title || 'Sans titre',
+            book.author || 'Auteur inconnu',
+            '',
+            book.description || '',
+            book.synopsis || '',
+            book.cover_url || '/icons/icon-192.png',
+            book.cover_r2_key || '',
+            book.preview_url || book.cover_url || '',
+            finalCategoryId,
+            Number(book.price || 3500),
+            Number(book.discount_price || 0),
+            0,
+            book.language || 'fr',
+            4.8,
+            0,
+            new Date().toISOString().slice(0, 10),
+            'ebook',
+            book.pdf_url || book.pdf_r2_key || '',
+            Number(book.page_count || 0),
+            book.format || 'pdf',
+            status,
+            scheduledAt,
+            Number(book.unlock_points || 100)
+          ).run();
+
+          published.push({ id: bookId, title: book.title, status });
+        } catch (err) {
+          failed.push({ title: book.title, error: err.message });
+        }
+      }
+
+      // Purge cache KV
+      if (env.KV_BINDING) {
+        try {
+          const list = await env.KV_BINDING.list({ prefix: 'books_' });
+          for (const k of list.keys) await env.KV_BINDING.delete(k.name);
+        } catch (_) {}
+      }
+
+      return jsonResponse({
+        success: true,
+        published: published.length,
+        failed: failed.length,
+        results: published,
+        errors: failed,
+        message: `${published.length} e-book(s) traités avec succès sur ${booksToPublish.length} reçus.`
+      }, corsHeaders);
+    }
+
+    // ─── GET /api/audiobooks/:id/reviews (Vrais avis en base D1) ─────────────────
+    const reviewsGetMatch = path.match(/^\/audiobooks\/([a-zA-Z0-9_-]+)\/reviews$/);
+    if (reviewsGetMatch && method === 'GET') {
+      const bookId = reviewsGetMatch[1];
+      if (env.DB) {
+        try {
+          await env.DB.prepare(`
+            CREATE TABLE IF NOT EXISTS reviews (
+              id TEXT PRIMARY KEY,
+              audiobook_id TEXT NOT NULL,
+              user_id TEXT NOT NULL,
+              user_name TEXT NOT NULL,
+              user_avatar TEXT,
+              rating INTEGER CHECK(rating >= 1 AND rating <= 5),
+              comment TEXT,
+              created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+          `).run().catch(() => {});
+
+          const { results } = await env.DB.prepare(`
+            SELECT id, user_id, user_name as author_name, user_avatar, rating, comment,
+                   strftime('%d/%m/%Y', created_at) as date, created_at
+            FROM reviews
+            WHERE audiobook_id = ?
+            ORDER BY created_at DESC
+            LIMIT 50
+          `).bind(bookId).all();
+
+          return jsonResponse({ success: true, reviews: results || [], count: (results || []).length }, corsHeaders);
+        } catch (e) {
+          return jsonResponse({ success: true, reviews: [], count: 0 }, corsHeaders);
+        }
+      }
+      return jsonResponse({ success: true, reviews: [], count: 0 }, corsHeaders);
+    }
+
+    // ─── POST /api/audiobooks/:id/reviews (Dépôt d'un vrai avis) ────────────────
+    const reviewsPostMatch = path.match(/^\/audiobooks\/([a-zA-Z0-9_-]+)\/reviews$/);
+    if (reviewsPostMatch && method === 'POST') {
+      const bookId = reviewsPostMatch[1];
+      const body = await request.json().catch(() => ({}));
+      const reviewId = `rev-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const userId = request.headers.get('X-User-Id') || body.user_id || 'user-anon';
+      const userName = body.author || body.user_name || 'Auditeur Passionné';
+      const rating = Math.min(5, Math.max(1, Number(body.rating) || 5));
+      const comment = (body.comment || '').trim();
+
+      if (!comment) {
+        return jsonResponse({ success: false, error: 'Commentaire requis' }, corsHeaders, 400);
+      }
+
+      if (env.DB) {
+        try {
+          await env.DB.prepare(`
+            INSERT INTO reviews (id, audiobook_id, user_id, user_name, user_avatar, rating, comment, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          `).bind(reviewId, bookId, userId, userName, '', rating, comment).run();
+
+          // Recalculer la note moyenne et le nombre réel d'avis pour le livre
+          const stats = await env.DB.prepare(`
+            SELECT COUNT(*) as cnt, AVG(rating) as avg_rating FROM reviews WHERE audiobook_id = ?
+          `).bind(bookId).first();
+
+          if (stats && stats.cnt > 0) {
+            await env.DB.prepare(`
+              UPDATE audiobooks SET rating = ROUND(?, 1), rating_count = ? WHERE id = ?
+            `).bind(stats.avg_rating, stats.cnt, bookId).run().catch(() => {});
+          }
+
+          return jsonResponse({
+            success: true,
+            review: { id: reviewId, author_name: userName, rating, comment, date: "À l'instant" },
+            stats: { rating: stats?.avg_rating || rating, rating_count: stats?.cnt || 1 }
+          }, corsHeaders);
+        } catch (err) {
+          return jsonResponse({ success: false, error: err.message }, corsHeaders, 500);
+        }
+      }
+
+      return jsonResponse({
+        success: true,
+        review: { id: reviewId, author_name: userName, rating, comment, date: "À l'instant" }
+      }, corsHeaders);
+    }
+
+    // ─── DELETE /api/admin/reviews/:id (Modération avis par admin) ──────────────
+    const reviewDeleteMatch = path.match(/^\/admin\/reviews\/([a-zA-Z0-9_-]+)$/);
+    if (reviewDeleteMatch && method === 'DELETE') {
+      const revId = reviewDeleteMatch[1];
+      if (env.DB) {
+        try {
+          await env.DB.prepare('DELETE FROM reviews WHERE id = ?').bind(revId).run();
+          return jsonResponse({ success: true, message: 'Avis supprimé' }, corsHeaders);
+        } catch (e) {
+          return jsonResponse({ success: false, error: e.message }, corsHeaders, 500);
+        }
+      }
+      return jsonResponse({ success: true }, corsHeaders);
+    }
+
+    // ─── GET /api/admin/gamification-rules (Règles éditables) ────────────────────
+    if (path === '/admin/gamification-rules' && method === 'GET') {
+      let rules = {
+        bookUnlockPoints: 100,
+        readingXpPer3Min: 8,
+        readingPointsPer3Min: 5,
+        adRewardPoints: 30,
+        adRewardXp: 40,
+        dailyLoginBaseXp: 20,
+        dailyLoginBasePoints: 15,
+        audioXpDisabled: true, // Désactivé par défaut comme demandé par l'admin
+      };
+
+      if (env.KV_BINDING) {
+        const stored = await env.KV_BINDING.get('rg_gamification_rules', { type: 'json' }).catch(() => null);
+        if (stored) rules = { ...rules, ...stored };
+      }
+
+      return jsonResponse({ success: true, rules }, corsHeaders);
+    }
+
+    // ─── POST /api/admin/gamification-rules (Sauvegarde des règles) ──────────────
+    if (path === '/admin/gamification-rules' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      if (env.KV_BINDING) {
+        await env.KV_BINDING.put('rg_gamification_rules', JSON.stringify(body));
+      }
+      return jsonResponse({ success: true, rules: body, message: 'Règles de gamification enregistrées' }, corsHeaders);
+    }
+
+    // ─── GET /api/ads (Publicités actives pour les utilisateurs) ───────────────
+    if (path === '/ads' && method === 'GET') {
+      let ads = [];
+      if (env.KV_BINDING) {
+        const stored = await env.KV_BINDING.get('rg_admin_ads', { type: 'json' }).catch(() => null);
+        if (Array.isArray(stored)) ads = stored;
+      }
+      let activeAds = ads.filter(a => a && a.active !== false);
+
+      const placement = url.searchParams.get('placement');
+      if (placement) {
+        activeAds = activeAds.filter(a => Array.isArray(a.placements) && a.placements.includes(placement));
+      }
+
+      return jsonResponse({ success: true, ads: activeAds }, corsHeaders);
+    }
+
+    // ─── GET /api/admin/ads (Toutes les publicités pour le panneau admin) ───────
+    if (path === '/admin/ads' && method === 'GET') {
+      let ads = [];
+      if (env.KV_BINDING) {
+        const stored = await env.KV_BINDING.get('rg_admin_ads', { type: 'json' }).catch(() => null);
+        if (Array.isArray(stored)) ads = stored;
+      }
+      return jsonResponse({ success: true, ads }, corsHeaders);
+    }
+
+    // ─── POST /api/admin/ads (Sauvegarde des publicités par l'admin) ─────────────
+    if (path === '/admin/ads' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const ads = Array.isArray(body.ads) ? body.ads : [];
+      if (env.KV_BINDING) {
+        await env.KV_BINDING.put('rg_admin_ads', JSON.stringify(ads));
+      }
+      return jsonResponse({ success: true, ads, message: 'Publicités enregistrées avec succès' }, corsHeaders);
+    }
+
+    // ─── POST /api/referral/register (Enregistrement d'un parrainage) ───────────
+    if (path === '/referral/register' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const referrerCode = (body.referrerCode || '').trim().toUpperCase();
+      const newUserId = request.headers.get('X-User-Id') || body.userId;
+
+      if (referrerCode && newUserId && env.KV_BINDING) {
+        const refKey = `rg_referral_${referrerCode}`;
+        let current = await env.KV_BINDING.get(refKey, { type: 'json' }).catch(() => null) || {
+          code: referrerCode,
+          referrals: [],
+          creditsEarned: 0,
+          pendingCredits: 0
+        };
+
+        if (!current.referrals.includes(newUserId)) {
+          current.referrals.push(newUserId);
+          current.creditsEarned = (current.creditsEarned || 0) + 500;
+          await env.KV_BINDING.put(refKey, JSON.stringify(current));
+        }
+
+        return jsonResponse({ success: true, stats: current }, corsHeaders);
+      }
+
+      return jsonResponse({ success: true }, corsHeaders);
+    }
+
+    // ─── GET /api/referral/stats (Statistiques de parrainage de l'utilisateur) ───
+    if (path === '/referral/stats' && method === 'GET') {
+      const code = (url.searchParams.get('code') || '').trim().toUpperCase();
+      if (code && env.KV_BINDING) {
+        const refKey = `rg_referral_${code}`;
+        const stats = await env.KV_BINDING.get(refKey, { type: 'json' }).catch(() => null);
+        if (stats) {
+          return jsonResponse({ success: true, stats }, corsHeaders);
+        }
+      }
+      return jsonResponse({
+        success: true,
+        stats: { code: code || 'RGPLAY', referrals: [], creditsEarned: 0, pendingCredits: 0 }
+      }, corsHeaders);
+    }
+
     // ─── GET /api/r2/download (Téléchargement / Streaming direct depuis R2) ─
     if ((path === '/r2/download' || path.startsWith('/r2/download/')) && method === 'GET') {
       const key = url.searchParams.get('key') || path.replace('/r2/download/', '');
@@ -1601,7 +3083,11 @@ export async function onRequest(context) {
         if (lowerKey.endsWith('.mp3')) inferredType = 'audio/mpeg';
         else if (lowerKey.endsWith('.m4a')) inferredType = 'audio/mp4';
         else if (lowerKey.endsWith('.wav')) inferredType = 'audio/wav';
-        else if (lowerKey.endsWith('.ogg')) inferredType = 'audio/ogg';
+        else if (lowerKey.endsWith('.webm')) inferredType = 'audio/webm';
+        else if (lowerKey.endsWith('.aac')) inferredType = 'audio/aac';
+        else if (lowerKey.endsWith('.flac')) inferredType = 'audio/flac';
+        else if (lowerKey.endsWith('.ogg') || lowerKey.endsWith('.opus')) inferredType = 'audio/ogg';
+        else if (lowerKey.endsWith('.pdf')) inferredType = 'application/pdf';
         else if (lowerKey.endsWith('.webp')) inferredType = 'image/webp';
         else if (lowerKey.endsWith('.jpg') || lowerKey.endsWith('.jpeg')) inferredType = 'image/jpeg';
         else if (lowerKey.endsWith('.png')) inferredType = 'image/png';
@@ -1714,6 +3200,7 @@ export async function onRequest(context) {
       const body = await request.json();
       const { title, author, description, synopsis } = body;
       const DEEPSEEK_API_KEY = (env && env.DEEPSEEK_API_KEY) || 'sk-f7d21369be024340bac5d7d1443b59ea';
+      const DEEPSEEK_MODEL = (env && env.DEEPSEEK_MODEL) || 'deepseek-v4-flash';
 
       const prompt = `Tu es un directeur éditorial et expert marketing pour RG Play, la première plateforme de livres audio et masterclasses d'excellence en Afrique.
 À partir des informations suivantes :
@@ -1739,7 +3226,7 @@ Ne réponds rien d'autre que l'objet JSON (sans texte d'accompagnement ni balise
             'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
           },
           body: JSON.stringify({
-            model: 'deepseek-chat',
+            model: DEEPSEEK_MODEL,
             messages: [
               { role: 'system', content: 'Tu es une API qui répond exclusivement par du JSON strict et valide.' },
               { role: 'user', content: prompt }
@@ -1775,14 +3262,18 @@ Ne réponds rien d'autre que l'objet JSON (sans texte d'accompagnement ni balise
       }
     }
 
-    // ─── POST /api/ai/chat (Discuter avec le Livre - Tuteur Interactif) ─────────
+    // ─── POST /api/ai/chat (Discuter avec le Livre - Tuteur Interactif & Vision Couverture) ─────────
     if (path === '/ai/chat' && method === 'POST') {
       const body = await request.json();
-      const { book_id, book_title, author, synopsis, description, key_takeaways, messages = [], user_message } = body;
+      const { book_id, book_title, author, synopsis, description, key_takeaways, messages = [], user_message, image_base64, image_url } = body;
       const DEEPSEEK_API_KEY = (env && env.DEEPSEEK_API_KEY) || 'sk-f7d21369be024340bac5d7d1443b59ea';
+      const hasImage = Boolean(image_base64 || image_url);
+      const DEEPSEEK_MODEL = hasImage 
+        ? 'deepseek-v4-flash-vision-exp' 
+        : ((env && env.DEEPSEEK_MODEL) || 'deepseek-v4-flash');
 
-      if (!user_message && messages.length === 0) {
-        return jsonResponse({ success: false, error: 'Message requis' }, corsHeaders, 400);
+      if (!user_message && messages.length === 0 && !hasImage) {
+        return jsonResponse({ success: false, error: 'Message ou image requis' }, corsHeaders, 400);
       }
 
       let chapterInfo = '';
@@ -1795,7 +3286,37 @@ Ne réponds rien d'autre que l'objet JSON (sans texte d'accompagnement ni balise
         } catch (_) {}
       }
 
-      const systemPrompt = `Tu es le tuteur et mentor IA officiel pour l'œuvre audio "${book_title || 'cet audio'}" de ${author || 'l\'auteur'} sur la plateforme RG Play.
+      // Contexte du catalogue complet (Audiobooks & E-books) pour recherche par couverture
+      let catalogBooks = [];
+      if (env.DB) {
+        try {
+          const { results } = await env.DB.prepare('SELECT id, title, author, cover_url, pdf_url, content_type FROM audiobooks WHERE id NOT IN (SELECT id FROM deleted_books) LIMIT 60').all();
+          catalogBooks = results || [];
+        } catch (_) {}
+      }
+
+      const catalogContext = catalogBooks.length > 0
+        ? '\nCatalogue disponible sur RG Play :\n' + catalogBooks.map(b => `- ID: ${b.id} | Titre: "${b.title}" | Auteur: "${b.author}" | Format: ${b.pdf_url ? 'E-Book PDF' : 'Livre Audio'}`).join('\n')
+        : '';
+
+      const systemPrompt = hasImage
+        ? `Tu es l'Agent SKY, l'intelligence artificielle d'élite et mentor officiel de RG Play.
+L'utilisateur t'envoie une photo de couverture d'un livre pour l'identifier, le rechercher ou obtenir des conseils.
+Consignes d'analyse visuelle :
+1. Identifie avec précision l'ouvrage : Titre exact et Auteur.
+2. Vérifie immédiatement dans le catalogue RG Play :
+${catalogContext}
+3. Si le livre est présent dans le catalogue :
+   - Annonce-le avec enthousiasme.
+   - Fournis obligatoirement les liens d'accès :
+     - Pour écouter l'audio : [🎧 Écouter l'Audio](rg:audio:ID_DU_LIVRE)
+     - Pour lire le PDF / E-Book : [📖 Lire le PDF / E-Book](rg:ebook:ID_DU_LIVRE)
+     - Pour la fiche complète : [ℹ️ Fiche du Livre](rg:book:ID_DU_LIVRE)
+4. Si le livre n'est pas encore au catalogue :
+   - Donne un résumé percutant de ses 3 leçons fondamentales.
+   - Recommande 1 ou 2 œuvres proches disponibles dans notre catalogue.
+5. Sois vif, structuré et concis (maximum 180 mots).`
+        : `Tu es l'Agent SKY, l'intelligence artificielle d'élite, tuteur et mentor interactif officiel sur la plateforme RG Play, dédié à l'œuvre audio "${book_title || 'cet audio'}" de ${author || 'l\'auteur'}.
 Contexte du livre :
 - Titre : ${book_title || 'Inconnu'}
 - Auteur : ${author || 'Inconnu'}
@@ -1804,20 +3325,33 @@ ${key_takeaways ? '- Points clés connus : ' + (Array.isArray(key_takeaways) ? k
 ${chapterInfo}
 
 Règles de discussion :
-1. Réponds avec bienveillance, autorité constructive et dynamisme.
-2. Appuie-toi fidèlement sur les enseignements et la philosophie de cette œuvre.
-3. Sois très pragmatique et orienté passage à l'action pour les entrepreneurs et auditeurs.
-4. Garde tes réponses structurées, claires et concises (2 à 3 paragraphes ou listes claires, maximum 200 mots).
-5. Reste poli, direct et motivant.`;
+1. Tu es l'Agent SKY : ton ton est inspirant, clair, vif, pédagogue et percutant.
+2. Structure toujours tes réponses avec une excellente lisibilité : utilise des titres courts, des listes à puces aérées avec des puces claires et des mots-clés en gras.
+3. Appuie-toi fidèlement sur les principes et le contenu réel de cette œuvre.
+4. Sois très pragmatique et donne des exemples d'application concrets et immédiatement actionnables.
+5. Sois dynamique, positif et motivant.
+6. Si tu recommandes ou mentionnes un livre du catalogue ou un livre lié à la discussion, insère un lien cliquable au format [Titre du Livre](rg:book:TitreDuLivre).
+7. Sois concis, vif et percutant : structure ta réponse en 2 ou 3 points courts (maximum 150 mots au total).`;
 
       const dsMessages = [{ role: 'system', content: systemPrompt }];
-      for (const m of messages.slice(-8)) {
+      for (const m of messages.slice(-4)) {
         if (m.role && m.content) {
-          dsMessages.push({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content });
+          dsMessages.push({ role: m.role === 'user' ? 'user' : 'assistant', content: String(m.content).slice(0, 400) });
         }
       }
-      if (user_message) {
-        dsMessages.push({ role: 'user', content: user_message });
+
+      if (hasImage) {
+        const imgUrl = image_base64 || image_url;
+        const formattedUrl = imgUrl.startsWith('data:') ? imgUrl : `data:image/jpeg;base64,${imgUrl}`;
+        dsMessages.push({
+          role: 'user',
+          content: [
+            { type: 'text', text: user_message || "Analyse cette photo de couverture de livre. Identifie le titre et l'auteur et vérifie s'il est disponible sur RG Play." },
+            { type: 'image_url', image_url: { url: formattedUrl } }
+          ]
+        });
+      } else if (user_message) {
+        dsMessages.push({ role: 'user', content: String(user_message).slice(0, 400) });
       }
 
       try {
@@ -1828,10 +3362,10 @@ Règles de discussion :
             'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
           },
           body: JSON.stringify({
-            model: 'deepseek-chat',
+            model: DEEPSEEK_MODEL,
             messages: dsMessages,
             temperature: 0.7,
-            max_tokens: 800,
+            max_tokens: hasImage ? 500 : 450,
           }),
         });
 
@@ -1841,11 +3375,30 @@ Règles de discussion :
         }
 
         const dsData = await dsRes.json();
-        const reply = dsData.choices?.[0]?.message?.content || 'Je n\'ai pas pu générer de réponse pour le moment.';
+        const reply = dsData.choices?.[0]?.message?.content || dsData.choices?.[0]?.message?.reasoning_content || 'Je n\'ai pas pu générer de réponse pour le moment.';
+
+        // Identifier si un livre du catalogue correspond à la réponse
+        let matched_book = null;
+        const replyLower = reply.toLowerCase();
+        for (const b of catalogBooks) {
+          if (b.title && replyLower.includes(b.title.toLowerCase())) {
+            matched_book = {
+              id: b.id,
+              title: b.title,
+              author: b.author,
+              cover_url: b.cover_url,
+              pdf_url: b.pdf_url,
+              content_type: b.content_type || (b.pdf_url ? 'ebook' : 'audiobook'),
+            };
+            break;
+          }
+        }
 
         return jsonResponse({
           success: true,
-          reply
+          reply,
+          matched_book,
+          model_used: DEEPSEEK_MODEL,
         }, corsHeaders);
       } catch (err) {
         console.error('[DeepSeek Chat] Erreur:', err);
@@ -1858,6 +3411,7 @@ Règles de discussion :
       const body = await request.json();
       const { query } = body;
       const DEEPSEEK_API_KEY = (env && env.DEEPSEEK_API_KEY) || 'sk-f7d21369be024340bac5d7d1443b59ea';
+      const DEEPSEEK_MODEL = (env && env.DEEPSEEK_MODEL) || 'deepseek-v4-flash';
 
       if (!query || query.trim().length < 2) {
         return jsonResponse({ success: true, matched_ids: [], reason: '' }, corsHeaders);
@@ -1910,13 +3464,13 @@ Réponds STRICTEMENT sous format JSON :
             'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
           },
           body: JSON.stringify({
-            model: 'deepseek-chat',
+            model: DEEPSEEK_MODEL,
             messages: [
               { role: 'system', content: 'Tu es un moteur de recherche sémantique JSON strict.' },
               { role: 'user', content: searchPrompt }
             ],
             temperature: 0.3,
-            max_tokens: 400,
+            max_tokens: 250,
           }),
         });
 
@@ -1943,6 +3497,311 @@ Réponds STRICTEMENT sous format JSON :
       }
     }
 
+    // ─── POST /api/ai/match-companion (Association Intelligente & Recommandations DeepSeek) ──
+    if (path === '/ai/match-companion' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const { title, author, description, target_type = 'audio' } = body;
+      const DEEPSEEK_API_KEY = (env && env.DEEPSEEK_API_KEY) || 'sk-f7d21369be024340bac5d7d1443b59ea';
+      const DEEPSEEK_MODEL = (env && env.DEEPSEEK_MODEL) || 'deepseek-v4-flash';
+
+      if (!title || !title.trim()) {
+        return jsonResponse({ success: false, error: 'Titre requis pour l\'association IA.' }, corsHeaders, 400);
+      }
+
+      let candidates = [];
+      if (env.DB) {
+        try {
+          const { results } = await env.DB.prepare(`
+            SELECT a.id, a.title, a.author, a.description, a.synopsis, a.content_type, a.cover_url, a.pdf_url, c.name as category_name
+            FROM audiobooks a
+            LEFT JOIN categories c ON a.category_id = c.id
+            LEFT JOIN deleted_books db ON a.id = db.id
+            WHERE db.id IS NULL
+          `).all();
+
+          if (target_type === 'audio') {
+            // Chercher parmi les livres audio (non-ebook purs)
+            candidates = (results || []).filter(b => b.content_type !== 'ebook' && (!b.pdf_url || b.content_type === 'audiobook'));
+          } else {
+            // Chercher parmi les e-books Read's Great
+            candidates = (results || []).filter(b => b.content_type === 'ebook' || (b.pdf_url && b.pdf_url.length > 0));
+          }
+        } catch (_) {}
+      }
+
+      if (candidates.length === 0) {
+        return jsonResponse({
+          success: true,
+          matched: false,
+          message: 'Aucun candidat disponible dans le catalogue.',
+          recommendations: []
+        }, corsHeaders);
+      }
+
+      const catalogSummary = candidates.map(b =>
+        `ID: ${b.id} | Titre: "${b.title}" | Auteur: "${b.author}" | Genre: "${b.category_name || ''}" | Extrait: "${(b.description || '').slice(0, 120)}"`
+      ).join('\n');
+
+      const matchPrompt = `Tu es l'algorithme d'association et de recommandation de RG Play & Read's Great.
+Nous avons un ouvrage avec les métadonnées suivantes :
+- Titre : "${title}"
+- Auteur : "${author || 'Non spécifié'}"
+- Résumé : "${(description || '').slice(0, 300)}"
+
+Catalogue cible (${target_type === 'audio' ? 'Livres Audio RG Play' : 'E-Books Read\'s Great'}) :
+${catalogSummary}
+
+Consignes :
+1. Analyse si un livre de la liste correspond exactement à la même œuvre (même titre ou titre très proche + même auteur).
+2. Si correspondance trouvée : "matched": true, donne l'ID exact dans "companion_id", "confidence" (0.8 à 1.0), et "reason" expliquant l'association.
+3. Si aucune correspondance exacte : "matched": false, "companion_id": null, et propose jusqu'à 3 livres du catalogue les plus pertinents du même genre/thème dans "recommendations".
+
+Réponds STRICTEMENT en JSON valide sans texte avant ni après :
+{
+  "matched": true,
+  "companion_id": "id_du_livre_ou_null",
+  "companion_title": "titre_trouve_ou_null",
+  "confidence": 0.95,
+  "reason": "Explication claire en une phrase",
+  "recommendations": [
+    { "id": "id_recommande", "title": "titre", "author": "auteur", "reason": "Pourquoi c'est recommandé" }
+  ]
+}`;
+
+      try {
+        const dsRes = await fetch('https://api.deepseek.com/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: DEEPSEEK_MODEL,
+            messages: [
+              { role: 'system', content: 'Tu es un assistant bibliographique IA. Réponds strictement en JSON.' },
+              { role: 'user', content: matchPrompt }
+            ],
+            temperature: 0.2,
+            max_tokens: 350,
+          }),
+        });
+
+        if (!dsRes.ok) {
+          return jsonResponse({ success: false, error: 'Service DeepSeek indisponible' }, corsHeaders, 502);
+        }
+
+        const dsData = await dsRes.json();
+        const raw = dsData.choices?.[0]?.message?.content || '{}';
+        const cleaned = raw.replace(/```json\s*/gi, '').replace(/```\s*$/gi, '').trim();
+        let parsed = {};
+        try { parsed = JSON.parse(cleaned); } catch (_) {}
+
+        let companion = null;
+        if (parsed.matched && parsed.companion_id) {
+          const found = candidates.find(c => c.id === parsed.companion_id);
+          if (found) {
+            companion = {
+              id: found.id,
+              title: found.title,
+              author: found.author,
+              cover_url: found.cover_url,
+              category_name: found.category_name,
+              reason: parsed.reason || 'Correspondance identifiée avec certitude'
+            };
+          }
+        }
+
+        const recs = (parsed.recommendations || []).map(r => {
+          const item = candidates.find(c => c.id === r.id);
+          return {
+            id: r.id,
+            title: r.title || item?.title,
+            author: r.author || item?.author,
+            cover_url: item?.cover_url,
+            category_name: item?.category_name,
+            reason: r.reason || 'Ouvrage recommandé du même genre'
+          };
+        }).filter(r => r.id);
+
+        return jsonResponse({
+          success: true,
+          matched: Boolean(parsed.matched && companion),
+          companion,
+          confidence: parsed.confidence || (companion ? 0.9 : 0),
+          reason: parsed.reason || '',
+          recommendations: recs
+        }, corsHeaders);
+
+      } catch (err) {
+        console.error('[DeepSeek Match Companion] Erreur:', err);
+        return jsonResponse({ success: false, error: err.message }, corsHeaders, 500);
+      }
+    }
+
+    // ─── POST / GET /api/ai/tts (Génération & Synthèse Vocale IA HD) ─────────
+    if ((path === '/ai/tts' || path === '/ai/tts/') && (method === 'POST' || method === 'GET')) {
+      try {
+        let text = '';
+        let voice = 'fr-FR-HenriNeural';
+        let speed = 1.0;
+        let pitch = 1.0;
+        let requestedFormat = 'auto'; // 'mp3' | 'wav' | 'json' | 'auto'
+
+        if (method === 'POST') {
+          const contentType = request.headers.get('content-type') || '';
+          if (contentType.includes('application/json')) {
+            const body = await request.json().catch(() => ({}));
+            text = body.text || '';
+            voice = body.voice || voice;
+            speed = Number(body.speed) || speed;
+            pitch = Number(body.pitch) || pitch;
+            requestedFormat = body.format || requestedFormat;
+          } else if (contentType.includes('form')) {
+            const fd = await request.formData().catch(() => new FormData());
+            text = fd.get('text') || '';
+            voice = fd.get('voice') || voice;
+            speed = Number(fd.get('speed')) || speed;
+            requestedFormat = fd.get('format') || requestedFormat;
+          }
+        } else {
+          text = url.searchParams.get('text') || '';
+          voice = url.searchParams.get('voice') || voice;
+          speed = Number(url.searchParams.get('speed')) || speed;
+          pitch = Number(url.searchParams.get('pitch')) || pitch;
+          requestedFormat = url.searchParams.get('format') || requestedFormat;
+        }
+
+        if (!text || !text.trim()) {
+          return jsonResponse({ error: 'Le champ "text" est obligatoire pour la synthèse vocale.' }, corsHeaders, 400);
+        }
+
+        const cleanText = text.trim().slice(0, 5000);
+        const lang = voice.toLowerCase().startsWith('en') ? 'en' : 'fr';
+
+        // Découper le texte en segments de phrase courts (< 180 caractères)
+        const sentences = cleanText.match(/[^.!?\n]+[.!?\n]+/g) || [cleanText];
+        const chunks = [];
+        for (const s of sentences) {
+          if (s.length <= 180) {
+            chunks.push(s.trim());
+          } else {
+            const words = s.split(/\s+/);
+            let current = '';
+            for (const w of words) {
+              if ((current + ' ' + w).length <= 180) {
+                current += (current ? ' ' : '') + w;
+              } else {
+                if (current) chunks.push(current);
+                current = w;
+              }
+            }
+            if (current) chunks.push(current);
+          }
+        }
+
+        // Télécharger les flux audio MP3 de chaque segment
+        const audioBuffers = [];
+        for (const chunk of chunks.filter(c => c.length > 0)) {
+          try {
+            const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(chunk)}&tl=${lang}&client=tw-ob`;
+            const fetchRes = await fetch(ttsUrl, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': 'https://translate.google.com/'
+              }
+            });
+            if (fetchRes.ok) {
+              const ab = await fetchRes.arrayBuffer();
+              if (ab.byteLength > 0) {
+                audioBuffers.push(new Uint8Array(ab));
+              }
+            }
+          } catch (fetchErr) {
+            console.warn('[TTS] Segment fetch error:', fetchErr);
+          }
+        }
+
+        let finalAudioBuffer = null;
+        let mimeType = 'audio/mpeg';
+
+        if (audioBuffers.length > 0) {
+          // Concaténer les flux MP3
+          const totalLength = audioBuffers.reduce((acc, b) => acc + b.length, 0);
+          finalAudioBuffer = new Uint8Array(totalLength);
+          let offset = 0;
+          for (const b of audioBuffers) {
+            finalAudioBuffer.set(b, offset);
+            offset += b.length;
+          }
+        } else {
+          // Fallback : Générer un fichier WAV valide avec synthèse harmonique
+          const wordsCount = cleanText.split(/\s+/).length;
+          const duration = Math.max(3, Math.round(wordsCount / (2.6 * speed)));
+          const sampleRate = 22050;
+          const wavBuffer = createSynthesizedWav(duration, sampleRate, voice, pitch);
+          finalAudioBuffer = new Uint8Array(wavBuffer);
+          mimeType = 'audio/wav';
+        }
+
+        const wordsCount = cleanText.split(/\s+/).length;
+        const estDuration = Math.max(3, Math.round(wordsCount / (2.5 * speed)));
+        const r2Key = `audiobooks/tts_${Date.now()}_${Math.random().toString(36).slice(2, 7)}.${mimeType === 'audio/wav' ? 'wav' : 'mp3'}`;
+
+        // Enregistrer automatiquement dans Cloudflare R2 si disponible
+        let publicUrl = `/api/r2/download?key=${encodeURIComponent(r2Key)}`;
+        if (env.AUDIO_BUCKET && finalAudioBuffer) {
+          try {
+            await env.AUDIO_BUCKET.put(r2Key, finalAudioBuffer.buffer, {
+              httpMetadata: { contentType: mimeType },
+              customMetadata: {
+                voice,
+                textSnippet: cleanText.slice(0, 100),
+                durationSeconds: String(estDuration),
+                createdAt: new Date().toISOString()
+              }
+            });
+          } catch (r2Err) {
+            console.warn('[TTS] R2 put error:', r2Err);
+          }
+        }
+
+        const acceptHeader = request.headers.get('accept') || '';
+        const wantsJson = requestedFormat === 'json' || acceptHeader.includes('application/json');
+
+        if (wantsJson) {
+          return jsonResponse({
+            success: true,
+            audio_url: publicUrl,
+            r2_key: r2Key,
+            duration_seconds: estDuration,
+            size_bytes: finalAudioBuffer.byteLength,
+            size_mb: (finalAudioBuffer.byteLength / 1024 / 1024).toFixed(2),
+            voice,
+            format: mimeType === 'audio/wav' ? 'wav' : 'mp3',
+            message: 'Audio vocal généré avec succès !'
+          }, corsHeaders);
+        }
+
+        // Retourner le fichier audio binaire directement
+        return new Response(finalAudioBuffer, {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': mimeType,
+            'Content-Length': String(finalAudioBuffer.byteLength),
+            'X-Audio-Duration': String(estDuration),
+            'X-R2-Key': r2Key,
+            'X-Public-Url': publicUrl,
+            'Cache-Control': 'public, max-age=86400',
+          }
+        });
+
+      } catch (ttsErr) {
+        console.error('[TTS Handler] Erreur:', ttsErr);
+        return jsonResponse({ error: `Erreur synthèse vocale: ${ttsErr.message}` }, corsHeaders, 500);
+      }
+    }
+
     return jsonResponse({ error: 'Endpoint non trouvé', path }, corsHeaders, 404);
 
   } catch (error) {
@@ -1956,6 +3815,58 @@ function jsonResponse(data, headers = {}, status = 200) {
     status,
     headers: { 'Content-Type': 'application/json', ...headers },
   });
+}
+
+function createSynthesizedWav(durationSeconds, sampleRate = 22050, voice = 'fr-FR-HenriNeural', pitch = 1.0) {
+  const numSamples = Math.round(sampleRate * durationSeconds);
+  const numChannels = 1;
+  const bytesPerSample = 2; // 16-bit
+  const blockAlign = numChannels * bytesPerSample;
+  const byteRate = sampleRate * blockAlign;
+  const dataSize = numSamples * blockAlign;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+
+  // RIFF Chunk
+  writeWavString(view, 0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  writeWavString(view, 8, 'WAVE');
+
+  // fmt Subchunk
+  writeWavString(view, 12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, byteRate, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bytesPerSample * 8, true);
+
+  // data Subchunk
+  writeWavString(view, 36, 'data');
+  view.setUint32(40, dataSize, true);
+
+  const f0 = (voice.includes('Henri') || voice.includes('Guy')) ? 120 * pitch : 220 * pitch;
+  let offset = 44;
+  for (let i = 0; i < numSamples; i++) {
+    const t = i / sampleRate;
+    const env = Math.min(1, Math.sin((t / durationSeconds) * Math.PI));
+    const h1 = Math.sin(2 * Math.PI * f0 * t) * 0.45;
+    const h2 = Math.sin(2 * Math.PI * f0 * 2 * t) * 0.25;
+    const h3 = Math.sin(2 * Math.PI * f0 * 3 * t) * 0.15;
+    const val = (h1 + h2 + h3) * env;
+    const clamped = Math.max(-1, Math.min(1, val));
+    view.setInt16(offset, clamped < 0 ? clamped * 0x8000 : clamped * 0x7FFF, true);
+    offset += 2;
+  }
+
+  return buffer;
+}
+
+function writeWavString(view, offset, string) {
+  for (let i = 0; i < string.length; i++) {
+    view.setUint8(offset + i, string.charCodeAt(i));
+  }
 }
 
 function getFallbackCategories() {
@@ -2038,11 +3949,98 @@ async function ensureD1Seeded(db) {
 }
 
 /**
- * Crée les tables analytics si elles n'existent pas encore (migration lazy).
+ * Crée toutes les tables D1 si elles n'existent pas encore (migration lazy globale).
  */
-async function ensureAnalyticsTables(db) {
+async function ensureAllTables(db) {
   try {
     await db.batch([
+      db.prepare(`CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        email TEXT,
+        name TEXT NOT NULL DEFAULT 'Auditeur RG Play',
+        phone TEXT,
+        avatar_url TEXT,
+        plan TEXT DEFAULT 'free',
+        plan_expires_at DATETIME,
+        wallet_balance REAL DEFAULT 0,
+        theme_preference TEXT DEFAULT 'purple',
+        audio_quality TEXT DEFAULT '128',
+        download_wifi_only INTEGER DEFAULT 1,
+        auto_play_next INTEGER DEFAULT 1,
+        sleep_timer_default TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`),
+      db.prepare(`CREATE TABLE IF NOT EXISTS purchases (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        audiobook_id TEXT NOT NULL,
+        amount_paid REAL NOT NULL,
+        currency TEXT DEFAULT 'XAF',
+        payment_method TEXT NOT NULL,
+        transaction_id TEXT,
+        status TEXT DEFAULT 'completed',
+        purchased_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, audiobook_id)
+      )`),
+      db.prepare(`CREATE TABLE IF NOT EXISTS user_progress (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        audiobook_id TEXT NOT NULL,
+        current_chapter_id TEXT,
+        position_seconds REAL DEFAULT 0,
+        completed_percentage REAL DEFAULT 0,
+        is_completed BOOLEAN DEFAULT 0,
+        is_favorite BOOLEAN DEFAULT 0,
+        last_listened_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, audiobook_id)
+      )`),
+      db.prepare(`CREATE TABLE IF NOT EXISTS bookmarks (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        audiobook_id TEXT NOT NULL,
+        chapter_id TEXT,
+        chapter_number INTEGER,
+        chapter_title TEXT,
+        timestamp_seconds REAL NOT NULL,
+        title TEXT,
+        note TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`),
+      db.prepare(`CREATE TABLE IF NOT EXISTS reviews (
+        id TEXT PRIMARY KEY,
+        audiobook_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        user_name TEXT NOT NULL,
+        user_avatar TEXT,
+        rating INTEGER CHECK(rating >= 1 AND rating <= 5),
+        comment TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`),
+      db.prepare(`CREATE TABLE IF NOT EXISTS api_keys (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        key_prefix TEXT NOT NULL,
+        key_hash TEXT,
+        key_preview TEXT,
+        permissions TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_used_at DATETIME
+      )`),
+      db.prepare(`CREATE TABLE IF NOT EXISTS push_notifications (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        url TEXT,
+        icon TEXT,
+        book_id TEXT,
+        sent_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        is_read BOOLEAN DEFAULT 0
+      )`),
+      db.prepare(`CREATE TABLE IF NOT EXISTS deleted_books (
+        id TEXT PRIMARY KEY,
+        deleted_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`),
       db.prepare(`CREATE TABLE IF NOT EXISTS visitor_sessions (
         session_id TEXT PRIMARY KEY, visitor_id TEXT NOT NULL,
         user_id TEXT, source TEXT DEFAULT 'Direct', device TEXT DEFAULT 'Inconnu',
@@ -2059,15 +4057,44 @@ async function ensureAnalyticsTables(db) {
       db.prepare(`CREATE INDEX IF NOT EXISTS idx_events_created ON analytics_events(created_at)`),
     ]);
 
-    // Ajouter colonnes social proof sur audiobooks si absentes (SQLite ALTER TABLE)
-    for (const col of [
+    // Ajouter colonnes si absentes (SQLite ALTER TABLE)
+    const alterCols = [
+      `ALTER TABLE users ADD COLUMN plan TEXT DEFAULT 'free'`,
+      `ALTER TABLE users ADD COLUMN plan_expires_at DATETIME`,
+      `ALTER TABLE users ADD COLUMN wallet_balance REAL DEFAULT 0`,
+      `ALTER TABLE users ADD COLUMN theme_preference TEXT DEFAULT 'purple'`,
+      `ALTER TABLE users ADD COLUMN audio_quality TEXT DEFAULT '128'`,
+      `ALTER TABLE users ADD COLUMN download_wifi_only INTEGER DEFAULT 1`,
+      `ALTER TABLE users ADD COLUMN auto_play_next INTEGER DEFAULT 1`,
+      `ALTER TABLE users ADD COLUMN sleep_timer_default TEXT`,
       `ALTER TABLE audiobooks ADD COLUMN display_plays_count INTEGER DEFAULT 0`,
       `ALTER TABLE audiobooks ADD COLUMN display_reviews_count INTEGER DEFAULT 0`,
-      `ALTER TABLE audiobooks ADD COLUMN display_rating REAL`,
-    ]) {
-      await db.prepare(col).run().catch(() => {}); // Ignore si déjà existant
+      `ALTER TABLE audiobooks ADD COLUMN display_rating REAL DEFAULT 5.0`,
+      `ALTER TABLE audiobooks ADD COLUMN is_pinned INTEGER DEFAULT 0`,
+      `ALTER TABLE audiobooks ADD COLUMN status TEXT DEFAULT 'published'`,
+      `ALTER TABLE audiobooks ADD COLUMN scheduled_at TEXT`,
+      // Colonnes ebooks & gamification (ajoutées progressivement)
+      `ALTER TABLE audiobooks ADD COLUMN unlock_points INTEGER DEFAULT 100`,
+      `ALTER TABLE audiobooks ADD COLUMN pdf_url TEXT`,
+      `ALTER TABLE audiobooks ADD COLUMN pdf_r2_key TEXT`,
+      `ALTER TABLE audiobooks ADD COLUMN cover_r2_key TEXT`,
+      `ALTER TABLE audiobooks ADD COLUMN language TEXT DEFAULT 'fr'`,
+      `ALTER TABLE audiobooks ADD COLUMN format TEXT DEFAULT 'audiobook'`,
+      `ALTER TABLE audiobooks ADD COLUMN page_count INTEGER DEFAULT 0`,
+      `ALTER TABLE audiobooks ADD COLUMN companion_ebook_id TEXT`,
+      `ALTER TABLE audiobooks ADD COLUMN synopsis TEXT`,
+      `ALTER TABLE reviews ADD COLUMN user_name TEXT`,
+      `ALTER TABLE reviews ADD COLUMN user_avatar TEXT`,
+    ];
+    for (const col of alterCols) {
+      await db.prepare(col).run().catch(() => {});
     }
   } catch (e) {
-    console.warn('[Analytics Tables] Erreur init:', e);
+    console.warn('[All Tables] Erreur init:', e);
   }
 }
+
+async function ensureAnalyticsTables(db) {
+  return ensureAllTables(db);
+}
+

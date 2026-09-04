@@ -77,11 +77,10 @@ export async function encodeAudioBufferToCompressedBlob(audioBuffer, { bitrate =
         onProgress(currentP);
       }, 150);
 
-      // On laisse le buffer s'écouler ou on arrête à la fin de la lecture
+      // On laisse le buffer s'écouler ou on arrête à la fin de la lecture réelle
       await new Promise((r) => {
         sourceNode.onended = r;
-        // Si le buffer est long, on coupe au temps de lecture réel ou avec un timer de secours
-        setTimeout(r, Math.min(duration * 1000 + 300, 15000));
+        setTimeout(r, (duration * 1000) + 1000);
       });
 
       clearInterval(progressInterval);

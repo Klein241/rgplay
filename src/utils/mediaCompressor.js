@@ -88,85 +88,68 @@ export async function compressImage(file, { maxWidth = 1200, maxHeight = 1200, q
   });
 }
 
-// ── Compression & Optimisation Audio Haute Fidélité ──────────────────────────
+// ── Détection & Optimisation Audio Haute Fidélité (Sans troncature) ─────────
 export async function compressAndOptimizeAudio(file, { onProgress = () => {} } = {}) {
-  if (!file || (!file.type.startsWith('audio/') && !file.name.match(/\.(mp3|wav|ogg|m4a|aac|flac)$/i))) {
+  if (!file || (!file.type.startsWith('audio/') && !file.name.match(/\.(mp3|wav|ogg|m4a|aac|flac|webm)$/i))) {
     return { file, originalSize: file?.size || 0, compressedSize: file?.size || 0, ratio: 0, duration: 0 };
   }
 
   const originalSize = file.size;
 
   try {
-    onProgress(10);
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const arrayBuffer = await file.arrayBuffer();
+    onProgress(20);
+    let duration = 0;
+    let sampleRate = 44100;
+    let channels = 2;
 
-    onProgress(30);
-    const decodedBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-    const duration = decodedBuffer.duration;
-    const channels = decodedBuffer.numberOfChannels;
-    const sampleRate = decodedBuffer.sampleRate;
-
-    onProgress(50);
-    // Traitement DSP d'optimisation (Normalisation sans écrêtage & Soft Limiter)
-    const offlineCtx = new OfflineAudioContext(channels, decodedBuffer.length, sampleRate);
-    const source = offlineCtx.createBufferSource();
-    source.buffer = decodedBuffer;
-
-    // Normaliseur dynamique / Compresseur transparent
-    const compressor = offlineCtx.createDynamicsCompressor();
-    compressor.threshold.value = -12;
-    compressor.knee.value = 8;
-    compressor.ratio.value = 2.5;
-    compressor.attack.value = 0.003;
-    compressor.release.value = 0.08;
-
-    source.connect(compressor);
-    compressor.connect(offlineCtx.destination);
-    source.start();
-
-    onProgress(70);
-    const renderedBuffer = await offlineCtx.startRendering();
-
-    // ── Encodage et Réduction de Poids Efficace
-    onProgress(85);
-    const encoded = await encodeAudioBufferToCompressedBlob(renderedBuffer, {
-      bitrate: 64, // 64 kbps (Haute intelligibilité vocale & gain de poids massif)
-      onProgress: (p) => onProgress(85 + Math.round(p * 0.14)),
-    });
-
-    try { audioCtx.close(); } catch (_) {}
-
-    let finalFile = file;
-    let finalSize = originalSize;
-    let ratio = 0;
-
-    if (encoded && encoded.blob && encoded.blob.size > 0 && encoded.blob.size < originalSize) {
-      const baseName = file.name.replace(/\.[^/.]+$/, '');
-      finalFile = new File([encoded.blob], `${baseName}.${encoded.ext}`, { type: encoded.mime });
-      finalSize = encoded.blob.size;
-      ratio = Math.round(((originalSize - finalSize) / originalSize) * 100);
-    } else {
-      // Si le fichier d'origine est déjà plus compact que le format re-encodé,
-      // on conserve le fichier d'origine tout en enregistrant le mastering DSP
-      finalFile = file;
-      finalSize = originalSize;
-      ratio = 0;
+    // 1. Détection ultra-rapide de la durée exacte via AudioContext
+    try {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const arrayBuffer = await file.arrayBuffer();
+      onProgress(50);
+      const decodedBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+      duration = decodedBuffer.duration;
+      sampleRate = decodedBuffer.sampleRate;
+      channels = decodedBuffer.numberOfChannels;
+      try { audioCtx.close(); } catch (_) {}
+    } catch (decodeErr) {
+      // Fallback via balise HTML5 Audio si decodeAudioData échoue sur certains codecs
+      onProgress(60);
+      try {
+        const tempUrl = URL.createObjectURL(file);
+        const tempAudio = new Audio(tempUrl);
+        await new Promise((resolve) => {
+          tempAudio.onloadedmetadata = () => {
+            if (tempAudio.duration && isFinite(tempAudio.duration)) {
+              duration = tempAudio.duration;
+            }
+            resolve();
+          };
+          tempAudio.onerror = () => resolve();
+          setTimeout(resolve, 2000);
+        });
+        URL.revokeObjectURL(tempUrl);
+      } catch (_) {}
     }
 
     onProgress(100);
+
+    // 2. CONSERVATION INTÉGRALE DU FICHIER :
+    // On conserve le fichier original à 100% de sa durée pour éliminer tout risque
+    // de coupure, de perte de pistes ou de troncature involontaire.
     return {
-      file: finalFile,
+      file,
       originalSize,
-      compressedSize: finalSize,
-      ratio,
+      compressedSize: originalSize,
+      ratio: 0,
       duration,
       sampleRate,
       channels,
       isOptimized: true,
     };
   } catch (err) {
-    console.warn('[AudioCompressor] Échec compression audio, conservation du fichier original:', err);
+    console.warn('[AudioCompressor] Détection durée échouée, conservation du fichier original:', err);
     return { file, originalSize, compressedSize: originalSize, ratio: 0, duration: 0, isOptimized: false };
   }
 }
+

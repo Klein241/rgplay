@@ -1,505 +1,465 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
-  Star, Play, Headphones, Clock,
-  ChevronRight, Flame, Compass, Search,
-  Radio, Music, GraduationCap, BookOpen, Sparkles
+  Search, Sparkles, ChevronRight, Play, Headphones,
+  Plus, X, Flame, Star
 } from 'lucide-react';
 import { apiClient } from '../services/api';
 import { AudiobookCard } from '../components/AudiobookCard';
+import { AdBanner } from '../components/AdBanner';
 import { useAudio } from '../context/AudioContext';
+import { useXp } from '../context/XpContext';
 
-const CONTENT_TYPES = [
-  { id: 'all', label: 'Tous les Univers', icon: Sparkles, color: 'from-purple-600 to-pink-600' },
-  { id: 'audiobook', label: 'Livres Audio', icon: BookOpen, color: 'from-purple-600 to-indigo-600' },
-  { id: 'podcast', label: 'Podcasts', icon: Radio, color: 'from-amber-500 to-orange-600' },
-  { id: 'music', label: 'Musique & Lofi', icon: Music, color: 'from-emerald-500 to-teal-600' },
-  { id: 'masterclass', label: 'Masterclasses', icon: GraduationCap, color: 'from-cyan-500 to-blue-600' },
+// ─── Options de Filtrage intégrées dans la Bulle (+) ────────────────────────
+const MAIN_FILTERS = [
+  { id: 'all',    label: 'TOUS LES AUDIOS', emoji: '🌟', color: 'from-purple-600 via-fuchsia-600 to-pink-600' },
+  { id: 'new',    label: 'NOUVEAUTÉS',      emoji: '🔥', color: 'from-amber-500 via-rose-500 to-pink-600' },
+  { id: 'points', label: 'POINTS RG ⭐',    emoji: '⭐', color: 'from-amber-400 to-orange-500' },
+];
+
+const AUDIO_FORMATS = [
+  { id: 'audiobook',  label: 'Livres Audio', emoji: '📚', color: 'from-violet-600 to-purple-600', matchType: 'audiobook' },
+  { id: 'podcast',    label: 'Podcasts',     emoji: '🎙️', color: 'from-rose-500 to-pink-600',    matchType: 'podcast' },
+  { id: 'music',      label: 'Musiques',     emoji: '🎵', color: 'from-cyan-500 to-blue-600',     matchType: 'music' },
+  { id: 'masterclass',label: 'Masterclass',  emoji: '🎓', color: 'from-indigo-600 to-blue-700',   matchType: 'masterclass' },
 ];
 
 export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
-  const [selectedType, setSelectedType] = useState('all');
-  const [categories, setCategories] = useState(() => [
-    { id: 'all', name: 'Tous les genres', slug: 'all', icon: 'Sparkles', color: '#9d4edd' },
-    { id: 'cat-1', name: 'Business & Finance', slug: 'business-finance', icon: 'TrendingUp', color: '#9d4edd' },
-    { id: 'cat-2', name: 'Développement Personnel', slug: 'dev-perso', icon: 'Sparkles', color: '#c77dff' },
-    { id: 'cat-3', name: 'Intelligence Artificielle & Tech', slug: 'tech-ia', icon: 'Cpu', color: '#3a86ff' },
-    { id: 'cat-4', name: 'Psychologie & Mental', slug: 'psychologie', icon: 'Brain', color: '#ff006e' },
-    { id: 'cat-5', name: 'Histoire & Stratégie', slug: 'strategie', icon: 'Shield', color: '#fb5607' },
-    { id: 'cat-6', name: 'Romans & Fiction', slug: 'fiction', icon: 'BookOpen', color: '#ffbe0b' },
-  ]);
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [activeFilter, setActiveFilter] = useState('all');
+  const [isBubbleOpen, setIsBubbleOpen] = useState(false);
   const [audiobooks, setAudiobooks] = useState(() => {
     try {
       const cached = localStorage.getItem('rg_cached_books');
-      const delCached = localStorage.getItem('rg_deleted_books');
-      const deletedIds = new Set(delCached ? JSON.parse(delCached) : []);
       if (cached) {
         const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.filter(b => !deletedIds.has(b.id));
-        }
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (_) {}
     return [];
   });
-  const [featuredBook, setFeaturedBook] = useState(() => {
+  const [localSearch, setLocalSearch] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const bubbleRef = useRef(null);
+
+  const { playPreview } = useAudio();
+  const { points } = useXp();
+
+  const loadData = async () => {
     try {
-      const cached = localStorage.getItem('rg_cached_books');
-      const delCached = localStorage.getItem('rg_deleted_books');
-      const deletedIds = new Set(delCached ? JSON.parse(delCached) : []);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const valid = parsed.filter(b => !deletedIds.has(b.id));
-          return valid.find(b => Boolean(b.is_featured)) || valid[0] || null;
-        }
-      }
-    } catch (_) {}
-    return null;
-  });
-  const [isLoading, setIsLoading] = useState(() => {
-    try {
-      const cached = localStorage.getItem('rg_cached_books');
-      return !cached || JSON.parse(cached).length === 0;
-    } catch (_) {
-      return true;
-    }
-  });
-
-  const [aiSearchReason, setAiSearchReason] = useState('');
-  const [isAiSearching, setIsAiSearching] = useState(false);
-
-  const { playPreview, playBook } = useAudio();
-
-  const loadData = async (showLoading = false) => {
-    if (showLoading) setIsLoading(true);
-    try {
-      const [cats, books] = await Promise.all([
-        apiClient.getCategories(),
-        apiClient.getAudiobooks({
-          category: selectedCategory,
-          search: searchQuery,
-          type: selectedType
-        }),
-      ]);
-      if (cats && cats.length > 0) setCategories(cats);
-      
-      let finalBooks = Array.isArray(books) ? books : [];
-
-      // Recherche sémantique IA si la requête contient du texte
-      if (searchQuery && searchQuery.trim().length >= 4) {
-        try {
-          setIsAiSearching(true);
-          const aiRes = await apiClient.semanticSearch(searchQuery);
-          if (aiRes && aiRes.success && Array.isArray(aiRes.matched_ids) && aiRes.matched_ids.length > 0) {
-            setAiSearchReason(aiRes.reason || 'Recommandation IA personnalisée pour votre intention');
-            const allAvailable = await apiClient.getAudiobooks({ category: 'all', type: 'all' });
-            const matchedBooks = [];
-            const otherBooks = [];
-            const matchedSet = new Set(aiRes.matched_ids);
-
-            for (const id of aiRes.matched_ids) {
-              const found = (allAvailable || []).find(b => b.id === id);
-              if (found && !matchedBooks.some(m => m.id === found.id)) {
-                matchedBooks.push(found);
-              }
-            }
-            for (const b of finalBooks) {
-              if (!matchedSet.has(b.id)) otherBooks.push(b);
-            }
-            if (matchedBooks.length > 0) {
-              finalBooks = [...matchedBooks, ...otherBooks];
-            }
-          } else {
-            setAiSearchReason('');
-          }
-        } catch (_) {
-          setAiSearchReason('');
-        } finally {
-          setIsAiSearching(false);
-        }
-      } else {
-        setAiSearchReason('');
-      }
-
-      if (finalBooks && Array.isArray(finalBooks)) {
-        setAudiobooks(finalBooks);
-        if (finalBooks.length > 0) {
-          const featured = finalBooks.find(b => Boolean(b.is_featured)) || finalBooks[0];
-          setFeaturedBook(featured);
-        } else {
-          setFeaturedBook(null);
-        }
-      }
-    } catch (e) {
-      console.error('Erreur chargement données:', e);
-    } finally {
-      setIsLoading(false);
-    }
+      const books = await apiClient.getAudiobooks({ category: 'all' });
+      if (Array.isArray(books) && books.length > 0) setAudiobooks(books);
+    } catch (e) { console.error('Erreur chargement:', e); }
   };
 
   useEffect(() => {
     loadData();
-    const handleRefresh = () => loadData();
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') handleRefresh();
-    };
-    // Retrait instantané de l'état local (optimiste) + rechargement serveur
-    const handleBookDeleted = (e) => {
-      const deletedId = e.detail?.id;
-      if (deletedId) {
-        setAudiobooks(prev => prev.filter(b => b.id !== deletedId));
-        setFeaturedBook(prev => (prev?.id === deletedId ? null : prev));
-      }
-      loadData();
-    };
-    window.addEventListener('rg:book-created', handleRefresh);
-    window.addEventListener('rg:book-deleted', handleBookDeleted);
-    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('rg:book-created', loadData);
+    window.addEventListener('rg:book-deleted', loadData);
     return () => {
-      window.removeEventListener('rg:book-created', handleRefresh);
-      window.removeEventListener('rg:book-deleted', handleBookDeleted);
-      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('rg:book-created', loadData);
+      window.removeEventListener('rg:book-deleted', loadData);
     };
-  }, [selectedType, selectedCategory, searchQuery]);
+  }, []);
 
-  const pinnedBooks = audiobooks.filter(b => Boolean(b.is_pinned));
-  const trendingBooks = audiobooks.slice(0, 6);
-  const podcasts = audiobooks.filter(b => b.content_type === 'podcast');
-  const musicTracks = audiobooks.filter(b => b.content_type === 'music');
-  const masterclasses = audiobooks.filter(b => b.content_type === 'masterclass');
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (bubbleRef.current && !bubbleRef.current.contains(e.target)) setIsBubbleOpen(false);
+    };
+    if (isBubbleOpen) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isBubbleOpen]);
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // DÉCOUVRIR = 100% AUDIO. AUCUN livre PDF ni eBook ne doit y figurer !
+  // ════════════════════════════════════════════════════════════════════════════
+  const isPureAudio = (b) => {
+    if (!b) return false;
+    // Exclure formellement tout format ou type explicitement écrit (epub, ebook, pdf sans pistes audio)
+    if (b.format === 'epub' || b.content_type === 'epub' || b.content_type === 'ebook' || b.is_ebook) return false;
+    // Format ou type audio explicite
+    if (b.format === 'audiobook' || b.content_type === 'audiobook' || b.content_type === 'podcast' || b.content_type === 'music' || b.content_type === 'masterclass') return true;
+    // Possède des chapitres audio, un audio_url ou une preview_url
+    if ((Array.isArray(b.chapters) && b.chapters.length > 0) || b.audio_url || b.preview_url) return true;
+    return false;
+  };
+
+  // Catalogue exclusivement audio
+  const audioOnlyCatalog = audiobooks.filter(isPureAudio);
+
+  // Filtrage selon la sélection Bulle (+) ou la recherche
+  const filteredBooks = audioOnlyCatalog.filter((b) => {
+    const q = (searchQuery || localSearch).toLowerCase().trim();
+    if (q) {
+      const match =
+        (b.title && b.title.toLowerCase().includes(q)) ||
+        (b.author && b.author.toLowerCase().includes(q)) ||
+        (b.description && b.description.toLowerCase().includes(q));
+      if (!match) return false;
+    }
+
+    if (activeFilter === 'all') return true;
+    if (activeFilter === 'new') return b.is_featured || b.is_pinned || b.price === 0;
+    if (activeFilter === 'points') return (b.unlock_points && Number(b.unlock_points) > 0) || b.price === 0;
+
+    const formatMatch = AUDIO_FORMATS.find(f => f.id === activeFilter);
+    if (formatMatch) {
+      return b.content_type === formatMatch.matchType || (formatMatch.id === 'audiobook' && b.format === 'audiobook');
+    }
+
+    return true;
+  });
+
+  const featuredList = audioOnlyCatalog.filter(b => b.is_featured || b.is_pinned).slice(0, 4);
+  const currentFeatured = featuredList[0] || audioOnlyCatalog[0] || null;
+  const newBooks = audioOnlyCatalog.slice(0, 6);
+  const recommendations = audioOnlyCatalog.slice(2, 6);
+
+  // Info sur le filtre actif
+  const currentFilterInfo =
+    MAIN_FILTERS.find(f => f.id === activeFilter) ||
+    AUDIO_FORMATS.find(f => f.id === activeFilter) ||
+    MAIN_FILTERS[0];
+
+  // Gestion du clic : TOUJOURS forcer le lecteur audio car Découvrir est 100% audio
+  const handleSelectAudio = (book) => {
+    onSelectBook(book, { forceAudio: true });
+  };
 
   return (
-    <div className="pb-28 md:pb-10 animate-fadeIn max-w-7xl mx-auto" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+    <div className="relative space-y-6 pb-36 sm:pb-40 animate-fadeIn select-none">
 
-      {/* ── 1. Sélecteur des Types de Contenu ── */}
-      <section className="sticky top-16 z-20 -mx-4 px-4 sm:mx-0 sm:px-0 py-3">
-        <div
-          className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 px-1"
-          style={{
-            background: 'rgba(5, 3, 17, 0.80)',
-            backdropFilter: 'blur(28px) saturate(200%)',
-            WebkitBackdropFilter: 'blur(28px) saturate(200%)',
-            border: '1px solid rgba(168, 85, 247, 0.12)',
-            borderRadius: '1.5rem',
-            boxShadow: '0 4px 24px rgba(0,0,0,0.40), 0 1px 0 rgba(255,255,255,0.04) inset',
-          }}
-        >
-          {CONTENT_TYPES.map((type) => {
-            const Icon = type.icon;
-            const isSelected = selectedType === type.id;
-            return (
+      {/* ── EN-TÊTE DÉCOUVRIR AVEC LA BULLE (+) HÉROS (identique à l'Agent SKY) ── */}
+      <div className="flex items-center justify-between pt-1 gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-black tracking-widest text-white uppercase font-heading">
+              DÉCOUVRIR
+            </h1>
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-purple-500/15 border border-purple-400/30 text-[10px] font-extrabold uppercase text-purple-300">
+              <Headphones className="w-3 h-3 text-purple-400" /> 100% Audio
+            </span>
+          </div>
+
+          {/* Badge du filtre actif */}
+          {activeFilter !== 'all' ? (
+            <div className="flex items-center gap-1.5 mt-1.5 animate-fadeIn">
+              <span className="text-xs font-bold text-purple-200 flex items-center gap-1 bg-purple-900/40 px-2.5 py-1 rounded-full border border-purple-500/30">
+                <span>{currentFilterInfo.emoji}</span>
+                <span className="font-extrabold text-white">{currentFilterInfo.label}</span>
+                <span className="text-purple-400 font-mono">({filteredBooks.length})</span>
+              </span>
               <button
-                key={type.id}
-                onClick={() => {
-                  setSelectedType(type.id);
-                  setSelectedCategory('all');
-                }}
-                className="flex-shrink-0 flex items-center gap-2 font-bold transition-all duration-300"
-                style={{
-                  padding: '0.65rem 1.1rem',
-                  borderRadius: '1.25rem',
-                  fontSize: '0.8125rem',
-                  background: isSelected
-                    ? `linear-gradient(135deg, ${type.color.includes('purple') ? '#6d28d9, #9333ea' : type.color.includes('amber') ? '#b45309, #d97706' : type.color.includes('emerald') ? '#065f46, #059669' : '#0e7490, #0284c7'})`
-                    : 'rgba(255,255,255,0.04)',
-                  border: `1px solid ${isSelected ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.06)'}`,
-                  color: isSelected ? '#ffffff' : 'rgba(139,135,168,0.9)',
-                  boxShadow: isSelected
-                    ? '0 4px 20px rgba(0,0,0,0.40), 0 1px 0 rgba(255,255,255,0.10) inset'
-                    : 'none',
-                  transform: isSelected ? 'scale(1.04)' : 'scale(1)',
-                }}
+                onClick={() => setActiveFilter('all')}
+                className="p-1 rounded-full bg-white/10 hover:bg-white/20 text-purple-200 transition-colors cursor-pointer"
+                title="Tout réafficher"
               >
-                <Icon size={15} style={{ strokeWidth: isSelected ? 2.2 : 1.8 }} />
-                <span>{type.label}</span>
+                <X className="w-3.5 h-3.5" />
               </button>
-            );
-          })}
+            </div>
+          ) : (
+            <p className="text-[11px] sm:text-xs text-[#a78bfa] mt-1 font-medium">
+              Explorez nos livres audio, podcasts et narrations immersives
+            </p>
+          )}
         </div>
-      </section>
 
-      {/* ── 2. Hero Featured PREMIUM ── */}
-      {!searchQuery && featuredBook && (
-        <section>
-          <div
-            className="relative rounded-3xl overflow-hidden"
-            style={{
-              border: '1px solid rgba(168, 85, 247, 0.30)',
-              padding: 'clamp(1.75rem, 5vw, 3rem)',
-              boxShadow: '0 32px 80px rgba(0,0,0,0.60), 0 0 0 1px rgba(168,85,247,0.10)',
-            }}
+        {/* Actions Droite : Recherche & BULLE (+) GÉANTE HERO (comme Agent SKY) */}
+        <div className="flex items-center gap-2.5 sm:gap-3 flex-shrink-0" ref={bubbleRef}>
+          {/* Bouton recherche */}
+          <button
+            type="button"
+            onClick={() => setIsSearchOpen(prev => !prev)}
+            className="p-2.5 rounded-full bg-white/5 hover:bg-white/10 text-[#c4b0e8] hover:text-white transition-colors cursor-pointer border border-white/10"
+            title="Rechercher un audio"
           >
-            {/* Cover blur background — 35% opacity */}
-            <div
-              className="absolute inset-0 scale-110 pointer-events-none"
+            <Search className="w-5 h-5" />
+          </button>
+
+          {/* ── LA BULLE (+) GÉANTE HERO (style et taille exacte Agent SKY) ── */}
+          <div className="relative">
+            <button
+              onClick={() => setIsBubbleOpen(prev => !prev)}
+              className="group relative w-13 h-13 sm:w-14 sm:h-14 rounded-full p-0.5 flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95 cursor-pointer shadow-2xl"
               style={{
-                backgroundImage: `url(${featuredBook.cover_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80'})`,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-                filter: 'blur(40px) saturate(130%)',
-                opacity: 0.35,
+                background: 'linear-gradient(135deg, #c084fc, #9333ea, #3b82f6)',
+                boxShadow: '0 0 25px rgba(168, 85, 247, 0.65), 0 8px 20px rgba(0,0,0,0.6)',
               }}
-            />
-            {/* Gradient directionnel fort */}
-            <div
-              className="absolute inset-0 pointer-events-none"
-              style={{ background: 'linear-gradient(115deg, rgba(5,3,17,0.98) 35%, rgba(5,3,17,0.72) 65%, rgba(5,3,17,0.45) 100%)' }}
-            />
-            {/* Orb accent */}
-            <div
-              className="absolute -top-20 -right-20 w-72 h-72 rounded-full pointer-events-none"
-              style={{ background: 'radial-gradient(circle, rgba(168,85,247,0.22) 0%, transparent 70%)', filter: 'blur(30px)' }}
-            />
-
-            <div className="relative flex flex-col-reverse lg:flex-row items-center gap-8 lg:gap-12">
-              <div className="flex-1 space-y-5">
-                <div
-                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold"
-                  style={{ background: 'rgba(244,63,139,0.14)', border: '1px solid rgba(244,63,139,0.30)', color: '#fb7db8', boxShadow: '0 0 16px rgba(244,63,139,0.18)' }}
-                >
-                  <Flame className="w-3.5 h-3.5 fill-pink-400 text-pink-400" />
-                  {featuredBook.content_type === 'podcast' ? '🎙️ Podcast Tendance' :
-                   featuredBook.content_type === 'music' ? '🎵 Musique Tendance' :
-                   featuredBook.content_type === 'masterclass' ? '🎓 Masterclass du Moment' :
-                   '🔥 Tendance du Moment'}
-                </div>
-
-                <h1
-                  className="text-2xl sm:text-4xl lg:text-5xl font-black leading-tight"
-                  style={{
-                    background: 'linear-gradient(135deg, #F5F3FF 0%, #E9D5FF 50%, #D08FFF 100%)',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    backgroundClip: 'text',
-                  }}
-                >
-                  {featuredBook.title}
-                </h1>
-
-                <p className="text-sm sm:text-base leading-relaxed max-w-2xl line-clamp-2" style={{ color: 'rgba(196,191,224,0.90)' }}>
-                  {featuredBook.description}
-                </p>
-
-                <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm">
-                  <span style={{ color: '#d08fff', fontWeight: 700 }}>
-                    {featuredBook.content_type === 'podcast' ? 'Hôte : ' :
-                     featuredBook.content_type === 'music' ? 'Artiste : ' : 'Par '}
-                    {featuredBook.author}
-                  </span>
-                  <span style={{ color: 'rgba(168,85,247,0.35)' }}>•</span>
-                  <span className="flex items-center gap-1" style={{ color: '#fbbf24', fontWeight: 700 }}>
-                    <Star className="w-3.5 h-3.5 fill-amber-400" />
-                    {featuredBook.rating} ({(featuredBook.rating_count || 100).toLocaleString('fr-FR')} avis)
-                  </span>
-                  <span style={{ color: 'rgba(168,85,247,0.35)' }}>•</span>
-                  <span className="flex items-center gap-1" style={{ color: 'rgba(139,135,168,0.9)' }}>
-                    <Clock className="w-3.5 h-3.5" />
-                    {Math.floor((featuredBook.duration_seconds || 3600) / 3600)}h d'écoute
-                  </span>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-3 pt-2">
-                  <button onClick={() => playPreview(featuredBook)} className="btn-gradient py-3.5 px-7 rounded-2xl text-sm font-bold flex items-center gap-2.5">
-                    <Headphones className="w-4 h-4" />
-                    {featuredBook.content_type === 'music' ? 'Écouter la Piste' : 'Écouter l\'Extrait'}
-                  </button>
-                  <button onClick={() => onSelectBook(featuredBook)} className="rg-btn-ghost py-3.5 px-6 rounded-2xl text-sm">
-                    {featuredBook.price === 0 || featuredBook.is_free_for_members
-                      ? 'Détails (Gratuit)'
-                      : `Détails — ${(featuredBook.discount_price || featuredBook.price)?.toLocaleString()} FCFA`}
-                  </button>
-                </div>
+              title={isBubbleOpen ? 'Fermer le menu' : 'Filtres et formats (+)'}
+            >
+              <div className="w-full h-full rounded-full bg-[#180b30] flex items-center justify-center overflow-hidden border border-white/25">
+                {isBubbleOpen ? (
+                  <X className="w-6 h-6 text-white transition-transform" />
+                ) : activeFilter !== 'all' ? (
+                  <span className="text-xl leading-none">{currentFilterInfo.emoji}</span>
+                ) : (
+                  <Plus className="w-6 h-6 text-white stroke-[2.5]" />
+                )}
               </div>
 
-              {/* Cover premium avec halo */}
-              <div
-                onClick={() => onSelectBook(featuredBook)}
-                className="relative flex-shrink-0 cursor-pointer group"
-                style={{ width: 'clamp(160px, 22vw, 240px)', aspectRatio: '1' }}
-              >
-                <div
-                  className="absolute -inset-4 rounded-3xl pointer-events-none"
-                  style={{ background: 'radial-gradient(circle, rgba(168,85,247,0.38) 0%, transparent 70%)', filter: 'blur(22px)' }}
+              {/* Glowing active pulse ring */}
+              <span className="absolute -inset-1 rounded-full border-2 border-purple-400/60 animate-ping pointer-events-none" />
+            </button>
+
+            {/* Menu Déroulant Bulle (+) */}
+            {isBubbleOpen && (
+              <div className="absolute right-0 top-16 z-50 w-72 sm:w-80 p-4 rounded-3xl bg-[#130726]/95 border border-purple-500/40 shadow-2xl backdrop-blur-2xl animate-slideDown space-y-3.5">
+                {/* 1. FILTRES PRINCIPAUX DÉPLACÉS DANS LA BULLE (+) */}
+                <div>
+                  <span className="text-[10px] uppercase font-black tracking-wider text-purple-300 px-1 mb-2 block">
+                    ⚡ Filtres Principaux
+                  </span>
+                  <div className="grid grid-cols-1 gap-1.5">
+                    {MAIN_FILTERS.map((f) => {
+                      const isActive = activeFilter === f.id;
+                      return (
+                        <button
+                          key={f.id}
+                          onClick={() => {
+                            setActiveFilter(f.id);
+                            setIsBubbleOpen(false);
+                          }}
+                          className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl font-bold text-xs sm:text-sm transition-all cursor-pointer border ${
+                            isActive
+                              ? `bg-gradient-to-r ${f.color} text-white border-white/40 shadow-lg scale-[1.02]`
+                              : 'bg-white/5 hover:bg-white/10 text-purple-100 border-white/10'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-base">{f.emoji}</span>
+                            <span>{f.label}</span>
+                          </div>
+                          {isActive && <span className="w-2 h-2 rounded-full bg-white animate-pulse" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 2. FORMATS & GENRES AUDIO EXCLUSIFS */}
+                <div className="pt-2 border-t border-white/10">
+                  <span className="text-[10px] uppercase font-black tracking-wider text-purple-300 px-1 mb-2 block">
+                    🎧 Formats & Genres Audio
+                  </span>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {AUDIO_FORMATS.map((f) => {
+                      const isActive = activeFilter === f.id;
+                      return (
+                        <button
+                          key={f.id}
+                          onClick={() => {
+                            setActiveFilter(f.id);
+                            setIsBubbleOpen(false);
+                          }}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-xs transition-all cursor-pointer border ${
+                            isActive
+                              ? `bg-gradient-to-r ${f.color} text-white border-white/40 shadow-md scale-[1.02]`
+                              : 'bg-white/5 hover:bg-white/10 text-purple-200 border-white/10'
+                          }`}
+                        >
+                          <span className="text-base">{f.emoji}</span>
+                          <span className="truncate">{f.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── BARRE DE RECHERCHE ── */}
+      {isSearchOpen && (
+        <div className="relative animate-slideDown">
+          <input
+            type="text"
+            value={localSearch}
+            onChange={(e) => setLocalSearch(e.target.value)}
+            placeholder="Rechercher un livre audio, podcast, auteur..."
+            className="w-full bg-[#200e39]/90 border border-purple-500/40 rounded-2xl px-4 py-3 pl-11 text-sm text-white placeholder-[#8b75b2] focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-500/20 shadow-xl"
+            autoFocus
+          />
+          <Search className="w-5 h-5 text-[#c4b0e8] absolute left-3.5 top-3.5" />
+        </div>
+      )}
+
+      {/* ── CONTENU DU FLUX AUDIO ── */}
+      {activeFilter !== 'all' ? (
+        /* VUE FILTRÉE */
+        <div className="space-y-5 animate-fadeIn">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-4 rounded-2xl bg-purple-950/40 border border-purple-500/30">
+            <div>
+              <h2 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+                <span>{currentFilterInfo.emoji}</span>
+                <span>{currentFilterInfo.label}</span>
+              </h2>
+              <p className="text-xs text-purple-300/80 mt-0.5">
+                {activeFilter === 'points'
+                  ? `Votre solde : ${points} Points. Débloquez sans carte bancaire.`
+                  : `${filteredBooks.length} titres audio disponibles`}
+              </p>
+            </div>
+            <button
+              onClick={() => setActiveFilter('all')}
+              className="text-xs font-bold text-purple-300 hover:text-white px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all cursor-pointer"
+            >
+              Afficher tous les audios
+            </button>
+          </div>
+
+          {filteredBooks.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
+              {filteredBooks.map((book) => (
+                <AudiobookCard
+                  key={`filtered-${book.id}`}
+                  book={book}
+                  onSelect={handleSelectAudio}
+                  layout="square"
                 />
-                <div
-                  className="relative w-full h-full rounded-3xl overflow-hidden"
-                  style={{ border: '2px solid rgba(255,255,255,0.18)', boxShadow: '0 24px 60px rgba(0,0,0,0.70), 0 8px 24px rgba(168,85,247,0.28)' }}
-                >
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
+              <span className="text-6xl">{currentFilterInfo.emoji}</span>
+              <p className="text-[#8b75b2] text-sm font-medium">
+                Aucun contenu audio trouvé pour ce filtre.<br />
+                Modifiez vos critères ou réinitialisez le filtre.
+              </p>
+            </div>
+          )}
+        </div>
+
+      ) : (
+        /* VUE PRINCIPALE (TOUS LES AUDIOS) */
+        <div className="space-y-8 animate-fadeIn">
+
+          {/* 1. HERO ALBUM VEDETTE */}
+          {currentFeatured && (
+            <div
+              onClick={() => handleSelectAudio(currentFeatured)}
+              className="relative rounded-3xl overflow-hidden cursor-pointer group shadow-2xl transition-all duration-500 hover:shadow-purple-900/40"
+              style={{
+                background: 'linear-gradient(135deg, #2d1354 0%, #16082c 60%, #0c0418 100%)',
+                border: '1px solid rgba(168,85,247,0.30)',
+              }}
+            >
+              <div className="relative p-5 sm:p-7 flex flex-col sm:flex-row items-center gap-5 sm:gap-7">
+                <div className="relative w-36 h-36 sm:w-44 sm:h-44 rounded-2xl overflow-hidden flex-shrink-0 shadow-2xl border border-purple-400/40 group-hover:scale-105 transition-transform duration-500">
                   <img
-                    src={featuredBook.cover_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80'}
-                    alt={featuredBook.title}
-                    onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80'; }}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    style={{ filter: 'brightness(0.95) saturate(1.1)' }}
+                    src={currentFeatured.cover_url || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80'}
+                    alt={currentFeatured.title}
+                    className="w-full h-full object-cover"
                   />
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                    style={{ background: 'rgba(5,3,17,0.55)' }}>
-                    <div className="w-16 h-16 rounded-full flex items-center justify-center"
-                      style={{ background: 'linear-gradient(135deg,#7c3aed,#a855f7,#db2777)', boxShadow: '0 0 30px rgba(168,85,247,0.70)', border: '2px solid rgba(255,255,255,0.20)' }}>
-                      <Play className="w-7 h-7 fill-white ml-1 text-white" />
-                    </div>
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                  <div className="absolute bottom-2.5 right-2.5 w-10 h-10 rounded-full bg-white/20 backdrop-blur-md border border-white/40 flex items-center justify-center text-white">
+                    <Play className="w-5 h-5 ml-0.5 fill-white" />
+                  </div>
+                </div>
+
+                <div className="flex-1 text-center sm:text-left min-w-0">
+                  <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-400/30">
+                    ⭐ Vedette de la semaine
+                  </span>
+                  <h2 className="text-lg sm:text-2xl font-black text-white mt-2 truncate font-heading group-hover:text-purple-200 transition-colors">
+                    {currentFeatured.title}
+                  </h2>
+                  <p className="text-xs sm:text-sm text-[#c4b0e8] mt-1 font-medium">
+                    {currentFeatured.author || 'Auteur vérifié'}
+                  </p>
+                  <p className="text-xs text-[#8b75b2] mt-2 line-clamp-2 max-w-xl">
+                    {currentFeatured.description || 'Une expérience sonore immersive et captivante.'}
+                  </p>
+
+                  <div className="flex items-center justify-center sm:justify-start gap-3 mt-4">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        playPreview(currentFeatured);
+                      }}
+                      className="btn-gradient px-5 py-2.5 rounded-2xl text-xs font-bold text-white flex items-center gap-2 shadow-lg shadow-purple-600/30 hover:scale-105 transition-all cursor-pointer"
+                    >
+                      <Play className="w-3.5 h-3.5 fill-white" />
+                      <span>Écouter un extrait</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSelectAudio(currentFeatured);
+                      }}
+                      className="px-4 py-2.5 rounded-2xl text-xs font-bold text-purple-200 bg-white/10 hover:bg-white/20 border border-white/10 transition-all cursor-pointer"
+                    >
+                      Voir détails
+                    </button>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-        </section>
-      )}
-
-      {/* ── 3. Catégories Thématiques ── */}
-      <section>
-        <div className="card-lg space-y-4">
-          <div className="flex items-center gap-2">
-            <Compass className="w-4 h-4 text-purple-400" />
-            <h2 className="text-base font-bold" style={{ color: 'var(--color-text-primary)' }}>
-              Catégories & Thèmes
-            </h2>
-          </div>
-          <div className="flex items-center gap-2.5 overflow-x-auto pb-1 no-scrollbar">
-            {categories.map((cat) => {
-              const isSelected = selectedCategory === cat.id;
-              return (
-                <button key={cat.id} onClick={() => setSelectedCategory(cat.id)}
-                  className="flex-shrink-0 px-4 py-2 rounded-2xl text-xs font-semibold transition-all"
-                  style={{
-                    background: isSelected ? 'linear-gradient(135deg, #9d4edd, #f72585)' : 'rgba(255,255,255,0.06)',
-                    border: `1px solid ${isSelected ? 'rgba(157,78,221,0.50)' : 'rgba(255,255,255,0.08)'}`,
-                    color: isSelected ? 'white' : 'var(--color-text-secondary)',
-                    boxShadow: isSelected ? '0 4px 16px rgba(157,78,221,0.35)' : 'none',
-                    transform: isSelected ? 'scale(1.04)' : 'scale(1)',
-                  }}>
-                  {cat.name}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* ── 3.5. Section Audios Épinglés (Sélection Éditeur RG Play) ── */}
-      {!searchQuery && selectedCategory === 'all' && pinnedBooks.length > 0 && (
-        <section className="animate-fadeIn">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shadow-lg shadow-amber-500/20">
-                  <span className="text-base">📌</span>
-                </div>
-                <div>
-                  <h2 className="text-lg font-black text-white">
-                    Sélection Épinglée par l'Éditeur
-                  </h2>
-                  <p className="text-xs text-amber-300 font-medium">
-                    {pinnedBooks.length} contenu{pinnedBooks.length > 1 ? 's' : ''} mis en avant
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-stretch gap-4 overflow-x-auto pb-3 no-scrollbar">
-              {pinnedBooks.map((book) => (
-                <AudiobookCard key={book.id} book={book} layout="carousel" onSelect={onSelectBook} />
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* ── 4. Carrousel Pour Vous / Tendances ── */}
-      {!searchQuery && selectedCategory === 'all' && trendingBooks.length > 0 && (
-        <section>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-black" style={{ color: 'var(--color-text-primary)' }}>
-                  {selectedType === 'podcast' ? '🎙️ Podcasts Populaires' :
-                   selectedType === 'music' ? '🎵 Musiques & Ambiance' :
-                   selectedType === 'masterclass' ? '🎓 Masterclasses Recommandées' :
-                   'Pour Vous'}
-                </h2>
-                <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>
-                  Sélectionnés selon vos préférences d'écoute
-                </p>
-              </div>
-            </div>
-            <div className="flex items-stretch gap-4 overflow-x-auto pb-3 no-scrollbar">
-              {trendingBooks.map((book) => (
-                <AudiobookCard key={book.id} book={book} layout="carousel" onSelect={onSelectBook} />
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* ── 5. Grille Principale ── */}
-      <section>
-        <div className="space-y-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-black" style={{ color: 'var(--color-text-primary)' }}>
-                {searchQuery
-                  ? `Résultats pour "${searchQuery}"`
-                  : selectedType === 'podcast' ? 'Tous les Podcasts'
-                  : selectedType === 'music' ? 'Toutes les Pistes Musicales'
-                  : selectedType === 'masterclass' ? 'Toutes les Masterclasses'
-                  : 'Tous les Titres Audio'}
-              </h2>
-              <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>
-                {audiobooks.length} {audiobooks.length > 1 ? 'contenus disponibles' : 'contenu disponible'} en streaming HD
-              </p>
-            </div>
-          </div>
-
-          {/* Bannière Recommandation Sémantique DeepSeek */}
-          {aiSearchReason && searchQuery && (
-            <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-950/80 via-indigo-950/60 to-slate-900/90 border border-purple-500/40 flex items-start sm:items-center gap-3 text-xs text-purple-200 shadow-xl animate-fadeIn">
-              <div className="w-8 h-8 rounded-xl bg-purple-500/25 flex items-center justify-center flex-shrink-0 text-purple-300 border border-purple-500/30">
-                <Sparkles className="w-4 h-4 text-purple-300 animate-pulse" />
-              </div>
-              <div className="space-y-0.5">
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-white text-xs">Recherche Intelligente DeepSeek</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-extrabold border border-purple-500/30">
-                    IA Active
-                  </span>
-                </div>
-                <p className="text-slate-300 text-xs">{aiSearchReason}</p>
-              </div>
-            </div>
           )}
 
-          {isLoading ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5 sm:gap-4">
-              {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
-                <div key={n} className="skeleton rounded-2xl h-52 sm:h-64" />
-              ))}
-            </div>
-          ) : audiobooks.length === 0 ? (
-            <div className="text-center py-16 card-lg space-y-4">
-              <Search className="w-12 h-12 mx-auto opacity-35" style={{ color: 'var(--color-text-tertiary)' }} />
-              <h3 className="text-lg font-bold" style={{ color: 'var(--color-text-primary)' }}>Aucun contenu trouvé</h3>
-              <p className="text-sm max-w-sm mx-auto" style={{ color: 'var(--color-text-tertiary)' }}>
-                Essayez un autre univers ou modifiez vos critères de recherche.
-              </p>
+          {/* 2. BANNIÈRE SPONSORISÉE DU DÉBUT */}
+          <AdBanner placement="discover_hero" onOpenRewardModal={() => window.dispatchEvent(new Event('rg:open-reward-ad'))} className="my-2" />
+
+          {/* 3. SECTION NOUVEAUTÉS */}
+          <section className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs sm:text-sm font-black tracking-widest text-[#e9d5ff] uppercase font-heading flex items-center gap-1.5">
+                <span className="text-purple-400 font-bold">|</span> NOUVEAUX ALBUMS & SÉRIES
+              </h2>
               <button
-                onClick={() => {
-                  setSelectedType('all');
-                  setSelectedCategory('all');
-                }}
-                className="rg-btn-primary px-5 py-2.5 rounded-full text-sm"
+                onClick={() => setActiveFilter('new')}
+                className="text-xs font-bold text-purple-400 hover:text-purple-300 flex items-center gap-1 cursor-pointer"
               >
-                Réinitialiser les filtres
+                <span>Voir tout</span>
+                <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5 sm:gap-4">
-              {audiobooks.map((book) => (
-                <AudiobookCard key={book.id} book={book} layout="grid" onSelect={onSelectBook} />
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
+              {newBooks.map((book) => (
+                <AudiobookCard key={`new-${book.id}`} book={book} onSelect={handleSelectAudio} layout="square" />
               ))}
             </div>
-          )}
+          </section>
+
+          {/* 4. SECTION RECOMMANDATIONS */}
+          <section className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs sm:text-sm font-black tracking-widest text-[#e9d5ff] uppercase font-heading flex items-center gap-1.5">
+                <span className="text-pink-400 font-bold">|</span> RECOMMANDÉS POUR VOUS
+              </h2>
+              <span className="text-xs text-[#a78bfa] font-bold">Personnalisé</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {recommendations.map((book) => (
+                <AudiobookCard key={`rec-${book.id}`} book={book} onSelect={handleSelectAudio} layout="pill" />
+              ))}
+            </div>
+          </section>
+
+          {/* 5. BANNIÈRE SPONSORISÉE MILIEU DE FLUX */}
+          <AdBanner placement="discover_feed" onOpenRewardModal={() => window.dispatchEvent(new Event('rg:open-reward-ad'))} className="my-3" />
+
+          {/* 6. TOUT LE CATALOGUE AUDIO */}
+          <section className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs sm:text-sm font-black tracking-widest text-[#e9d5ff] uppercase font-heading flex items-center gap-1.5">
+                <span className="text-purple-400 font-bold">|</span> TOUT LE CATALOGUE AUDIO
+              </h2>
+              <span className="text-xs text-[#a78bfa] font-bold">{filteredBooks.length} titres</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
+              {filteredBooks.map((book) => (
+                <AudiobookCard key={`cat-${book.id}`} book={book} onSelect={handleSelectAudio} layout="square" />
+              ))}
+            </div>
+          </section>
+
+          {/* 7. BANNIÈRE SPONSORISÉE PIED DE PAGE */}
+          <AdBanner placement="discover_bottom" onOpenRewardModal={() => window.dispatchEvent(new Event('rg:open-reward-ad'))} className="my-4" />
         </div>
-      </section>
+      )}
+
     </div>
   );
 };

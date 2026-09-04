@@ -27,7 +27,7 @@ export const AudioProvider = ({ children }) => {
 
   // Signets
   const [bookmarks, setBookmarks] = useState(() => {
-    return JSON.parse(localStorage.getItem('rg_bookmarks') || '[]');
+    try { return JSON.parse(localStorage.getItem('rg_bookmarks') || '[]'); } catch { return []; }
   });
 
   // Référence Audio HTML5
@@ -36,6 +36,7 @@ export const AudioProvider = ({ children }) => {
   const handleNextChapterRef = useRef(null);
   const currentBookRef = useRef(null);
   const currentChapterIndexRef = useRef(0);
+  const hasCachedChaptersRef = useRef(new Set());
 
   useEffect(() => { currentBookRef.current = currentBook; }, [currentBook]);
   useEffect(() => { currentChapterIndexRef.current = currentChapterIndex; }, [currentChapterIndex]);
@@ -45,6 +46,26 @@ export const AudioProvider = ({ children }) => {
     const onCacheUpdate = () => setOfflineBooks(getOfflineBooks());
     window.addEventListener('rg_offline_cache_updated', onCacheUpdate);
     return () => window.removeEventListener('rg_offline_cache_updated', onCacheUpdate);
+  }, []);
+
+  // Charger les signets depuis D1
+  useEffect(() => {
+    apiClient.getBookmarks().then(bms => {
+      if (Array.isArray(bms) && bms.length > 0) {
+        setBookmarks(bms);
+      }
+    });
+  }, []);
+
+  // Déclencher la lecture audio globale depuis le Chat SKY
+  useEffect(() => {
+    const handleTriggerPlay = (e) => {
+      if (e.detail?.book) {
+        playBook(e.detail.book, e.detail.chapterIndex || 0);
+      }
+    };
+    window.addEventListener('rg:trigger-play-book', handleTriggerPlay);
+    return () => window.removeEventListener('rg:trigger-play-book', handleTriggerPlay);
   }, []);
 
   // Stopper le lecteur si le livre en cours d'écoute est supprimé (Admin ou sync)
@@ -105,8 +126,10 @@ export const AudioProvider = ({ children }) => {
     const onPause = () => setIsPlaying(false);
     const onError = async () => {
       console.warn('Erreur audio réseau, tentative de fallback hors-ligne :', audio.src);
+      const currentBook = currentBookRef.current;
+      const currentChapIdx = currentChapterIndexRef.current;
       if (audio.src && !audio.src.startsWith('blob:')) {
-        const offlineUrl = await getOfflineAudioUrl(audio.src);
+        const offlineUrl = await getOfflineAudioUrl(audio.src, currentBook?.id, currentChapIdx);
         if (offlineUrl && offlineUrl !== audio.src) {
           audio.src = offlineUrl;
           audio.play().catch(() => {});
@@ -117,6 +140,13 @@ export const AudioProvider = ({ children }) => {
     };
 
     const onEnded = () => {
+      // 🛡️ Garde-fou Anti-Coupure : Si la durée réelle est connue et qu'on est loin de la fin (coupure réseau / buffer vide)
+      if (audio.duration && isFinite(audio.duration) && audio.duration > 10 && audio.currentTime < (audio.duration - 3)) {
+        console.warn(`[AudioContext] Événement 'ended' prématuré détecté à ${audio.currentTime.toFixed(1)}s / ${audio.duration.toFixed(1)}s (interruption de flux). Tentative de reprise...`);
+        audio.play().catch(() => {});
+        return;
+      }
+
       if (currentBookRef.current) {
         const book = currentBookRef.current;
         const chap = book.chapters?.[currentChapterIndexRef.current];
@@ -184,8 +214,10 @@ export const AudioProvider = ({ children }) => {
       const chapter = currentBook.chapters?.[currentChapterIndex];
       const percent = duration > 0 ? Math.round((currentTime / duration) * 100) : 0;
 
-      // Si l'écoute dépasse 90%, pré-mettre en cache pour le mode hors-ligne
-      if (percent >= 90 && currentBook) {
+      // Si l'écoute dépasse 90%, pré-mettre en cache une seule fois pour le mode hors-ligne
+      const cacheKey = `${currentBook.id}_ch_${currentChapterIndex}`;
+      if (percent >= 90 && currentBook && !hasCachedChaptersRef.current.has(cacheKey)) {
+        hasCachedChaptersRef.current.add(cacheKey);
         cacheAudioForOffline(currentBook, chapter);
       }
 
@@ -202,7 +234,8 @@ export const AudioProvider = ({ children }) => {
   }, [currentBook, currentChapterIndex, currentTime, duration, isPlaying]);
 
   // Lancer la lecture d'un livre complet (démarrage ultra-rapide 0ms)
-  const playBook = (book, chapterIdx = 0, startTime = 0) => {
+  // Lancer la lecture d'un livre complet (démarrage ultra-rapide 0ms & support 100% hors-ligne)
+  const playBook = async (book, chapterIdx = 0, startTime = 0) => {
     setCurrentBook(book);
     setCurrentChapterIndex(chapterIdx);
     setIsPreviewMode(false);
@@ -211,16 +244,23 @@ export const AudioProvider = ({ children }) => {
     const chapter = book.chapters?.[chapterIdx];
     const rawAudioSrc = chapter?.audio_url || book.preview_url || 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3';
 
+    // Résoudre l'URL locale si stockée dans le cache hors-ligne (IndexedDB ou Cache API)
+    let finalAudioSrc = rawAudioSrc;
+    try {
+      const offlineSrc = await getOfflineAudioUrl(rawAudioSrc, book.id, chapterIdx);
+      if (offlineSrc) finalAudioSrc = offlineSrc;
+    } catch (_) {}
+
     const audio = audioRef.current;
     audio.preload = 'auto';
 
     // Ne recharger le src que si la piste a changé
     const currentSrcNormalized = audio.src.replace(window.location.origin, '');
-    const targetSrcNormalized = rawAudioSrc.replace(window.location.origin, '');
-    const isSameSource = audio.src === rawAudioSrc || currentSrcNormalized === targetSrcNormalized;
+    const targetSrcNormalized = finalAudioSrc.replace(window.location.origin, '');
+    const isSameSource = audio.src === finalAudioSrc || currentSrcNormalized === targetSrcNormalized;
 
     if (!isSameSource) {
-      audio.src = rawAudioSrc;
+      audio.src = finalAudioSrc;
       audio.playbackRate = playbackRate;
       if (startTime > 0) {
         const onMetadata = () => {
@@ -238,7 +278,7 @@ export const AudioProvider = ({ children }) => {
       setIsPlaying(true);
       setIsLoading(false);
     }).catch(e => {
-      console.warn('Lecture restreinte par le navigateur:', e);
+      console.warn('Lecture audio (tentative offline):', e);
       setIsLoading(false);
     });
 
@@ -256,28 +296,46 @@ export const AudioProvider = ({ children }) => {
   };
 
   // Télécharger explicitement un livre pour lecture hors-ligne
-  const downloadForOffline = async (book) => {
-    return await cacheAudioForOffline(book);
+  const downloadForOffline = async (book, onProgress = null) => {
+    return await cacheAudioForOffline(book, null);
   };
 
   // Lancer la lecture d'un extrait gratuit (démarrage ultra-rapide)
-  const playPreview = (book) => {
+  // Si un audio n'a pas d'extrait dédié, ce sont les chapitres 1 et 2 qui lisent par défaut !
+  const playPreview = async (book) => {
+    if (!book) return;
+
+    const hasExplicitPreview = Boolean(book.preview_url && book.preview_url.trim() && !book.preview_url.includes('pixabay'));
+
+    if (!hasExplicitPreview && book.chapters && book.chapters.length > 0) {
+      // Chapitre 1 par défaut, enchaîné sur le chapitre 2
+      setIsPreviewMode(true);
+      playBook(book, 0, 0);
+      return;
+    }
+
     setCurrentBook(book);
     setCurrentChapterIndex(0);
     setIsPreviewMode(true);
     setIsLoading(true);
 
-    const rawAudioSrc = book.preview_url || 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3';
+    const rawAudioSrc = book.preview_url || book.chapters?.[0]?.audio_url || 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3';
+
+    let finalAudioSrc = rawAudioSrc;
+    try {
+      const offlineSrc = await getOfflineAudioUrl(rawAudioSrc, book.id, 'preview');
+      if (offlineSrc) finalAudioSrc = offlineSrc;
+    } catch (_) {}
 
     const audio = audioRef.current;
     audio.preload = 'auto';
 
     const currentSrcNormalized = audio.src.replace(window.location.origin, '');
-    const targetSrcNormalized = rawAudioSrc.replace(window.location.origin, '');
-    const isSameSource = audio.src === rawAudioSrc || currentSrcNormalized === targetSrcNormalized;
+    const targetSrcNormalized = finalAudioSrc.replace(window.location.origin, '');
+    const isSameSource = audio.src === finalAudioSrc || currentSrcNormalized === targetSrcNormalized;
 
     if (!isSameSource) {
-      audio.src = rawAudioSrc;
+      audio.src = finalAudioSrc;
       audio.playbackRate = playbackRate;
       audio.load();
     }
@@ -305,6 +363,20 @@ export const AudioProvider = ({ children }) => {
     }
   };
 
+  // Arrêt complet : pause + remise à zéro + fermeture du lecteur
+  const stopAudio = () => {
+    audioRef.current.pause();
+    audioRef.current.currentTime = 0;
+    audioRef.current.src = '';
+    setIsPlaying(false);
+    setCurrentBook(null);
+    setCurrentChapterIndex(0);
+    setCurrentTime(0);
+    setDuration(0);
+    setIsPreviewMode(false);
+    setIsFullScreenOpen(false);
+  };
+
   // Naviguer dans le temps
   const seekTo = (seconds) => {
     audioRef.current.currentTime = seconds;
@@ -330,6 +402,21 @@ export const AudioProvider = ({ children }) => {
   // Gestion des chapitres
   const handleNextChapter = () => {
     if (!currentBook?.chapters) return;
+
+    if (isPreviewMode) {
+      // En mode extrait gratuit : chapitre 1 enchaîne sur le chapitre 2
+      if (currentChapterIndex === 0 && currentBook.chapters.length > 1) {
+        playBook(currentBook, 1, 0);
+        return;
+      } else {
+        // Fin de l'extrait gratuit (chapitre 2 terminé)
+        setIsPlaying(false);
+        setIsPreviewMode(false);
+        window.dispatchEvent(new CustomEvent('rg:preview-ended', { detail: { book: currentBook } }));
+        return;
+      }
+    }
+
     if (currentChapterIndex < currentBook.chapters.length - 1) {
       playBook(currentBook, currentChapterIndex + 1, 0);
     } else {
@@ -367,14 +454,16 @@ export const AudioProvider = ({ children }) => {
     }
   };
 
-  // Ajout de signet
-  const addBookmark = (note = '') => {
+  // Ajout de signet (D1 + Local)
+  const addBookmark = async (note = '') => {
     if (!currentBook) return;
     const chapter = currentBook.chapters?.[currentChapterIndex];
     const newBookmark = {
       id: `bm-${Date.now()}`,
       audiobook_id: currentBook.id,
       book_title: currentBook.title,
+      chapter_id: chapter?.id || null,
+      chapter_number: (currentChapterIndex || 0) + 1,
       chapter_title: chapter?.title || `Chapitre ${currentChapterIndex + 1}`,
       timestamp_seconds: currentTime,
       note: note || `Signet à ${formatTime(currentTime)}`,
@@ -384,13 +473,19 @@ export const AudioProvider = ({ children }) => {
     const updated = [newBookmark, ...bookmarks];
     setBookmarks(updated);
     localStorage.setItem('rg_bookmarks', JSON.stringify(updated));
+
+    // Persistance D1
+    await apiClient.addBookmark(newBookmark);
     return newBookmark;
   };
 
-  const removeBookmark = (id) => {
+  const removeBookmark = async (id) => {
     const updated = bookmarks.filter(b => b.id !== id);
     setBookmarks(updated);
     localStorage.setItem('rg_bookmarks', JSON.stringify(updated));
+
+    // Suppression D1
+    await apiClient.removeBookmark(id);
   };
 
   // Formatage secondes -> mm:ss ou hh:mm:ss
@@ -434,6 +529,7 @@ export const AudioProvider = ({ children }) => {
         playBook,
         playPreview,
         togglePlay,
+        stopAudio,
         seekTo,
         skipForward,
         skipBackward,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { BottomNav } from './components/BottomNav';
@@ -11,14 +11,22 @@ import { PushPermissionBanner } from './components/PushPermissionBanner';
 import { NotificationCenterModal } from './components/NotificationCenterModal';
 import { DiscoverView } from './views/DiscoverView';
 import { LibraryView } from './views/LibraryView';
+import { StoreView } from './views/StoreView';
 import { AdminStudioView } from './views/AdminStudioView';
 import { AdminLoginView } from './views/AdminLoginView';
 import { ProfileView } from './views/ProfileView';
+import { BookChatModal } from './components/BookChatModal';
 import { AudioProvider } from './context/AudioContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { PushProvider } from './context/PushContext';
+import { XpProvider } from './context/XpContext';
 import { initTracker, trackPageView } from './services/tracker';
 import { apiClient } from './services/api';
+import { WelcomeOfferBanner } from './components/WelcomeOfferBanner';
+import { StreakModal } from './components/StreakSystem';
+import { RewardedAdModal } from './components/RewardedAdModal';
+import { PdfReaderModal } from './components/PdfReaderModal';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 export function App() {
   const [activeTab, setActiveTab] = useState('discover');
@@ -26,6 +34,22 @@ export function App() {
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
   const [isNotifCenterOpen, setIsNotifCenterOpen] = useState(false);
+  const [isStreakModalOpen, setIsStreakModalOpen] = useState(false);
+  const [isRewardModalOpen, setIsRewardModalOpen] = useState(false);
+  const [isSkyChatOpen, setIsSkyChatOpen] = useState(false);
+  const [featuredBookForOffer, setFeaturedBookForOffer] = useState(null);
+
+  // Écouteur global pour ouvrir la modale de récompense sponsorisée
+  useEffect(() => {
+    const handleOpenReward = () => setIsRewardModalOpen(true);
+    const handleNavTab = (e) => { if (e.detail) setActiveTab(e.detail); };
+    window.addEventListener('rg:open-reward-ad', handleOpenReward);
+    window.addEventListener('rg:navigate-tab', handleNavTab);
+    return () => {
+      window.removeEventListener('rg:open-reward-ad', handleOpenReward);
+      window.removeEventListener('rg:navigate-tab', handleNavTab);
+    };
+  }, []);
 
   // Initialiser le tracker au premier montage
   useEffect(() => { initTracker(); }, []);
@@ -47,6 +71,73 @@ export function App() {
 
   const [selectedBookForDetail, setSelectedBookForDetail] = useState(null);
   const [selectedBookForCheckout, setSelectedBookForCheckout] = useState(null);
+  const [activePdfBook, setActivePdfBook] = useState(null);
+
+  // Détection du code de parrainage dans l'URL (?ref=... ou ?referral=...)
+  useEffect(() => {
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      const refCode = searchParams.get('ref') || searchParams.get('referral');
+      if (refCode) {
+        import('./utils/userId').then(({ recordReferredBy }) => {
+          recordReferredBy(refCode);
+        });
+        apiClient.registerReferral(refCode);
+      }
+    } catch (_) {}
+  }, []);
+
+  // Écouteur global pour ouvrir directement la liseuse PDF instantanément
+  useEffect(() => {
+    const handleOpenPdf = (e) => {
+      if (e.detail?.book) setActivePdfBook(e.detail.book);
+    };
+    window.addEventListener('rg:open-pdf-reader', handleOpenPdf);
+    return () => window.removeEventListener('rg:open-pdf-reader', handleOpenPdf);
+  }, []);
+
+  // Sélection de livre : si format PDF ou E-Book PUR (sans audio), ouverture INSTANTANÉE de la liseuse
+  // Si livre audio (même avec un livret PDF d'accompagnement) ou forceAudio, ouverture du lecteur audio
+  const handleSelectBook = useCallback((book, options = {}) => {
+    if (!book) return;
+
+    // Contexte forcé en audio (ex: depuis la page Découvrir qui est 100% audio)
+    if (options?.forceAudio) {
+      setSelectedBookForDetail(book);
+      return;
+    }
+
+    // Un livre est un livre audio s'il a des pistes audio, une URL audio, une preview, ou un format audio explicite
+    const isAudiobook = Boolean(
+      book.format === 'audiobook' ||
+      book.content_type === 'audiobook' ||
+      book.content_type === 'podcast' ||
+      book.content_type === 'music' ||
+      book.content_type === 'masterclass' ||
+      (Array.isArray(book.chapters) && book.chapters.length > 0) ||
+      book.audio_url ||
+      book.preview_url
+    );
+
+    // Un livre n'est un ebook que s'il est explicitement un format écrit SANS audio
+    const isPureEbook = !isAudiobook && Boolean(
+      book.content_type === 'ebook' ||
+      book.content_type === 'epub' ||
+      book.content_type === 'pdf' ||
+      book.format === 'epub' ||
+      book.format === 'pdf' ||
+      book.is_ebook ||
+      book.is_pdf
+    );
+
+    if (isPureEbook) {
+      setActivePdfBook(book);
+      return;
+    }
+
+    // Par défaut : lecteur / fiche livre audio
+    setSelectedBookForDetail(book);
+  }, []);
 
   // Fermer les modals si le livre affiché est supprimé (Admin ou sync)
   useEffect(() => {
@@ -55,6 +146,7 @@ export function App() {
       if (!deletedId) return;
       setSelectedBookForDetail(prev => (prev?.id === deletedId ? null : prev));
       setSelectedBookForCheckout(prev => (prev?.id === deletedId ? null : prev));
+      setActivePdfBook(prev => (prev?.id === deletedId ? null : prev));
     };
     window.addEventListener('rg:book-deleted', onBookDeleted);
     return () => window.removeEventListener('rg:book-deleted', onBookDeleted);
@@ -68,20 +160,21 @@ export function App() {
     } catch { return new Set(); }
   });
 
+  const refreshPurchased = useCallback(() => {
+    try {
+      const lib = JSON.parse(localStorage.getItem('rg_user_library') || '[]');
+      setPurchasedIds(new Set(lib.map(b => b.id)));
+    } catch {}
+  }, []);
+
   useEffect(() => {
-    const refreshPurchased = () => {
-      try {
-        const lib = JSON.parse(localStorage.getItem('rg_user_library') || '[]');
-        setPurchasedIds(new Set(lib.map(b => b.id)));
-      } catch {}
-    };
     window.addEventListener('rg:library-updated', refreshPurchased);
     window.addEventListener('rg:book-deleted', refreshPurchased);
     return () => {
       window.removeEventListener('rg:library-updated', refreshPurchased);
       window.removeEventListener('rg:book-deleted', refreshPurchased);
     };
-  }, []);
+  }, [refreshPurchased]);
 
   // ── Gestion des routes & Partage d'audio ──
   useEffect(() => {
@@ -166,6 +259,81 @@ export function App() {
     };
   }, []);
 
+  // ── Écouter les ouvertures de livres, PDF et Audio depuis le Chat Agent SKY ──
+  useEffect(() => {
+    const handleOpenBookDetail = async (e) => {
+      const { bookId, bookTitle } = e.detail || {};
+      setIsSkyChatOpen(false);
+      try {
+        let found = null;
+        if (bookId && bookId !== 'undefined' && bookId !== 'null') {
+          found = await apiClient.getAudiobook(bookId);
+        }
+        if (!found && bookTitle) {
+          const catalog = await apiClient.getAudiobooks({ category: 'all' });
+          const cleanTitle = bookTitle.toLowerCase().trim();
+          found = catalog.find(b => b.title?.toLowerCase().includes(cleanTitle) || cleanTitle.includes(b.title?.toLowerCase()));
+        }
+        if (found) {
+          setSelectedBookForDetail(found);
+        }
+      } catch (err) {
+        console.error('Erreur ouverture fiche livre depuis SKY:', err);
+      }
+    };
+
+    const handleOpenPdfBook = async (e) => {
+      const { bookId, bookTitle, book } = e.detail || {};
+      setIsSkyChatOpen(false);
+      try {
+        let found = book || null;
+        if (!found && bookId && bookId !== 'undefined' && bookId !== 'null') {
+          found = await apiClient.getAudiobook(bookId);
+        }
+        if (!found && bookTitle) {
+          const catalog = await apiClient.getAudiobooks({ category: 'all' });
+          const cleanTitle = bookTitle.toLowerCase().trim();
+          found = catalog.find(b => b.title?.toLowerCase().includes(cleanTitle) || cleanTitle.includes(b.title?.toLowerCase()));
+        }
+        if (found) {
+          setActivePdfBook(found);
+        }
+      } catch (err) {
+        console.error('Erreur ouverture PDF depuis SKY:', err);
+      }
+    };
+
+    const handlePlayAudio = async (e) => {
+      const { bookId, bookTitle, book } = e.detail || {};
+      setIsSkyChatOpen(false);
+      try {
+        let found = book || null;
+        if (!found && bookId && bookId !== 'undefined' && bookId !== 'null') {
+          found = await apiClient.getAudiobook(bookId);
+        }
+        if (!found && bookTitle) {
+          const catalog = await apiClient.getAudiobooks({ category: 'all' });
+          const cleanTitle = bookTitle.toLowerCase().trim();
+          found = catalog.find(b => b.title?.toLowerCase().includes(cleanTitle) || cleanTitle.includes(b.title?.toLowerCase()));
+        }
+        if (found) {
+          window.dispatchEvent(new CustomEvent('rg:trigger-play-book', { detail: { book: found } }));
+        }
+      } catch (err) {
+        console.error('Erreur lecture audio depuis SKY:', err);
+      }
+    };
+
+    window.addEventListener('rg:open-book-detail', handleOpenBookDetail);
+    window.addEventListener('rg:open-pdf-book', handleOpenPdfBook);
+    window.addEventListener('rg:play-audio', handlePlayAudio);
+    return () => {
+      window.removeEventListener('rg:open-book-detail', handleOpenBookDetail);
+      window.removeEventListener('rg:open-pdf-book', handleOpenPdfBook);
+      window.removeEventListener('rg:play-audio', handlePlayAudio);
+    };
+  }, []);
+
   const handleTabChange = (tab) => {
     if (tab === 'admin') {
       window.history.pushState({}, '', '/login/admin');
@@ -206,46 +374,51 @@ export function App() {
   // ════════════════════════════════════════════════
   if (isAdminMode) {
     return (
-      <ThemeProvider>
-        <PushProvider>
-          <AudioProvider>
-            <div className="min-h-screen flex flex-col selection:bg-emerald-600 selection:text-white"
-              style={{ background: '#07070F' }}>
+      <ErrorBoundary>
+        <ThemeProvider>
+          <PushProvider>
+            <AudioProvider>
+              <XpProvider>
+                <div className="min-h-screen flex flex-col selection:bg-emerald-600 selection:text-white"
+                  style={{ background: '#07070F' }}>
 
-              {/* Header Admin — pas de profil, pas de solde */}
-              <Header
-                activeTab={activeTab}
-                setActiveTab={handleTabChange}
-                searchQuery=""
-                onSearch={() => {}}
-                onOpenInstallModal={() => setIsInstallModalOpen(true)}
-                onOpenNotifications={() => setIsNotifCenterOpen(true)}
-                isAdmin={isAdminAuthenticated}
-                onAdminLogout={handleAdminLogout}
-              />
-
-              {/* Contenu admin plein écran */}
-              <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                {isAdminAuthenticated ? (
-                  <AdminStudioView
-                    onBookCreated={() => {
-                      window.dispatchEvent(new Event('rg:book-created'));
-                      handleTabChange('discover');
-                    }}
+                  {/* Header Admin — pas de profil, pas de solde */}
+                  <Header
+                    activeTab={activeTab}
+                    setActiveTab={handleTabChange}
+                    searchQuery=""
+                    onSearch={() => {}}
+                    onOpenInstallModal={() => setIsInstallModalOpen(true)}
+                    onOpenNotifications={() => setIsNotifCenterOpen(true)}
+                    onOpenStreak={() => setIsStreakModalOpen(true)}
+                    isAdmin={isAdminAuthenticated}
+                    onAdminLogout={handleAdminLogout}
                   />
-                ) : (
-                  <AdminLoginView onLoginSuccess={() => setIsAdminAuthenticated(true)} />
-                )}
-              </main>
 
-              <InstallAppModal
-                isOpen={isInstallModalOpen}
-                onClose={() => setIsInstallModalOpen(false)}
-              />
-            </div>
-          </AudioProvider>
-        </PushProvider>
-      </ThemeProvider>
+                  {/* Contenu admin plein écran */}
+                  <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                    {isAdminAuthenticated ? (
+                      <AdminStudioView
+                        onBookCreated={() => {
+                          window.dispatchEvent(new Event('rg:book-created'));
+                          handleTabChange('discover');
+                        }}
+                      />
+                    ) : (
+                      <AdminLoginView onLoginSuccess={() => setIsAdminAuthenticated(true)} />
+                    )}
+                  </main>
+
+                  <InstallAppModal
+                    isOpen={isInstallModalOpen}
+                    onClose={() => setIsInstallModalOpen(false)}
+                  />
+                </div>
+              </XpProvider>
+            </AudioProvider>
+          </PushProvider>
+        </ThemeProvider>
+      </ErrorBoundary>
     );
   }
 
@@ -256,96 +429,142 @@ export function App() {
     <ThemeProvider>
       <PushProvider>
         <AudioProvider>
-          <div className="min-h-screen flex flex-col selection:bg-purple-600 selection:text-white">
+          <XpProvider>
+            <div className="min-h-screen flex flex-col selection:bg-purple-600 selection:text-white">
 
-            <Header
-              activeTab={activeTab}
-              setActiveTab={handleTabChange}
-              searchQuery={searchQuery}
-              onSearch={setSearchQuery}
-              onOpenInstallModal={() => setIsInstallModalOpen(true)}
-              onOpenNotifications={() => setIsNotifCenterOpen(true)}
-              isAdmin={false}
-              onAdminLogout={null}
-            />
-
-            <div className="flex-1 flex max-w-screen-2xl w-full mx-auto">
-              {/* Sidebar Desktop */}
-              <Sidebar
+              <Header
                 activeTab={activeTab}
                 setActiveTab={handleTabChange}
+                searchQuery={searchQuery}
+                onSearch={setSearchQuery}
                 onOpenInstallModal={() => setIsInstallModalOpen(true)}
+                onOpenNotifications={() => setIsNotifCenterOpen(true)}
+                onOpenStreak={() => setIsStreakModalOpen(true)}
+                isAdmin={false}
+                onAdminLogout={null}
               />
 
-              {/* Zone de Contenu */}
-              <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 min-w-0">
-                {activeTab === 'discover' && (
-                  <DiscoverView
-                    searchQuery={searchQuery}
-                    onSelectBook={setSelectedBookForDetail}
-                    onBuyBook={setSelectedBookForCheckout}
-                  />
-                )}
-                {activeTab === 'library' && (
-                  <LibraryView
-                    onSelectBook={setSelectedBookForDetail}
-                    onGoToDiscover={() => handleTabChange('discover')}
-                  />
-                )}
-                {activeTab === 'profile' && (
-                  <ProfileView
-                    onOpenAdmin={() => handleTabChange('admin')}
-                    onOpenInstallModal={() => setIsInstallModalOpen(true)}
-                    onOpenCheckout={(book) => setSelectedBookForCheckout(book)}
-                  />
-                )}
-              </main>
+              <div className="flex-1 flex max-w-screen-2xl w-full mx-auto">
+                {/* Sidebar Desktop */}
+                <Sidebar
+                  activeTab={activeTab}
+                  setActiveTab={handleTabChange}
+                  onOpenInstallModal={() => setIsInstallModalOpen(true)}
+                />
+
+                {/* Zone de Contenu */}
+                <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 min-w-0">
+                  {activeTab === 'discover' && (
+                    <DiscoverView
+                      searchQuery={searchQuery}
+                      onSelectBook={handleSelectBook}
+                      onBuyBook={setSelectedBookForCheckout}
+                    />
+                  )}
+                  {activeTab === 'library' && (
+                    <LibraryView
+                      onSelectBook={handleSelectBook}
+                      onGoToDiscover={() => handleTabChange('discover')}
+                    />
+                  )}
+                  {activeTab === 'store' && (
+                    <StoreView
+                      onSelectPlan={(plan) => setSelectedBookForCheckout(plan)}
+                    />
+                  )}
+                  {activeTab === 'profile' && (
+                    <ProfileView
+                      onOpenAdmin={() => handleTabChange('admin')}
+                      onOpenInstallModal={() => setIsInstallModalOpen(true)}
+                      onOpenCheckout={(book) => setSelectedBookForCheckout(book)}
+                    />
+                  )}
+                </main>
+              </div>
+
+              {/* Lecteurs Audio */}
+              <MiniPlayer />
+              <FullScreenPlayer />
+
+              {/* Navigation Mobile — dock incurvé @iSalmanArt */}
+              <BottomNav
+                activeTab={activeTab}
+                setActiveTab={handleTabChange}
+                onOpenStore={() => handleTabChange('store')}
+                onOpenAgentSky={() => setIsSkyChatOpen(true)}
+              />
+
+              {/* Agent SKY Global Chat Modal */}
+              <BookChatModal
+                book={selectedBookForDetail || {
+                  id: 'rg-global-sky',
+                  title: 'Assistant & Tuteur Interactif RG Play',
+                  author: 'Agent SKY',
+                  description: 'Explorez nos livres audio, demandez des synthèses, des plans d\'action et posez toutes vos questions.'
+                }}
+                isOpen={isSkyChatOpen}
+                onClose={() => setIsSkyChatOpen(false)}
+              />
+
+              {/* Bandeau d'activation Push Notification Persistant */}
+              <PushPermissionBanner />
+
+              {/* Offre de bienvenue -40% (15 min countdown) */}
+              <WelcomeOfferBanner
+                featuredBook={featuredBookForOffer}
+                onOpenCheckout={(book) => setSelectedBookForCheckout(book)}
+              />
+
+              {/* Streak Modal */}
+              <StreakModal
+                isOpen={isStreakModalOpen}
+                onClose={() => setIsStreakModalOpen(false)}
+              />
+
+              {/* Modale de Récompense Sponsorisée & Pubs Gratuites Read's Great */}
+              <RewardedAdModal
+                isOpen={isRewardModalOpen}
+                onClose={() => setIsRewardModalOpen(false)}
+              />
+
+              {/* Modales */}
+              <NotificationCenterModal
+                isOpen={isNotifCenterOpen}
+                onClose={() => setIsNotifCenterOpen(false)}
+                onNavigateContent={handleNavigateContent}
+              />
+
+              <AudiobookDetailModal
+                book={selectedBookForDetail}
+                isOpen={!!selectedBookForDetail}
+                onClose={() => setSelectedBookForDetail(null)}
+                onBuy={(book) => { setSelectedBookForDetail(null); setSelectedBookForCheckout(book); }}
+                isPurchased={selectedBookForDetail ? purchasedIds.has(selectedBookForDetail.id) : false}
+              />
+
+              <CheckoutModal
+                book={selectedBookForCheckout}
+                isOpen={!!selectedBookForCheckout}
+                onClose={() => setSelectedBookForCheckout(null)}
+                onSuccess={(book) => {
+                  refreshPurchased();
+                  window.dispatchEvent(new Event('rg:library-updated'));
+                }}
+              />
+
+              <InstallAppModal
+                isOpen={isInstallModalOpen}
+                onClose={() => setIsInstallModalOpen(false)}
+              />
+
+              {/* Liseuse PDF Instantanée pour Livres Numériques */}
+              <PdfReaderModal
+                book={activePdfBook}
+                isOpen={Boolean(activePdfBook)}
+                onClose={() => setActivePdfBook(null)}
+              />
             </div>
-
-            {/* Lecteurs Audio */}
-            <MiniPlayer />
-            <FullScreenPlayer />
-
-            {/* Navigation Mobile — pill flottant */}
-            <BottomNav
-              activeTab={activeTab}
-              setActiveTab={handleTabChange}
-              onOpenInstallModal={() => setIsInstallModalOpen(true)}
-            />
-
-            {/* Bandeau d'activation Push Notification Persistant */}
-            <PushPermissionBanner />
-
-            {/* Modales */}
-            <NotificationCenterModal
-              isOpen={isNotifCenterOpen}
-              onClose={() => setIsNotifCenterOpen(false)}
-              onNavigateContent={handleNavigateContent}
-            />
-
-            <AudiobookDetailModal
-              book={selectedBookForDetail}
-              isOpen={!!selectedBookForDetail}
-              onClose={() => setSelectedBookForDetail(null)}
-              onBuy={(book) => { setSelectedBookForDetail(null); setSelectedBookForCheckout(book); }}
-              isPurchased={selectedBookForDetail ? purchasedIds.has(selectedBookForDetail.id) : false}
-            />
-
-            <CheckoutModal
-              book={selectedBookForCheckout}
-              isOpen={!!selectedBookForCheckout}
-              onClose={() => setSelectedBookForCheckout(null)}
-              onSuccess={(book) => {
-                refreshPurchased();
-                window.dispatchEvent(new Event('rg:library-updated'));
-              }}
-            />
-
-            <InstallAppModal
-              isOpen={isInstallModalOpen}
-              onClose={() => setIsInstallModalOpen(false)}
-            />
-          </div>
+          </XpProvider>
         </AudioProvider>
       </PushProvider>
     </ThemeProvider>

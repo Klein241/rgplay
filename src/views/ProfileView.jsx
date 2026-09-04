@@ -3,12 +3,18 @@ import {
   User, CreditCard, Headphones, Crown, CheckCircle2, BookOpen, Wallet,
   Edit3, Sparkles, Phone, Mail, Download, Wifi, WifiOff,
   Play, Trash2, Settings, MessageCircle, Zap, Star,
-  Smartphone, Check, RefreshCw, X, ArrowRight, ShieldCheck, ExternalLink
+  Smartphone, Check, RefreshCw, X, ArrowRight, ShieldCheck, ExternalLink,
+  Gift, Award, Flame, Clock
 } from 'lucide-react';
 import { useAudio } from '../context/AudioContext';
+import { useXp } from '../context/XpContext';
 import { UserProfileModal } from '../components/UserProfileModal';
 import { downloadAudioMp3, getOfflineBooks, removeOfflineAudio, getOfflineCacheSize, cacheAudioForOffline } from '../utils/offlineAudioCache';
 import { trackAction } from '../services/tracker';
+import { ReferralCard } from '../components/ReferralSystem';
+import { StreakBadge, StreakModal } from '../components/StreakSystem';
+import { AdBanner } from '../components/AdBanner';
+import { apiClient } from '../services/api';
 
 // ── Profil utilisateur par défaut ───────────────────────────────────────────
 const defaultProfile = {
@@ -78,6 +84,7 @@ const PLANS = {
 
 const TABS = [
   { id: 'overview', label: 'Aperçu', icon: User },
+  { id: 'rewards', label: 'XP & Badges ⭐', icon: Sparkles },
   { id: 'purchases', label: 'Mes Achats', icon: BookOpen },
   { id: 'offline', label: 'Hors-Ligne', icon: WifiOff },
   { id: 'settings', label: 'Préférences', icon: Settings },
@@ -105,16 +112,26 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
   const [subMethod, setSubMethod] = useState('orange');
   const [subPhone, setSubPhone] = useState(profile.phone || '');
   const [isProcessingSub, setIsProcessingSub] = useState(false);
+  const [isStreakModalOpen, setIsStreakModalOpen] = useState(false);
 
   const { playBook, playbackRate, changePlaybackRate, sleepTimerOption, setSleepTimer } = useAudio();
+  const {
+    xp, points, levelInfo, unlockedBadges, allBadges,
+    recentTransactions, claimDailyReward, readingMinutes,
+    listeningMinutes, dailyStreak, lastDailyRewardDate
+  } = useXp();
 
   useEffect(() => {
+    // Synchroniser avec D1 dès l'ouverture
+    apiClient.getUserProfile().then(p => { if (p) setProfile(p); });
+    apiClient.getLibrary().then(lib => { if (Array.isArray(lib)) setPurchasedBooks(lib); });
+
     const handleUpdate = (e) => {
       if (e.detail) setProfile(e.detail);
-      else setProfile(getProfile());
+      else apiClient.getUserProfile().then(p => { if (p) setProfile(p); });
     };
     const handleLibraryUpdate = () => {
-      setPurchasedBooks(getPurchasedBooks());
+      apiClient.getLibrary().then(lib => { if (Array.isArray(lib)) setPurchasedBooks(lib); });
     };
     const handleOfflineUpdate = () => {
       setOfflineBooks(getOfflineBooks());
@@ -134,30 +151,28 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
     getOfflineCacheSize().then(size => setCacheSize(size));
   }, [offlineBooks]);
 
-  // ── Sauvegarde globale du profil ──
-  const saveUpdatedProfile = (newValues) => {
+  // ── Sauvegarde globale du profil (D1 + Local) ──
+  const saveUpdatedProfile = async (newValues) => {
     const updated = { ...profile, ...newValues };
     setProfile(updated);
-    try {
-      localStorage.setItem('rg_user_profile', JSON.stringify(updated));
-      window.dispatchEvent(new CustomEvent('rg:user-updated', { detail: updated }));
-    } catch (_) {}
+    await apiClient.updateUserProfile(updated);
   };
 
-  // ── Gestion de la recharge portefeuille ──
+  // ── Gestion de la recharge portefeuille D1 ──
   const handleOpenTopUp = (method) => {
     setSelectedTopUpMethod(method);
     setTopUpPhone(profile.phone || '');
     setIsTopUpModalOpen(true);
   };
 
-  const handleConfirmTopUp = () => {
+  const handleConfirmTopUp = async () => {
     if (!topUpAmount || topUpAmount <= 0) return;
     setIsProcessingTopUp(true);
 
-    setTimeout(() => {
-      const newSolde = (profile.solde || 0) + Number(topUpAmount);
-      saveUpdatedProfile({ solde: newSolde, phone: topUpPhone.trim() || profile.phone });
+    try {
+      await apiClient.topUpWallet(Number(topUpAmount), selectedTopUpMethod, topUpPhone.trim() || profile.phone);
+      const newSolde = (profile.solde || profile.wallet_balance || 0) + Number(topUpAmount);
+      setProfile(prev => ({ ...prev, solde: newSolde, wallet_balance: newSolde }));
       setIsProcessingTopUp(false);
       setIsTopUpModalOpen(false);
       setDownloadMsg({
@@ -165,33 +180,40 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
         text: `✓ Rechargement réussi ! +${Number(topUpAmount).toLocaleString('fr-FR')} FCFA ajoutés à votre portefeuille.`
       });
       setTimeout(() => setDownloadMsg(null), 5000);
-    }, 1200);
+    } catch (err) {
+      setIsProcessingTopUp(false);
+      setDownloadMsg({ type: 'error', text: 'Erreur lors du rechargement.' });
+    }
   };
 
-  // ── Gestion de l'abonnement VIP / Premium ──
+  // ── Gestion de l'abonnement VIP / Premium D1 ──
   const handleOpenSubscription = (planId = 'vip') => {
     setSelectedSubPlan(planId);
     setSubPhone(profile.phone || '');
     setIsSubModalOpen(true);
   };
 
-  const handleConfirmSubscription = () => {
+  const handleConfirmSubscription = async () => {
     setIsProcessingSub(true);
 
-    setTimeout(() => {
-      saveUpdatedProfile({
+    try {
+      await apiClient.subscribePlan({
         plan: selectedSubPlan,
+        method: subMethod,
         phone: subPhone.trim() || profile.phone,
-        is_registered: true
       });
+      setProfile(prev => ({ ...prev, plan: selectedSubPlan, is_registered: true }));
       setIsProcessingSub(false);
       setIsSubModalOpen(false);
       setDownloadMsg({
         type: 'success',
-        text: `🎉 Félicitations ! Votre abonnement ${PLANS[selectedSubPlan]?.label || 'VIP'} est maintenant activé.`
+        text: `🎉 Félicitations ! Votre abonnement ${PLANS[selectedSubPlan]?.label || 'VIP'} est maintenant activé sur Cloudflare D1.`
       });
       setTimeout(() => setDownloadMsg(null), 5000);
-    }, 1500);
+    } catch (err) {
+      setIsProcessingSub(false);
+      setDownloadMsg({ type: 'error', text: 'Erreur lors de l\'activation de l\'abonnement.' });
+    }
   };
 
   // ── Téléchargement MP3 ──
@@ -240,7 +262,7 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
   const weeklyPct = Math.min(100, Math.round((profile.weeklyProgressMinutes || 0) / (profile.weeklyGoalMinutes || 60) * 100));
 
   return (
-    <div className="pb-28 md:pb-10 max-w-2xl mx-auto space-y-6 animate-fadeIn">
+    <div className="pb-36 sm:pb-40 max-w-2xl mx-auto space-y-6 animate-fadeIn">
 
       {/* ── En-Tête Profil ── */}
       <div className="card-lg space-y-5 relative overflow-hidden">
@@ -403,6 +425,81 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
       {activeTab === 'overview' && (
         <div className="space-y-5 animate-fadeIn">
 
+          {/* ── CARTE GAMIFICATION & NIVEAU READ'S GREAT ── */}
+          <div className="card-lg space-y-4 border border-purple-500/30 bg-gradient-to-br from-purple-950/60 via-[#1c0d38] to-[#120724] relative overflow-hidden shadow-2xl shadow-purple-950/50">
+            <div className="absolute top-0 right-0 w-40 h-40 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-purple-600 via-pink-600 to-amber-500 flex items-center justify-center text-2xl shadow-lg shadow-purple-600/30 shrink-0">
+                  {levelInfo.currentLevel.icon}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                      Niveau {levelInfo.currentLevel.level}
+                    </span>
+                    <span className="text-xs text-amber-400 font-bold flex items-center gap-1">
+                      <Sparkles className="w-3.5 h-3.5" /> {points} Points ⭐
+                    </span>
+                  </div>
+                  <h3 className="text-base sm:text-lg font-black text-white mt-0.5 font-['Outfit']">
+                    {levelInfo.currentLevel.name}
+                  </h3>
+                  <p className="text-xs text-purple-200/70">{levelInfo.currentLevel.title}</p>
+                </div>
+              </div>
+
+              {/* Bouton Bonus Quotidien */}
+              <button
+                onClick={() => {
+                  const res = claimDailyReward();
+                  if (!res.success) {
+                    setDownloadMsg({ type: 'warn', text: res.message });
+                    setTimeout(() => setDownloadMsg(null), 3000);
+                  }
+                }}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white shadow-lg shadow-amber-500/25 transition-all hover:scale-105 active:scale-95 cursor-pointer whitespace-nowrap"
+              >
+                <Flame className="w-4 h-4 text-white animate-bounce" />
+                <span>Bonus Quotidien (+15 XP)</span>
+              </button>
+            </div>
+
+            {/* Barre de Progression XP */}
+            <div className="space-y-1.5 pt-2 border-t border-white/10">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-purple-300/90 font-semibold flex items-center gap-1">
+                  <Award className="w-3.5 h-3.5 text-purple-400" />
+                  Progression vers Niveau {levelInfo.nextLevel?.level || 'Max'} ({levelInfo.nextLevel?.name || 'Légende'})
+                </span>
+                <span className="font-mono font-bold text-amber-300">{xp} XP {levelInfo.nextLevel ? `/ ${levelInfo.nextLevel.minXp} XP` : ''}</span>
+              </div>
+              <div className="h-2.5 rounded-full bg-black/40 border border-white/10 overflow-hidden p-0.5">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-purple-500 via-pink-500 to-amber-400 transition-all duration-700 shadow-md shadow-purple-500/50"
+                  style={{ width: `${levelInfo.percentage}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Statistiques de Lecture & Écoute Read's Great */}
+            <div className="grid grid-cols-3 gap-2 pt-2 text-center text-xs">
+              <div className="p-2 rounded-xl bg-black/20 border border-white/5">
+                <span className="font-extrabold text-purple-300 block">{readingMinutes || 0} min</span>
+                <span className="text-[10px] text-purple-200/60 uppercase font-medium">Lecture E-Book</span>
+              </div>
+              <div className="p-2 rounded-xl bg-black/20 border border-white/5">
+                <span className="font-extrabold text-cyan-300 block">{listeningMinutes || 0} min</span>
+                <span className="text-[10px] text-purple-200/60 uppercase font-medium">Écoute Audio</span>
+              </div>
+              <div className="p-2 rounded-xl bg-black/20 border border-white/5">
+                <span className="font-extrabold text-amber-300 block">{dailyStreak || 1} Jours 🔥</span>
+                <span className="text-[10px] text-purple-200/60 uppercase font-medium">Série Active</span>
+              </div>
+            </div>
+          </div>
+
           {/* Carte Abonnement */}
           <div className="card-lg space-y-4 border border-amber-500/20">
             <div className="flex items-center justify-between">
@@ -447,6 +544,34 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
               </span>
             </button>
           </div>
+
+          {/* Parrainage & Récompenses */}
+          <ReferralCard profile={profile} />
+
+          {/* Flammes d'écoute — Streak Journalier */}
+          <button
+            onClick={() => setIsStreakModalOpen(true)}
+            className="w-full p-4 rounded-2xl text-left transition-all active:scale-[0.99] hover:opacity-90"
+            style={{
+              background: 'linear-gradient(135deg, rgba(251,146,60,0.10) 0%, rgba(239,68,68,0.06) 100%)',
+              border: '1px solid rgba(251,146,60,0.25)',
+            }}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(251,146,60,0.18)', border: '1px solid rgba(251,146,60,0.28)' }}>
+                  <span className="text-xl">🔥</span>
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-white">Flammes d'Écoute</p>
+                  <p className="text-[11px] text-slate-400">Votre série quotidienne · Niveaux & Récompenses</p>
+                </div>
+              </div>
+              <StreakBadge onClick={() => setIsStreakModalOpen(true)} />
+            </div>
+          </button>
+
+          <StreakModal isOpen={isStreakModalOpen} onClose={() => setIsStreakModalOpen(false)} />
 
           {/* Carte Portefeuille RG Play */}
           <div className="card-lg space-y-4 border border-emerald-500/20">
@@ -527,7 +652,142 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════
-          2. TAB : MES ACHATS
+          2. TAB : XP, POINTS & BADGES READ'S GREAT
+          ══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 'rewards' && (
+        <div className="space-y-6 animate-fadeIn">
+          
+          {/* Bannière de Points & Récompenses Sponsorisées */}
+          <AdBanner
+            placement="profile_header"
+            onOpenRewardModal={() => window.dispatchEvent(new Event('rg:open-reward-ad'))}
+          />
+
+          {/* Carte Solde de Points */}
+          <div className="card-lg border border-amber-500/30 bg-gradient-to-r from-[#1f0e38] to-[#160829] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-2xl text-amber-400 shadow-lg shadow-amber-500/20">
+                ⭐
+              </div>
+              <div>
+                <span className="text-[10px] text-amber-300 font-extrabold uppercase tracking-wider">Portefeuille Read's Great</span>
+                <h3 className="text-2xl font-black text-white font-mono">{points} <span className="text-sm font-sans text-amber-400">Points</span></h3>
+                <p className="text-xs text-purple-200/70">100 Points = 1 Livre audio ou E-book gratuit</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 w-full sm:w-auto">
+              <button
+                onClick={() => {
+                  const res = claimDailyReward();
+                  if (!res.success) {
+                    setDownloadMsg({ type: 'warn', text: res.message });
+                    setTimeout(() => setDownloadMsg(null), 3000);
+                  }
+                }}
+                className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl font-bold text-xs bg-amber-500 hover:bg-amber-400 text-[#140a22] shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Flame className="w-4 h-4" />
+                <span>Bonus Quotidien</span>
+              </button>
+              <button
+                onClick={() => window.dispatchEvent(new Event('rg:open-reward-ad'))}
+                className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl font-bold text-xs bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Gift className="w-4 h-4" />
+                <span>+25 Pts Sponsor</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Vitrine des Badges Read's Great */}
+          <div className="card-lg space-y-4 border border-purple-500/20">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-black text-white font-['Outfit'] flex items-center gap-2">
+                  <Award className="w-5 h-5 text-purple-400" />
+                  <span>Badges & Succès Read's Great</span>
+                </h3>
+                <p className="text-xs text-slate-400">Débloquez des badges en lisant, écoutant et partageant</p>
+              </div>
+              <span className="text-xs font-mono font-bold px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                {unlockedBadges?.length || 0} / {allBadges?.length || 9}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
+              {(allBadges || []).map(badge => {
+                const isUnlocked = (unlockedBadges || []).includes(badge.id);
+                return (
+                  <div
+                    key={badge.id}
+                    className={`p-3.5 rounded-2xl border transition-all flex items-start gap-3 ${
+                      isUnlocked
+                        ? 'bg-gradient-to-br from-purple-950/50 to-pink-950/30 border-purple-500/40 shadow-lg shadow-purple-950/30'
+                        : 'bg-white/3 border-white/5 opacity-50'
+                    }`}
+                  >
+                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 ${
+                      isUnlocked ? 'bg-purple-600/30 border border-purple-400/40' : 'bg-black/30 border border-white/5 grayscale'
+                    }`}>
+                      {badge.icon}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <h4 className="font-bold text-xs text-white truncate">{badge.name}</h4>
+                        {isUnlocked ? (
+                          <span className="text-[9px] font-extrabold text-emerald-400">Débloqué ✓</span>
+                        ) : (
+                          <span className="text-[9px] text-slate-500">Verrouillé</span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-300/80 mt-0.5 line-clamp-2 leading-tight">
+                        {badge.description}
+                      </p>
+                      <span className="inline-block text-[9px] font-bold text-amber-400/90 mt-1">
+                        +{badge.rewardPoints} Points
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Historique des Transactions de Points */}
+          <div className="card-lg space-y-3 border border-purple-500/20">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              <span>Historique des Gains & Dépenses de Points</span>
+            </h3>
+
+            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+              {(recentTransactions || []).map(tx => (
+                <div
+                  key={tx.id}
+                  className="p-3 rounded-xl bg-white/4 border border-white/6 flex items-center justify-between text-xs"
+                >
+                  <div className="min-w-0 pr-2">
+                    <p className="font-semibold text-slate-200 truncate">{tx.description}</p>
+                    <span className="text-[10px] text-slate-400">
+                      {new Date(tx.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <span className={`font-mono font-bold whitespace-nowrap ${
+                    tx.amount > 0 ? 'text-emerald-400' : 'text-rose-400'
+                  }`}>
+                    {tx.amount > 0 ? `+${tx.amount}` : tx.amount} Pts ⭐
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          3. TAB : MES ACHATS
           ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === 'purchases' && (
         <div className="space-y-4 animate-fadeIn">

@@ -315,9 +315,22 @@ export function viteApiPlugin() {
             const search = url.searchParams.get('search');
             const featured = url.searchParams.get('featured');
             const type = url.searchParams.get('type');
+            const isAdmin = url.searchParams.get('admin') === 'true' || req.headers['x-admin'] === 'true';
             const deletedSet = new Set(db.deleted_book_ids || []);
 
             let books = (db.audiobooks || []).filter(b => !deletedSet.has(b.id));
+
+            if (!isAdmin) {
+              const now = Date.now();
+              books = books.filter(b => {
+                if (!b.status || b.status === 'published') return true;
+                if (b.status === 'scheduled') {
+                  if (!b.scheduled_at) return true;
+                  return new Date(b.scheduled_at).getTime() <= now;
+                }
+                return false;
+              });
+            }
 
             if (type && type !== 'all') {
               books = books.filter(b => (b.content_type || 'audiobook') === type);
@@ -791,8 +804,7 @@ export function viteApiPlugin() {
 
             if (fs.existsSync(filePath)) {
               const fileBuffer = fs.readFileSync(filePath);
-              const ext = path.extname(cleanKey).toLowerCase();
-              const mime = ext === '.mp3' ? 'audio/mpeg' : ext === '.wav' ? 'audio/wav' : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'application/octet-stream';
+              const mime = ext === '.mp3' ? 'audio/mpeg' : ext === '.wav' ? 'audio/wav' : ext === '.webm' ? 'audio/webm' : ext === '.m4a' ? 'audio/mp4' : ext === '.aac' ? 'audio/aac' : ext === '.flac' ? 'audio/flac' : ext === '.ogg' || ext === '.opus' ? 'audio/ogg' : ext === '.pdf' ? 'application/pdf' : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'application/octet-stream';
               res.setHeader('Content-Type', mime);
               res.setHeader('Cache-Control', 'public, max-age=86400');
               res.statusCode = 200;
@@ -810,6 +822,7 @@ export function viteApiPlugin() {
             const body = await parseBody(req);
             const { title, author, description, synopsis } = body;
             const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || 'sk-f7d21369be024340bac5d7d1443b59ea';
+            const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
 
             const prompt = `Tu es un directeur éditorial et expert marketing pour RG Play, la première plateforme de livres audio et masterclasses d'excellence en Afrique.
 À partir des informations suivantes :
@@ -835,7 +848,7 @@ Ne réponds rien d'autre que l'objet JSON (sans texte d'accompagnement ni balise
                   'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
                 },
                 body: JSON.stringify({
-                  model: 'deepseek-chat',
+                  model: DEEPSEEK_MODEL,
                   messages: [
                     { role: 'system', content: 'Tu es une API qui répond exclusivement par du JSON strict et valide.' },
                     { role: 'user', content: prompt }
@@ -868,13 +881,40 @@ Ne réponds rien d'autre que l'objet JSON (sans texte d'accompagnement ni balise
             }
           }
 
-          // ─── POST /api/ai/chat (Discuter avec le Livre) ──────────────
+          // ─── POST /api/ai/chat (Discuter avec le Livre & Vision Couverture) ──────────────
           if (apiPath === '/ai/chat' && req.method === 'POST') {
             const body = await parseBody(req);
-            const { book_title, author, synopsis, description, key_takeaways, messages = [], user_message } = body;
+            const { book_title, author, synopsis, description, key_takeaways, messages = [], user_message, image_base64, image_url } = body;
             const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || 'sk-f7d21369be024340bac5d7d1443b59ea';
+            const hasImage = Boolean(image_base64 || image_url);
+            const DEEPSEEK_MODEL = hasImage 
+              ? 'deepseek-v4-flash-vision-exp' 
+              : (process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash');
 
-            const systemPrompt = `Tu es le tuteur et mentor IA officiel pour l'œuvre audio "${book_title || 'cet audio'}" de ${author || 'l\'auteur'} sur la plateforme RG Play.
+            const db = readDb();
+            const catalogBooks = (db.audiobooks || []).slice(0, 60);
+            const catalogContext = catalogBooks.length > 0
+              ? '\nCatalogue disponible sur RG Play :\n' + catalogBooks.map(b => `- ID: ${b.id} | Titre: "${b.title}" | Auteur: "${b.author}" | Format: ${b.pdf_url ? 'E-Book PDF' : 'Livre Audio'}`).join('\n')
+              : '';
+
+            const systemPrompt = hasImage
+              ? `Tu es l'Agent SKY, l'intelligence artificielle d'élite et mentor officiel de RG Play.
+L'utilisateur t'envoie une photo de couverture d'un livre pour l'identifier, le rechercher ou obtenir des conseils.
+Consignes d'analyse visuelle :
+1. Identifie avec précision l'ouvrage : Titre exact et Auteur.
+2. Vérifie immédiatement dans le catalogue RG Play :
+${catalogContext}
+3. Si le livre est présent dans le catalogue :
+   - Annonce-le avec enthousiasme.
+   - Fournis obligatoirement les liens d'accès :
+     - Pour écouter l'audio : [🎧 Écouter l'Audio](rg:audio:ID_DU_LIVRE)
+     - Pour lire le PDF / E-Book : [📖 Lire le PDF / E-Book](rg:ebook:ID_DU_LIVRE)
+     - Pour la fiche complète : [ℹ️ Fiche du Livre](rg:book:ID_DU_LIVRE)
+4. Si le livre n'est pas encore au catalogue :
+   - Donne un résumé percutant de ses 3 leçons fondamentales.
+   - Recommande 1 ou 2 œuvres proches disponibles dans notre catalogue.
+5. Sois vif, structuré et concis (maximum 180 mots).`
+              : `Tu es le tuteur et mentor IA officiel pour l'œuvre audio "${book_title || 'cet audio'}" de ${author || 'l\'auteur'} sur la plateforme RG Play.
 Contexte du livre :
 - Titre : ${book_title || 'Inconnu'}
 - Auteur : ${author || 'Inconnu'}
@@ -885,14 +925,28 @@ Règles de discussion :
 1. Réponds avec bienveillance, autorité constructive et dynamisme.
 2. Appuie-toi fidèlement sur les enseignements et la philosophie de cette œuvre.
 3. Sois très pragmatique et orienté passage à l'action pour les auditeurs.
-4. Garde tes réponses structurées, claires et concises (2 à 3 paragraphes ou listes claires, maximum 200 mots).
-5. Reste poli, direct et motivant.`;
+4. Garde tes réponses structurées, claires et concises (2 à 3 paragraphes ou listes claires, maximum 150 mots).
+5. Si tu mentionnes un livre du catalogue, insère le lien [Titre](rg:book:ID_DU_LIVRE).
+6. Reste poli, direct et motivant.`;
 
             const dsMessages = [{ role: 'system', content: systemPrompt }];
-            for (const m of messages.slice(-8)) {
-              if (m.role && m.content) dsMessages.push({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content });
+            for (const m of messages.slice(-4)) {
+              if (m.role && m.content) dsMessages.push({ role: m.role === 'user' ? 'user' : 'assistant', content: String(m.content).slice(0, 400) });
             }
-            if (user_message) dsMessages.push({ role: 'user', content: user_message });
+
+            if (hasImage) {
+              const imgUrl = image_base64 || image_url;
+              const formattedUrl = imgUrl.startsWith('data:') ? imgUrl : `data:image/jpeg;base64,${imgUrl}`;
+              dsMessages.push({
+                role: 'user',
+                content: [
+                  { type: 'text', text: user_message || "Analyse cette photo de couverture de livre. Identifie le titre et l'auteur et vérifie s'il est disponible sur RG Play." },
+                  { type: 'image_url', image_url: { url: formattedUrl } }
+                ]
+              });
+            } else if (user_message) {
+              dsMessages.push({ role: 'user', content: String(user_message).slice(0, 400) });
+            }
 
             try {
               const dsRes = await fetch('https://api.deepseek.com/chat/completions', {
@@ -902,17 +956,34 @@ Règles de discussion :
                   'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
                 },
                 body: JSON.stringify({
-                  model: 'deepseek-chat',
+                  model: DEEPSEEK_MODEL,
                   messages: dsMessages,
                   temperature: 0.7,
-                  max_tokens: 800,
+                  max_tokens: hasImage ? 500 : 450,
                 }),
               });
 
               const dsData = await dsRes.json();
-              const reply = dsData.choices?.[0]?.message?.content || 'Je n\'ai pas pu formuler de réponse.';
+              const reply = dsData.choices?.[0]?.message?.content || dsData.choices?.[0]?.message?.reasoning_content || 'Je n\'ai pas pu formuler de réponse.';
+
+              let matched_book = null;
+              const replyLower = reply.toLowerCase();
+              for (const b of catalogBooks) {
+                if (b.title && replyLower.includes(b.title.toLowerCase())) {
+                  matched_book = {
+                    id: b.id,
+                    title: b.title,
+                    author: b.author,
+                    cover_url: b.cover_url,
+                    pdf_url: b.pdf_url,
+                    content_type: b.content_type || (b.pdf_url ? 'ebook' : 'audiobook'),
+                  };
+                  break;
+                }
+              }
+
               res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ success: true, reply }));
+              res.end(JSON.stringify({ success: true, reply, matched_book, model_used: DEEPSEEK_MODEL }));
               return;
             } catch (err) {
               res.statusCode = 500;
@@ -926,6 +997,7 @@ Règles de discussion :
             const body = await parseBody(req);
             const { query } = body;
             const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || 'sk-f7d21369be024340bac5d7d1443b59ea';
+            const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
 
             const db = readDb();
             const books = db.audiobooks || [];
@@ -958,13 +1030,13 @@ Réponds STRICTEMENT sous format JSON :
                   'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
                 },
                 body: JSON.stringify({
-                  model: 'deepseek-chat',
+                  model: DEEPSEEK_MODEL,
                   messages: [
                     { role: 'system', content: 'Tu es un moteur de recherche sémantique JSON strict.' },
                     { role: 'user', content: searchPrompt }
                   ],
                   temperature: 0.3,
-                  max_tokens: 400,
+                  max_tokens: 250,
                 }),
               });
 

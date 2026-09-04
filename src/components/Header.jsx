@@ -2,6 +2,8 @@ import React from 'react';
 import { Search, Bell, Headphones, Sparkles, Download, ShieldCheck, LogOut, ArrowLeft } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { usePush } from '../context/PushContext';
+import { useXp } from '../context/XpContext';
+import { StreakBadge } from './StreakSystem';
 
 // ── Données utilisateur (localStorage — pas de données techniques) ────────────
 const getUserProfile = () => {
@@ -19,11 +21,13 @@ export const Header = ({
   setActiveTab,
   onOpenInstallModal,
   onOpenNotifications,
+  onOpenStreak,
   isAdmin = false,
   onAdminLogout,
 }) => {
   const { theme, toggleTheme } = useTheme();
   const { isSubscribed, requestPermission, unreadCount } = usePush();
+  const { points } = useXp();
   const user = getUserProfile();
 
   const isAdminMode = activeTab === 'admin';
@@ -32,11 +36,11 @@ export const Header = ({
     <header
       className="sticky top-0 z-40 w-full transition-all"
       style={{
-        background: 'rgba(5, 3, 17, 0.90)',
+        background: 'rgba(18, 8, 36, 0.94)',
         backdropFilter: 'blur(32px) saturate(200%)',
         WebkitBackdropFilter: 'blur(32px) saturate(200%)',
-        borderBottom: '1px solid rgba(168, 85, 247, 0.14)',
-        boxShadow: '0 1px 0 rgba(255,255,255,0.05) inset, 0 4px 24px rgba(0,0,0,0.40)',
+        borderBottom: '1px solid rgba(168, 85, 247, 0.20)',
+        boxShadow: '0 1px 0 rgba(255,255,255,0.06) inset, 0 4px 24px rgba(0,0,0,0.50)',
       }}
     >
       <div className="max-w-screen-2xl mx-auto px-4 lg:px-8 py-3.5 flex items-center gap-4 justify-between">
@@ -150,19 +154,42 @@ export const Header = ({
               </button>
             )}
 
-            {/* Notifications Push & Centre de Notifications */}
-            <button
-              onClick={onOpenNotifications || (() => requestPermission())}
-              title="Centre de notifications"
-              className="relative p-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-all active:scale-95"
-            >
-              <Bell className={`w-4 h-4 ${isSubscribed ? 'fill-purple-400 text-purple-300' : 'text-slate-300'}`} />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-pink-500 text-white text-[9px] font-black flex items-center justify-center shadow-md animate-pulse">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
+              {/* Streak Badge — flamme d'écoute quotidienne */}
+              {!isAdminMode && (
+                <StreakBadge onClick={onOpenStreak} />
               )}
-            </button>
+
+              {/* Notifications Push & Centre de Notifications */}
+              <button
+                onClick={onOpenNotifications || (() => requestPermission())}
+                title="Centre de notifications"
+                className="relative p-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-all active:scale-95"
+              >
+                <Bell className={`w-4 h-4 ${isSubscribed ? 'fill-purple-400 text-purple-300' : 'text-slate-300'}`} />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-pink-500 text-white text-[9px] font-black flex items-center justify-center shadow-md animate-pulse">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+
+            {/* Solde de Points Récompenses — Monétisation & Engagement */}
+            {!isAdminMode && (
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new Event('rg:open-reward-ad'))}
+                title="Vos Points Read's Great — Cliquez pour regarder une pub et en gagner plus"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black border transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-md"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(245,158,11,0.20), rgba(217,119,6,0.25))',
+                  borderColor: 'rgba(245,158,11,0.45)',
+                  color: '#fbbf24',
+                }}
+              >
+                <span>⭐</span>
+                <span>{points} pts</span>
+              </button>
+            )}
 
             {/* Toggle Thème */}
             <button

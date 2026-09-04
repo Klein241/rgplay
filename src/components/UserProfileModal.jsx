@@ -3,6 +3,7 @@ import {
   User, Mail, Phone, Sparkles, Check, X, Camera,
   Heart, ShieldCheck, Crown, Smartphone, Headphones
 } from 'lucide-react';
+import { apiClient } from '../services/api';
 
 const AVATAR_PRESETS = [
   'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&q=80',
@@ -66,7 +67,7 @@ export const UserProfileModal = ({ isOpen, onClose, onProfileSaved }) => {
     reader.readAsDataURL(file);
   };
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
     if (!name.trim()) return;
 
@@ -76,6 +77,7 @@ export const UserProfileModal = ({ isOpen, onClose, onProfileSaved }) => {
       email: email.trim() || `${name.toLowerCase().replace(/\s+/g, '')}@rgplay.com`,
       phone: phone.trim(),
       avatar,
+      avatar_url: avatar,
       favoriteGenre,
       is_registered: true,
       registeredAt: Date.now(),
@@ -86,6 +88,8 @@ export const UserProfileModal = ({ isOpen, onClose, onProfileSaved }) => {
       localStorage.setItem('rg_user_profile', JSON.stringify(updatedProfile));
       localStorage.setItem('rg_user_registered', 'true');
       window.dispatchEvent(new CustomEvent('rg:user-updated', { detail: updatedProfile }));
+      // Persistance D1
+      await apiClient.updateUserProfile(updatedProfile);
     } catch (_) {}
 
     setSuccessMsg(true);
@@ -94,7 +98,7 @@ export const UserProfileModal = ({ isOpen, onClose, onProfileSaved }) => {
       setSuccessMsg(false);
       if (onProfileSaved) onProfileSaved(updatedProfile);
       onClose();
-    }, 1000);
+    }, 800);
   };
 
   return (

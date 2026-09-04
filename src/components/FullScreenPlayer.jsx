@@ -1,15 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  ChevronDown, Heart, RotateCcw, RotateCw, Play, Pause, SkipBack, SkipForward, 
-  Moon, Gauge, Bookmark, ListMusic, Volume2, VolumeX, Share2, Plus, Trash2, CheckCircle2, Clock,
-  Star, Sparkles, UserPlus, X, ChevronRight, Headphones, Radio, Music, GraduationCap
+  ChevronDown, Heart, RotateCcw, Play, Pause, SkipBack, SkipForward, 
+  Moon, Gauge, Bookmark, ListMusic, Volume2, VolumeX, Share2, Sparkles,
+  Search, Menu, CheckCircle2, Star, ChevronLeft, ChevronRight, X, Square
 } from 'lucide-react';
 import { useAudio } from '../context/AudioContext';
 import { apiClient } from '../services/api';
 import { shareAudioWithCover } from '../utils/shareUtils';
 import { SpeedSelectorModal } from './SpeedSelectorModal';
 import { SleepTimerModal } from './SleepTimerModal';
-import { UserProfileModal } from './UserProfileModal';
 import { BookChatModal } from './BookChatModal';
 
 export const FullScreenPlayer = () => {
@@ -21,696 +20,450 @@ export const FullScreenPlayer = () => {
     currentTime,
     duration,
     playbackRate,
-    volume,
     isMuted,
     isPreviewMode,
     isFullScreenOpen,
     sleepTimerOption,
-    sleepTimerSecondsLeft,
-    bookmarks,
     togglePlay,
+    stopAudio,
     seekTo,
-    skipForward,
-    skipBackward,
     handleNextChapter,
     handlePrevChapter,
     selectChapter,
-    addBookmark,
-    removeBookmark,
     formatTime,
     setIsFullScreenOpen,
     playBook,
-    playPreview,
   } = useAudio();
 
-  const [activeTab, setActiveTab] = useState('player'); // 'player', 'chapters', 'bookmarks'
+  const [activeView, setActiveView] = useState('player'); // 'player' | 'chapters'
   const [isSpeedModalOpen, setIsSpeedModalOpen] = useState(false);
   const [isSleepModalOpen, setIsSleepModalOpen] = useState(false);
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [newBookmarkNote, setNewBookmarkNote] = useState('');
-  const [isAddingBookmark, setIsAddingBookmark] = useState(false);
-
-  // ── Recommandations dans le lecteur ──
-  const [recommendations, setRecommendations] = useState([]);
-
-  // ── États pour Avis (20s) et Inscription (25s) ──
-  const [hasRated, setHasRated] = useState(false);
-  const [reviewRating, setReviewRating] = useState(5);
-  const [reviewComment, setReviewComment] = useState('');
-  const [reviewSubmitted, setReviewSubmitted] = useState(false);
-  const [dismissedReview, setDismissedReview] = useState(false);
-
-  const [isUserRegistered, setIsUserRegistered] = useState(() => {
-    try {
-      const stored = localStorage.getItem('rg_user_profile');
-      if (stored) {
-        const p = JSON.parse(stored);
-        return Boolean(p.is_registered);
-      }
-    } catch {}
-    return false;
-  });
-  const [dismissedRegister, setDismissedRegister] = useState(false);
-  const [shareToast, setShareToast] = useState('');
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [shareToast, setShareToast] = useState('');
+  const [recentPlaylist, setRecentPlaylist] = useState([]);
 
-  // Vérifier statut d'avis existant pour ce livre
-  useEffect(() => {
-    if (currentBook?.id) {
-      const savedRating = localStorage.getItem(`rg_rated_${currentBook.id}`);
-      setHasRated(Boolean(savedRating));
-      setDismissedReview(false);
-      setDismissedRegister(false);
-      setReviewSubmitted(false);
-    }
-  }, [currentBook?.id]);
-
-  // Écouter les mises à jour utilisateur
-  useEffect(() => {
-    const handleUserUpdate = () => {
-      try {
-        const stored = localStorage.getItem('rg_user_profile');
-        if (stored) {
-          const p = JSON.parse(stored);
-          setIsUserRegistered(Boolean(p.is_registered));
-        }
-      } catch {}
-    };
-    window.addEventListener('rg:user-updated', handleUserUpdate);
-    return () => window.removeEventListener('rg:user-updated', handleUserUpdate);
-  }, []);
-
-  // Charger les recommandations basées sur l'audio actuel
-  useEffect(() => {
-    if (!currentBook?.id) return;
-    apiClient.getAudiobooks({
-      category: currentBook.category_id || 'all',
-      type: currentBook.content_type || 'all',
-    }).then((books) => {
-      if (Array.isArray(books)) {
-        setRecommendations(books.filter(b => b.id !== currentBook.id).slice(0, 5));
-      }
-    }).catch(() => {});
-  }, [currentBook?.id, currentBook?.category_id, currentBook?.content_type]);
-
-  if (!isFullScreenOpen || !currentBook) return null;
-
+  // Calcul du pourcentage de progression
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
   const remainingTime = Math.max(duration - currentTime, 0);
 
-  // Détection du déclenchement Avis (à partir de 20s ou fin)
-  const isEligibleForReview = (currentTime >= 20 || (duration > 0 && currentTime >= duration - 5)) && !hasRated && !dismissedReview;
+  // Charger les livres de la playlist récente / recommandations
+  useEffect(() => {
+    if (!currentBook?.id) return;
+    apiClient.getAudiobooks({ category: 'all' }).then((books) => {
+      if (Array.isArray(books)) {
+        setRecentPlaylist(books.filter(b => b.id !== currentBook.id).slice(0, 8));
+      }
+    }).catch(() => {});
+  }, [currentBook?.id]);
 
-  // Détection du déclenchement Inscription (à partir de 25s si non inscrit)
-  const isEligibleForRegister = currentTime >= 25 && !isUserRegistered && !dismissedRegister;
-
-  const handleCreateBookmark = (e) => {
-    e.preventDefault();
-    addBookmark(newBookmarkNote);
-    setNewBookmarkNote('');
-    setIsAddingBookmark(false);
-  };
+  if (!isFullScreenOpen || !currentBook) return null;
 
   const handleShare = async () => {
     const res = await shareAudioWithCover(currentBook);
     if (res.method === 'clipboard') {
-      setShareToast('✓ Lien copié dans le presse-papiers !');
+      setShareToast('✓ Lien copié !');
       setTimeout(() => setShareToast(''), 2500);
     }
   };
 
-  const handleSubmitReview = (e) => {
-    e.preventDefault();
-    try {
-      localStorage.setItem(`rg_rated_${currentBook.id}`, String(reviewRating));
-      setHasRated(true);
-      setReviewSubmitted(true);
-      setTimeout(() => {
-        setDismissedReview(true);
-      }, 2000);
-    } catch (_) {}
-  };
+  const currentCover = currentBook.cover_url || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80';
+  const radius = 108;
+  const circumference = 2 * Math.PI * radius;
+  const strokeOffset = circumference - (progressPercent / 100) * circumference;
+
+  // Calcul du chapitre précédent et suivant pour les vignettes de navigation
+  const prevChapterTitle = currentChapterIndex > 0 
+    ? (currentBook.chapters?.[currentChapterIndex - 1]?.title || `Chapitre ${currentChapterIndex}`)
+    : 'Début';
+
+  const nextChapterTitle = currentBook.chapters && currentChapterIndex < currentBook.chapters.length - 1
+    ? (currentBook.chapters?.[currentChapterIndex + 1]?.title || `Chapitre ${currentChapterIndex + 2}`)
+    : 'Fin';
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-[#0a0714] text-slate-100 flex flex-col justify-between animate-fadeIn">
-      {/* Fond flouté avec halo de jaquette */}
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-[#0d0618] text-slate-100 flex flex-col justify-between animate-fadeIn select-none">
+      
+      {/* ── FOND ROYALE PLUM & HALO SUBTIL ── */}
       <div 
-        className="absolute inset-0 opacity-25 bg-cover bg-center filter blur-3xl scale-125 -z-10 pointer-events-none"
-        style={{ backgroundImage: `url(${currentBook.cover_url || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80'})` }}
+        className="absolute inset-0 opacity-20 bg-cover bg-center filter blur-3xl scale-125 -z-10 pointer-events-none"
+        style={{ backgroundImage: `url(${currentCover})` }}
       />
-      <div className="absolute inset-0 bg-gradient-to-b from-[#0a0714]/85 via-[#0f0c1b]/95 to-[#080511] -z-10" />
+      <div className="absolute inset-0 bg-gradient-to-b from-[#140826]/90 via-[#0e0618]/95 to-[#08030f] -z-10" />
 
-      {/* Header du lecteur */}
-      <header className="px-4 sm:px-6 py-4 flex items-center justify-between z-10 border-b border-white/5 backdrop-blur-md">
+      {/* ── EN-TÊTE SUPÉRIEUR (@iSalmanArt Screen 3) ── */}
+      <header className="px-5 sm:px-8 py-4 flex items-center justify-between z-10">
         <button
           onClick={() => setIsFullScreenOpen(false)}
-          className="p-2.5 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors"
-          title="Fermer le lecteur plein écran"
+          className="p-2.5 rounded-full hover:bg-white/10 text-[#c4b0e8] hover:text-white transition-colors cursor-pointer"
+          title="Fermer"
         >
           <ChevronDown className="w-6 h-6" />
         </button>
 
-        <div className="text-center min-w-0 px-2">
-          <p className="text-[11px] uppercase tracking-widest font-extrabold text-purple-300">
-            {isPreviewMode ? 'Extrait Démo Gratuit' : 'En Lecture'}
-          </p>
-          <p className="text-xs sm:text-sm font-bold text-white max-w-[200px] sm:max-w-md truncate">
-            {currentBook.title}
-          </p>
+        <div className="text-center">
+          <h2 className="text-sm sm:text-base font-black tracking-widest text-[#e9d5ff] uppercase font-heading">
+            LECTEUR AUDIO
+          </h2>
+          <span className="text-[10px] text-purple-300 font-semibold">
+            {currentBook.chapters?.length ? `${currentBook.chapters.length} chapitres disponibles` : 'Piste Unique'}
+          </span>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleShare}
-            className="p-2.5 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors relative"
-            title="Partager avec la pochette"
-          >
-            <Share2 className="w-5 h-5" />
-            {shareToast && (
-              <span className="absolute right-0 top-12 whitespace-nowrap px-3 py-1.5 rounded-xl bg-emerald-500 text-slate-950 font-bold text-xs shadow-xl animate-fadeIn">
-                {shareToast}
-              </span>
-            )}
-          </button>
-        </div>
+        <button
+          onClick={() => setActiveView(prev => prev === 'player' ? 'chapters' : 'player')}
+          className={`p-2.5 rounded-2xl flex items-center gap-1.5 transition-all cursor-pointer border ${
+            activeView === 'chapters'
+              ? 'bg-purple-600 text-white border-purple-400 shadow-lg shadow-purple-600/40'
+              : 'bg-white/10 hover:bg-white/20 text-[#c4b0e8] hover:text-white border-white/10'
+          }`}
+          title="Ouvrir la liste des chapitres et séries"
+        >
+          <ListMusic className="w-5 h-5 text-purple-300" />
+          <span className="text-xs font-bold hidden sm:inline">
+            {activeView === 'chapters' ? 'Lecteur' : 'Chapitres'}
+          </span>
+        </button>
       </header>
 
-      {/* ── 1. ONGLETS DE NAVIGATION AGRANDIS ET BIEN PRÉSENTABLES ── */}
-      <div className="flex justify-center px-4 pt-3 z-10 w-full">
-        <div className="flex items-center justify-center p-1.5 rounded-2xl bg-slate-900/90 border border-white/15 backdrop-blur-2xl shadow-xl gap-2 max-w-lg w-full">
-          <button
-            onClick={() => setActiveTab('player')}
-            className={`flex-1 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-extrabold transition-all duration-200 flex items-center justify-center gap-1.5 ${
-              activeTab === 'player'
-                ? 'bg-gradient-to-r from-purple-600 to-pink-500 text-white shadow-lg shadow-purple-500/40 ring-1 ring-white/20'
-                : 'text-slate-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Headphones className="w-4 h-4 flex-shrink-0" />
-            <span>Lecteur</span>
-          </button>
+      {/* ── VUE PRINCIPALE DU LECTEUR ── */}
+      {activeView === 'player' ? (
+        <main className="flex-1 flex flex-col items-center justify-center max-w-lg mx-auto w-full px-4 sm:px-6 py-2 z-10">
+          
+          {/* Titre & Auteur de l'œuvre (@iSalmanArt) */}
+          <div className="text-center mb-4 max-w-sm">
+            <h1 className="text-lg sm:text-2xl font-bold text-white tracking-wide truncate">
+              {currentChapter?.title || currentBook.title}
+            </h1>
+            <p className="text-xs sm:text-sm text-[#c4b0e8] font-medium truncate mt-1">
+              {currentBook.author || 'Auteur inconnu'} • {formatTime(duration)}
+            </p>
+          </div>
 
-          <button
-            onClick={() => setActiveTab('chapters')}
-            className={`flex-1 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-extrabold transition-all duration-200 flex items-center justify-center gap-1.5 ${
-              activeTab === 'chapters'
-                ? 'bg-gradient-to-r from-purple-600 to-pink-500 text-white shadow-lg shadow-purple-500/40 ring-1 ring-white/20'
-                : 'text-slate-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <ListMusic className="w-4 h-4 flex-shrink-0" />
-            <span>Chapitres ({currentBook.chapters?.length || 1})</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('bookmarks')}
-            className={`flex-1 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-extrabold transition-all duration-200 flex items-center justify-center gap-1.5 ${
-              activeTab === 'bookmarks'
-                ? 'bg-gradient-to-r from-purple-600 to-pink-500 text-white shadow-lg shadow-purple-500/40 ring-1 ring-white/20'
-                : 'text-slate-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Bookmark className="w-4 h-4 flex-shrink-0" />
-            <span>Signets</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Contenu Principal selon l'onglet actif */}
-      <main className="flex-1 flex flex-col justify-center max-w-xl mx-auto w-full px-4 sm:px-6 py-4 z-10">
-        {activeTab === 'player' && (
-          <div className="flex flex-col items-center">
-
-            {/* ── 2. PROMPT AVIS À 20 SECONDES ── */}
-            {isEligibleForReview && (
-              <div className="w-full mb-4 p-3.5 rounded-2xl glass-card border border-amber-500/40 bg-amber-950/30 shadow-xl animate-slideDown relative">
-                <button
-                  onClick={() => setDismissedReview(true)}
-                  className="absolute top-2.5 right-2.5 text-slate-400 hover:text-white p-1"
-                >
-                  <X size={14} />
-                </button>
-
-                {reviewSubmitted ? (
-                  <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold py-1">
-                    <CheckCircle2 size={16} />
-                    <span>Merci pour votre avis ! Votre note a été enregistrée.</span>
-                  </div>
-                ) : (
-                  <form onSubmit={handleSubmitReview} className="space-y-2">
-                    <div className="flex items-center justify-between pr-6">
-                      <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
-                        <Star size={14} className="fill-amber-400 text-amber-400" />
-                        Donnez votre avis sur cet audio
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-2 pt-1">
-                      <div className="flex items-center gap-1">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <button
-                            key={star}
-                            type="button"
-                            onClick={() => setReviewRating(star)}
-                            className="p-1 text-amber-400 hover:scale-125 transition-transform"
-                          >
-                            <Star
-                              size={18}
-                              className={star <= reviewRating ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}
-                            />
-                          </button>
-                        ))}
-                      </div>
-
-                      <button
-                        type="submit"
-                        className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 text-xs font-extrabold shadow-md active:scale-95 transition-all"
-                      >
-                        Noter ({reviewRating}/5)
-                      </button>
-                    </div>
-                  </form>
-                )}
+          {/* ── CADRAN RADIAL CIRCULAIRE SIGNATURE (@iSalmanArt Screen 3) ── */}
+          <div className="relative w-64 h-64 sm:w-72 sm:h-72 my-3 flex items-center justify-center">
+            
+            {/* Visualiseur d'ondes audio en arrière-plan */}
+            <div className="absolute inset-0 flex items-center justify-between px-2 opacity-30 pointer-events-none">
+              <div className="flex items-center gap-1">
+                <span className="w-1 rounded-full bg-purple-400 eq-bar-1" />
+                <span className="w-1 rounded-full bg-cyan-300 eq-bar-2" />
+                <span className="w-1 rounded-full bg-purple-300 eq-bar-3" />
+                <span className="w-1 rounded-full bg-pink-400 eq-bar-4" />
               </div>
-            )}
-
-            {/* ── 3. PROMPT INSCRIPTION À 25 SECONDES ── */}
-            {isEligibleForRegister && (
-              <div className="w-full mb-4 p-3.5 rounded-2xl glass-card border border-purple-500/40 bg-gradient-to-r from-purple-950/40 to-pink-950/40 shadow-2xl animate-slideDown flex items-center justify-between gap-3 relative">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-9 h-9 rounded-xl bg-purple-600/30 border border-purple-500/40 flex items-center justify-center text-purple-300 flex-shrink-0 animate-pulse">
-                    <Sparkles size={18} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold text-white leading-tight truncate">
-                      Créez votre profil en 1 clic
-                    </p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
-                      Sauvegardez vos playlists & signets
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1.5 flex-shrink-0">
-                  <button
-                    onClick={() => setIsProfileModalOpen(true)}
-                    className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-xs font-black shadow-md shadow-purple-600/30 whitespace-nowrap active:scale-95 transition-all flex items-center gap-1"
-                  >
-                    <span>Inscris-toi maintenant !</span>
-                    <ChevronRight size={13} />
-                  </button>
-                  <button
-                    onClick={() => setDismissedRegister(true)}
-                    className="text-slate-500 hover:text-slate-300 p-1"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
+              <div className="flex items-center gap-1">
+                <span className="w-1 rounded-full bg-purple-300 eq-bar-5" />
+                <span className="w-1 rounded-full bg-pink-400 eq-bar-2" />
+                <span className="w-1 rounded-full bg-cyan-300 eq-bar-3" />
+                <span className="w-1 rounded-full bg-purple-400 eq-bar-1" />
               </div>
-            )}
+            </div>
 
-            {/* Jaquette avec halo lumineux et effet de lévitation */}
-            <div className="relative my-2 sm:my-3 group">
-              <div className="absolute inset-0 rounded-3xl bg-gradient-to-tr from-purple-600 via-fuchsia-600 to-pink-500 filter blur-2xl opacity-40 cover-halo -z-10"></div>
-              <img
-                src={currentBook.cover_url || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80'}
-                alt={currentBook.title}
-                onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80'; }}
-                className="w-48 h-48 sm:w-60 sm:h-60 object-cover rounded-3xl shadow-2xl border border-white/20 transform transition-transform duration-500 group-hover:scale-102"
+            {/* SVG Ring circulaire de progression */}
+            <svg className="absolute inset-0 w-full h-full -rotate-90 transform drop-shadow-[0_0_20px_rgba(168,85,247,0.4)]" viewBox="0 0 250 250">
+              <defs>
+                <linearGradient id="salmanRadialGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#d8b4fe" />
+                  <stop offset="50%" stopColor="#a855f7" />
+                  <stop offset="100%" stopColor="#22d3ee" />
+                </linearGradient>
+              </defs>
+              {/* Cercle de fond */}
+              <circle
+                cx="125"
+                cy="125"
+                r={radius}
+                fill="transparent"
+                stroke="rgba(168, 85, 247, 0.18)"
+                strokeWidth="7"
               />
-            </div>
+              {/* Arc de progression dynamique */}
+              <circle
+                cx="125"
+                cy="125"
+                r={radius}
+                fill="transparent"
+                stroke="url(#salmanRadialGrad)"
+                strokeWidth="7"
+                strokeDasharray={circumference}
+                strokeDashoffset={strokeOffset}
+                strokeLinecap="round"
+                className="transition-all duration-150"
+              />
+            </svg>
 
-            {/* Visualiseur d'ondes sonores dynamique (Waveform Equalizer) */}
-            <div className="flex items-center justify-center gap-1.5 my-2 h-7">
-              {isPlaying ? (
-                <>
-                  <span className="waveform-bar"></span>
-                  <span className="waveform-bar"></span>
-                  <span className="waveform-bar"></span>
-                  <span className="waveform-bar"></span>
-                  <span className="waveform-bar"></span>
-                  <span className="waveform-bar"></span>
-                  <span className="waveform-bar"></span>
-                  <span className="waveform-bar"></span>
-                </>
-              ) : (
-                <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                  <span className="w-1 h-1 rounded-full bg-slate-600"></span>
-                  <span className="w-1 h-1 rounded-full bg-slate-600"></span>
-                  <span>En pause</span>
-                  <span className="w-1 h-1 rounded-full bg-slate-600"></span>
-                  <span className="w-1 h-1 rounded-full bg-slate-600"></span>
-                </div>
-              )}
-            </div>
+            {/* Disque central avec jaquette translucide & Bouton Play/Pause */}
+            <div className="relative w-48 h-48 sm:w-54 sm:h-54 rounded-full overflow-hidden border border-purple-400/30 shadow-2xl flex items-center justify-center group">
+              <img
+                src={currentCover}
+                alt={currentBook.title}
+                className={`w-full h-full object-cover filter brightness-90 ${isPlaying ? 'animate-[spin_20s_linear_infinite]' : ''}`}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-purple-950/40 to-transparent" />
 
-            {/* Titre du livre et métadonnées */}
-            <div className="w-full text-center mb-3">
-              <h1 className="text-lg sm:text-2xl font-extrabold text-white tracking-tight leading-snug mb-1 line-clamp-1">
-                {currentBook.title}
-              </h1>
-              <p className="text-xs sm:text-sm font-semibold text-purple-300 mb-0.5 truncate">
-                {currentChapter?.title || `Chapitre ${currentChapterIndex + 1}`}
-              </p>
-              <p className="text-xs text-slate-400">
-                {currentBook.content_type === 'podcast' ? 'Hôte : ' : currentBook.content_type === 'music' ? 'Artiste : ' : 'Par '}
-                <span className="text-slate-200">{currentBook.author}</span> • Voix : <span className="text-slate-200">{currentBook.narrator || 'RG Studio'}</span>
-              </p>
-            </div>
-
-            {/* Barre de défilement temporelle (Seekbar) */}
-            <div className="w-full space-y-1.5 mb-3">
-              <div className="relative flex items-center">
-                <input
-                  type="range"
-                  min="0"
-                  max={duration || 100}
-                  value={currentTime}
-                  onChange={(e) => seekTo(parseFloat(e.target.value))}
-                  className="w-full accent-purple-500"
-                />
-              </div>
-              <div className="flex justify-between text-xs font-mono text-slate-400 font-semibold px-0.5">
-                <span>{formatTime(currentTime)}</span>
-                <span>-{formatTime(remainingTime)}</span>
-              </div>
-            </div>
-
-            {/* Rangée des outils secondaires : Vitesse, Sommeil, Signet, Partager */}
-            <div className="flex items-center justify-between w-full px-2 sm:px-4 mb-4 text-xs font-semibold">
+              {/* Bouton Play/Pause Central en verre dépoli (@iSalmanArt signature) */}
               <button
-                onClick={() => setIsSpeedModalOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 transition-colors"
-              >
-                <Gauge className="w-3.5 h-3.5 text-purple-400" />
-                <span>{playbackRate}x</span>
-              </button>
-
-              <button
-                onClick={() => setIsSleepModalOpen(true)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-colors ${
-                  sleepTimerOption
-                    ? 'bg-purple-600/30 text-purple-200 border border-purple-400/50'
-                    : 'bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10'
-                }`}
-              >
-                <Moon className="w-3.5 h-3.5 text-pink-400" />
-                <span>
-                  {sleepTimerSecondsLeft !== null 
-                    ? formatTime(sleepTimerSecondsLeft)
-                    : sleepTimerOption === 'end_chapter' 
-                    ? 'Fin chap.' 
-                    : 'Sommeil'}
-                </span>
-              </button>
-
-              <button
-                onClick={() => addBookmark(`Signet à ${formatTime(currentTime)}`)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 transition-colors"
-              >
-                <Bookmark className="w-3.5 h-3.5 text-amber-400" />
-                <span>Signet</span>
-              </button>
-
-              <button
-                onClick={handleShare}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 transition-colors"
-                title="Partager avec la jaquette"
-              >
-                <Share2 className="w-3.5 h-3.5 text-purple-400" />
-                <span>Partager</span>
-              </button>
-
-              <button
-                onClick={() => setIsChatOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-purple-600/20 hover:bg-purple-600/40 text-purple-300 border border-purple-500/40 transition-colors shadow-sm"
-                title="Poser une question à ce livre (IA)"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-purple-400 animate-pulse" />
-                <span className="font-bold">Tuteur IA</span>
-              </button>
-            </div>
-
-            {/* Contrôles Principaux de Lecture */}
-            <div className="flex items-center justify-center gap-4 sm:gap-6 w-full mb-6">
-              <button
-                onClick={handlePrevChapter}
-                title="Chapitre précédent"
-                className="p-3 text-slate-300 hover:text-white hover:bg-white/5 rounded-full transition-colors"
-              >
-                <SkipBack className="w-6 h-6" />
-              </button>
-
-              <button
-                onClick={() => skipBackward(15)}
-                title="Reculer de 15 secondes"
-                className="p-3 text-slate-300 hover:text-white hover:bg-white/5 rounded-full transition-colors relative flex flex-col items-center"
-              >
-                <RotateCcw className="w-6 h-6" />
-                <span className="text-[9px] font-bold mt-0.5">15s</span>
-              </button>
-
-              <button
+                type="button"
                 onClick={togglePlay}
-                className="w-16 h-16 sm:w-18 sm:h-18 rounded-full bg-gradient-to-tr from-purple-600 via-fuchsia-600 to-pink-500 text-white flex items-center justify-center shadow-xl shadow-purple-600/50 hover:scale-105 active:scale-95 transition-all"
+                className="relative z-10 w-16 h-16 rounded-full bg-white/20 backdrop-blur-xl border border-white/40 text-white flex items-center justify-center shadow-[0_0_30px_rgba(168,85,247,0.6)] hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer"
+                title={isPlaying ? "Pause" : "Lecture"}
               >
                 {isPlaying ? (
-                  <Pause className="w-7 h-7 fill-white" />
+                  <Pause className="w-7 h-7 text-white fill-white" />
                 ) : (
-                  <Play className="w-7 h-7 fill-white ml-1" />
+                  <Play className="w-7 h-7 text-white fill-white ml-1" />
                 )}
               </button>
+            </div>
+          </div>
 
-              <button
-                onClick={() => skipForward(30)}
-                title="Avancer de 30 secondes"
-                className="p-3 text-slate-300 hover:text-white hover:bg-white/5 rounded-full transition-colors relative flex flex-col items-center"
-              >
-                <RotateCw className="w-6 h-6" />
-                <span className="text-[9px] font-bold mt-0.5">30s</span>
-              </button>
+          {/* ── TIMESTAMPS & ACTIONS SECONDAIRES ── */}
+          <div className="w-full max-w-xs flex items-center justify-between text-xs font-mono font-bold text-[#c4b0e8] px-2 mt-1">
+            <span>{formatTime(currentTime)}</span>
+            <span>{formatTime(duration)}</span>
+          </div>
 
-              <button
-                onClick={handleNextChapter}
-                title="Chapitre suivant"
-                className="p-3 text-slate-300 hover:text-white hover:bg-white/5 rounded-full transition-colors"
-              >
-                <SkipForward className="w-6 h-6" />
-              </button>
+          {/* Barre d'outils interactifs (Stop, Vitesse, Favori, Partage, Agent SKY) */}
+          <div className="flex items-center justify-center gap-6 my-3 text-[#c4b0e8]">
+            <button
+              onClick={() => setIsSpeedModalOpen(true)}
+              className="p-2 rounded-full hover:bg-white/10 hover:text-white transition-colors cursor-pointer text-xs font-bold"
+              title="Vitesse de lecture"
+            >
+              {playbackRate}x
+            </button>
+
+            {/* STOP — Arrêt complet */}
+            <button
+              onClick={stopAudio}
+              className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-red-500/15 transition-colors cursor-pointer group"
+              title="Arrêter la lecture"
+            >
+              <div className="w-9 h-9 rounded-full flex items-center justify-center border border-red-500/40 bg-red-500/10 group-hover:bg-red-500/25 group-hover:border-red-400/60 transition-all">
+                <Square className="w-4 h-4 text-red-400 fill-red-400" />
+              </div>
+              <span className="text-[9px] font-bold text-red-400/80 uppercase tracking-wider">Stop</span>
+            </button>
+
+            <button
+              onClick={() => setIsFavorite(prev => !prev)}
+              className={`p-2 rounded-full hover:bg-white/10 transition-colors cursor-pointer ${
+                isFavorite ? 'text-rose-400 fill-rose-400' : 'hover:text-white'
+              }`}
+              title="Ajouter aux favoris"
+            >
+              <Heart className={`w-5 h-5 ${isFavorite ? 'fill-rose-400' : ''}`} />
+            </button>
+
+            <button
+              onClick={handleShare}
+              className="p-2 rounded-full hover:bg-white/10 hover:text-white transition-colors cursor-pointer relative"
+              title="Partager l'audio"
+            >
+              <Share2 className="w-5 h-5" />
+              {shareToast && (
+                <span className="absolute bottom-10 left-1/2 -translate-x-1/2 whitespace-nowrap px-2.5 py-1 rounded-lg bg-emerald-500 text-slate-950 font-bold text-[10px] shadow-xl animate-fadeIn">
+                  {shareToast}
+                </span>
+              )}
+            </button>
+
+            {/* Bouton Chapitres & Séries dédié */}
+            <button
+              onClick={() => setActiveView('chapters')}
+              className="px-3 py-1.5 rounded-full bg-purple-500/20 hover:bg-purple-500/35 text-purple-200 border border-purple-500/40 text-xs font-bold flex items-center gap-1.5 transition-all hover:scale-105 cursor-pointer shadow-md"
+              title="Voir tous les chapitres de ce livre"
+            >
+              <ListMusic className="w-3.5 h-3.5 text-purple-300" />
+              <span>Chapitres ({currentBook.chapters?.length || 1})</span>
+            </button>
+
+            <button
+              onClick={() => setIsChatOpen(true)}
+              className="p-2 rounded-full bg-cyan-500/20 hover:bg-cyan-500/35 text-cyan-300 border border-cyan-500/40 transition-all hover:scale-105 cursor-pointer"
+              title="Discuter avec l'Agent SKY"
+            >
+              <Sparkles className="w-5 h-5 text-cyan-300 animate-pulse" />
+            </button>
+          </div>
+
+          {/* ── SÉLECTEURS DE CHAPITRES PRÉCÉDENT / SUIVANT AVEC VIGNETTES ── */}
+          <div className="w-full grid grid-cols-2 gap-3 my-2 max-w-sm">
+            {/* Précédent */}
+            <button
+              onClick={handlePrevChapter}
+              className="flex items-center gap-2 p-2 rounded-xl bg-[#210f3a]/60 hover:bg-[#2d164f] border border-purple-500/20 text-left transition-all cursor-pointer group"
+            >
+              <ChevronLeft className="w-5 h-5 text-[#c4b0e8] group-hover:text-white flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-[10px] text-[#a78bfa] uppercase font-bold truncate">Précédent</p>
+                <p className="text-xs font-bold text-white truncate">{prevChapterTitle}</p>
+              </div>
+            </button>
+
+            {/* Suivant */}
+            <button
+              onClick={handleNextChapter}
+              className="flex items-center justify-between gap-2 p-2 rounded-xl bg-[#210f3a]/60 hover:bg-[#2d164f] border border-purple-500/20 text-left transition-all cursor-pointer group"
+            >
+              <div className="min-w-0 pl-1">
+                <p className="text-[10px] text-[#a78bfa] uppercase font-bold truncate">Suivant</p>
+                <p className="text-xs font-bold text-white truncate">{nextChapterTitle}</p>
+              </div>
+              <ChevronRight className="w-5 h-5 text-[#c4b0e8] group-hover:text-white flex-shrink-0" />
+            </button>
+          </div>
+
+          {/* ── SECTION INFÉRIEURE : PLAYLIST RÉCENTE (@iSalmanArt Screen 3) ── */}
+          <div className="w-full mt-3 pt-2 border-t border-purple-500/20">
+            <div className="flex items-center justify-between mb-2.5">
+              <h3 className="text-xs font-black tracking-wider text-[#e9d5ff] uppercase font-heading">
+                PLAYLIST RÉCENTE
+              </h3>
+              <span className="text-[11px] text-[#a78bfa] font-bold">
+                {recentPlaylist.length} titres
+              </span>
             </div>
 
-            {/* ── 4. RECOMMANDATIONS D'AUTRES AUDIOS EN DESSOUS DU LECTEUR ── */}
-            {recommendations.length > 0 && (
-              <div className="w-full pt-4 border-t border-white/10 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                    <Sparkles size={14} className="text-purple-400" />
-                    Recommandé pour vous
-                  </h3>
-                  <span className="text-[11px] text-purple-400 font-bold">Écoute en 1 clic</span>
+            <div className="flex items-center gap-3 overflow-x-auto no-scrollbar pb-2">
+              {recentPlaylist.map((b) => (
+                <div
+                  key={b.id}
+                  onClick={() => playBook(b, 0, 0)}
+                  className="flex-shrink-0 w-24 sm:w-28 text-center cursor-pointer group"
+                >
+                  <div className="relative aspect-square rounded-2xl overflow-hidden mb-1.5 border border-purple-500/30 group-hover:border-purple-400 shadow-md">
+                    <img
+                      src={b.cover_url || currentCover}
+                      alt={b.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                    />
+                  </div>
+                  <p className="text-[11px] font-bold text-white truncate group-hover:text-purple-200">
+                    {b.title}
+                  </p>
+                  <p className="text-[9.5px] text-[#c4b0e8] truncate">
+                    :: {b.author || '2026'} ::
+                  </p>
                 </div>
-
-                <div className="space-y-2">
-                  {recommendations.map((rec) => (
-                    <div
-                      key={rec.id}
-                      onClick={() => {
-                        if (rec.price === 0 || rec.is_free_for_members) {
-                          playBook(rec, 0, 0);
-                        } else {
-                          playPreview(rec);
-                        }
-                      }}
-                      className="p-2.5 rounded-2xl bg-white/5 hover:bg-purple-600/20 border border-white/5 hover:border-purple-500/30 flex items-center justify-between cursor-pointer group transition-all"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <img
-                          src={rec.cover_url || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80'}
-                          alt={rec.title}
-                          className="w-11 h-11 rounded-xl object-cover border border-white/10 flex-shrink-0"
-                        />
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold text-white truncate group-hover:text-purple-300">
-                            {rec.title}
-                          </p>
-                          <p className="text-[11px] text-slate-400 truncate">
-                            {rec.author}
-                          </p>
-                        </div>
-                      </div>
-
-                      <button className="w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center shadow-md group-hover:scale-110 flex-shrink-0 transition-transform">
-                        <Play size={14} className="fill-white ml-0.5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
+              ))}
+            </div>
           </div>
-        )}
 
-        {/* Vue Liste des Chapitres */}
-        {activeTab === 'chapters' && (
-          <div className="space-y-2.5 h-[420px] overflow-y-auto pr-1">
-            <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider mb-2">
-              Table des matières
-            </h3>
-            {currentBook.chapters?.map((chap, idx) => {
-              const isCurrent = idx === currentChapterIndex;
+        </main>
+      ) : (
+        /* ── VUE LISTE DES CHAPITRES & SÉRIES (Screen 4 intégré) ── */
+        <main className="flex-1 max-w-xl mx-auto w-full px-4 sm:px-6 py-4 overflow-y-auto z-10 scrollbar-thin scrollbar-thumb-purple-900/50 space-y-4">
+          <div className="flex items-center justify-between border-b border-purple-500/20 pb-3">
+            <div>
+              <h3 className="text-sm sm:text-base font-black tracking-wider text-[#e9d5ff] uppercase font-heading flex items-center gap-2">
+                <ListMusic className="w-5 h-5 text-purple-400" />
+                <span>Chapitres & Séries</span>
+              </h3>
+              <p className="text-xs text-purple-300/70">{currentBook.title} — {currentBook.author}</p>
+            </div>
+            <button
+              onClick={() => setActiveView('player')}
+              className="px-3 py-1.5 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 border border-purple-400/40 text-xs text-white font-bold transition-all cursor-pointer"
+            >
+              Retour au Lecteur ✕
+            </button>
+          </div>
+
+          {/* 1. Liste des chapitres de l'œuvre */}
+          <div className="space-y-2">
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#a78bfa] block px-1">
+              Chapitres de l'œuvre ({currentBook.chapters?.length || 1})
+            </span>
+            {(currentBook.chapters || [{ id: 'ch-1', title: currentBook.title, duration_seconds: currentBook.duration_seconds }]).map((ch, idx) => {
+              const isCurrent = currentChapterIndex === idx;
               return (
                 <div
-                  key={chap.id || idx}
-                  onClick={() => {
-                    selectChapter(idx);
-                    setActiveTab('player');
-                  }}
-                  className={`p-3.5 rounded-2xl flex items-center justify-between cursor-pointer transition-all ${
+                  key={ch.id || idx}
+                  onClick={() => selectChapter(idx)}
+                  className={`flex items-center justify-between p-3.5 rounded-2xl cursor-pointer transition-all ${
                     isCurrent
-                      ? 'bg-gradient-to-r from-purple-600/40 to-pink-500/30 border border-purple-500/50 shadow-lg shadow-purple-500/20'
-                      : 'bg-white/5 hover:bg-white/10 border border-white/5'
+                      ? 'bg-gradient-to-r from-[#3b176d] via-[#2a1052] to-[#1c0a38] border border-purple-400/60 shadow-lg shadow-purple-950/60 scale-[1.01]'
+                      : 'bg-white/4 hover:bg-white/8 border border-white/5'
                   }`}
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-bold ${
-                      isCurrent ? 'bg-purple-600 text-white' : 'bg-white/10 text-slate-400'
+                  <div className="min-w-0 flex-1 pr-3 flex items-center gap-3">
+                    <span className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-black ${
+                      isCurrent ? 'bg-purple-500 text-white shadow-md' : 'bg-white/10 text-purple-300'
                     }`}>
                       {idx + 1}
                     </span>
                     <div className="min-w-0">
-                      <p className={`text-sm font-bold truncate ${isCurrent ? 'text-white' : 'text-slate-200'}`}>
-                        {chap.title}
-                      </p>
-                      <p className="text-[11px] text-slate-400">
-                        Durée estimée : {formatTime(chap.duration_seconds || 1800)}
+                      <h4 className={`text-xs sm:text-sm font-bold truncate ${isCurrent ? 'text-white' : 'text-slate-200'}`}>
+                        {ch.title || `Chapitre ${idx + 1}`}
+                      </h4>
+                      <p className="text-[10px] text-[#a78bfa] mt-0.5">
+                        {Math.round((ch.duration_seconds || 1800) / 60)} min
                       </p>
                     </div>
                   </div>
 
-                  {isCurrent && isPlaying ? (
-                    <div className="flex items-center gap-1">
-                      <span className="w-1.5 h-4 bg-purple-400 rounded-full animate-bounce"></span>
-                      <span className="w-1.5 h-6 bg-pink-400 rounded-full animate-bounce [animation-delay:0.2s]"></span>
-                      <span className="w-1.5 h-3 bg-purple-400 rounded-full animate-bounce [animation-delay:0.4s]"></span>
+                  <div className="flex items-center gap-2">
+                    {isCurrent && (
+                      <div className="flex items-end gap-1 h-3 mr-1">
+                        <span className="w-1 rounded-full bg-purple-400 eq-bar-1" />
+                        <span className="w-1 rounded-full bg-cyan-300 eq-bar-2" />
+                        <span className="w-1 rounded-full bg-purple-300 eq-bar-3" />
+                      </div>
+                    )}
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 border ${
+                      isCurrent ? 'bg-purple-600 text-white border-purple-400' : 'bg-white/10 text-slate-300 border-white/10'
+                    }`}>
+                      {isCurrent && isPlaying ? <Pause className="w-3.5 h-3.5 text-cyan-300" /> : <Play className="w-3.5 h-3.5 ml-0.5" />}
                     </div>
-                  ) : (
-                    <Play className="w-4 h-4 text-slate-400 opacity-60" />
-                  )}
+                  </div>
                 </div>
               );
             })}
           </div>
-        )}
 
-        {/* Vue Signets & Prise de Notes */}
-        {activeTab === 'bookmarks' && (
-          <div className="space-y-3 h-[420px] overflow-y-auto pr-1">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">
-                Vos Signets Personnalisés
-              </h3>
-              <button
-                onClick={() => setIsAddingBookmark(!isAddingBookmark)}
-                className="px-3 py-1 rounded-full text-xs font-bold bg-purple-600 hover:bg-purple-500 text-white flex items-center gap-1"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Nouveau</span>
-              </button>
-            </div>
-
-            {isAddingBookmark && (
-              <form onSubmit={handleCreateBookmark} className="p-3.5 rounded-2xl glass-card border border-purple-500/40 mb-3 space-y-2.5">
-                <p className="text-xs font-semibold text-purple-300">
-                  Ajouter une note à {formatTime(currentTime)} ({currentChapter?.title})
-                </p>
-                <input
-                  type="text"
-                  value={newBookmarkNote}
-                  onChange={(e) => setNewBookmarkNote(e.target.value)}
-                  placeholder="Ex : Citation inspirante sur la persévérance..."
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
-                  autoFocus
-                />
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsAddingBookmark(false)}
-                    className="px-3 py-1 rounded-lg text-xs text-slate-400 hover:text-white"
-                  >
-                    Annuler
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-3 py-1 rounded-lg text-xs font-bold bg-purple-600 hover:bg-purple-500 text-white"
-                  >
-                    Sauvegarder
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {bookmarks.filter(b => b.audiobook_id === currentBook.id).length === 0 ? (
-              <div className="text-center py-12 text-slate-500">
-                <Bookmark className="w-10 h-10 mx-auto mb-2 opacity-40 text-purple-400" />
-                <p className="text-sm font-semibold">Aucun signet pour ce livre</p>
-                <p className="text-xs mt-1">Créez un signet pour retrouver un passage marquant.</p>
-              </div>
-            ) : (
-              bookmarks.filter(b => b.audiobook_id === currentBook.id).map((bm) => (
-                <div
-                  key={bm.id}
-                  onClick={() => {
-                    seekTo(bm.timestamp_seconds);
-                    setActiveTab('player');
-                  }}
-                  className="p-3.5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 flex items-center justify-between cursor-pointer group"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-xs font-bold text-amber-400 font-mono">
-                        {formatTime(bm.timestamp_seconds)}
-                      </span>
-                      <span className="text-[11px] text-slate-400 truncate">
-                        • {bm.chapter_title}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-200 line-clamp-1">{bm.note}</p>
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeBookmark(bm.id);
+          {/* 2. Autres Épisodes / Séries similaires */}
+          {recentPlaylist.length > 0 && (
+            <div className="space-y-2 pt-4 border-t border-purple-500/20">
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#a78bfa] block px-1">
+                Autres Titres & Séries Recommandés
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {recentPlaylist.map(b => (
+                  <div
+                    key={b.id}
+                    onClick={() => {
+                      playBook(b, 0, 0);
+                      setActiveView('player');
                     }}
-                    className="p-2 text-slate-500 hover:text-rose-400 transition-colors opacity-0 group-hover:opacity-100"
+                    className="p-2.5 rounded-2xl bg-white/4 hover:bg-white/8 border border-white/5 flex items-center gap-3 cursor-pointer transition-all group"
                   >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-        )}
-      </main>
+                    <img
+                      src={b.cover_url || currentCover}
+                      alt={b.title}
+                      className="w-11 h-11 rounded-xl object-cover border border-white/10 group-hover:scale-105 transition-transform shrink-0"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-white truncate group-hover:text-purple-300">{b.title}</p>
+                      <p className="text-[10px] text-purple-300/70 truncate">{b.author}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </main>
+      )}
 
-      {/* Modals de réglage */}
-      <SpeedSelectorModal 
+      {/* ── MODALS CONNECTÉES ── */}
+      <SpeedSelectorModal
         isOpen={isSpeedModalOpen}
         onClose={() => setIsSpeedModalOpen(false)}
       />
 
-      <SleepTimerModal 
+      <SleepTimerModal
         isOpen={isSleepModalOpen}
         onClose={() => setIsSleepModalOpen(false)}
-      />
-
-      <UserProfileModal
-        isOpen={isProfileModalOpen}
-        onClose={() => setIsProfileModalOpen(false)}
-        onProfileSaved={(profile) => {
-          setIsUserRegistered(true);
-          setDismissedRegister(true);
-        }}
       />
 
       <BookChatModal
@@ -718,6 +471,7 @@ export const FullScreenPlayer = () => {
         isOpen={isChatOpen}
         onClose={() => setIsChatOpen(false)}
       />
+
     </div>
   );
 };
