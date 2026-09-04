@@ -3092,47 +3092,68 @@ export async function onRequest(context) {
         else if (lowerKey.endsWith('.jpg') || lowerKey.endsWith('.jpeg')) inferredType = 'image/jpeg';
         else if (lowerKey.endsWith('.png')) inferredType = 'image/png';
 
-        const rangeHeader = request.headers.get('Range');
-        if (rangeHeader) {
-          const rangeMatch = rangeHeader.match(/bytes=(\d+)-(\d+)?/);
-          if (rangeMatch) {
-            const start = parseInt(rangeMatch[1], 10);
-            const end = rangeMatch[2] ? parseInt(rangeMatch[2], 10) : undefined;
-            const obj = await env.AUDIO_BUCKET.get(key, {
-              range: end !== undefined ? { offset: start, length: end - start + 1 } : { offset: start }
-            });
-            if (obj) {
-              const headers = new Headers(corsHeaders);
-              obj.writeHttpMetadata(headers);
-              if (!headers.get('Content-Type') || headers.get('Content-Type') === 'application/octet-stream') {
-                headers.set('Content-Type', inferredType);
-              }
-              const actualEnd = end !== undefined ? Math.min(end, obj.size - 1) : (obj.size - 1);
-              const chunkLen = actualEnd - start + 1;
-              headers.set('Accept-Ranges', 'bytes');
-              headers.set('Content-Length', String(chunkLen));
-              headers.set('Content-Range', `bytes ${start}-${actualEnd}/${obj.size}`);
-              headers.set('Cache-Control', 'public, max-age=31536000, immutable');
-              return new Response(obj.body, { status: 206, headers });
-            }
-          }
-        }
+        // ── Résolution de la clé avec fallbacks ────────────────────────────────────
+        // Si la clé exacte n'est pas dans R2, on essaie des variantes de chemin
+        const fileName = key.split('/').pop(); // juste le nom de fichier
+        const keysToTry = [
+          key,                        // 1. Clé exacte (ex: previews/fichier.webm)
+          `audios/${fileName}`,       // 2. Préfixe audios/
+          `previews/${fileName}`,     // 3. Préfixe previews/
+          `audiobooks/${fileName}`,   // 4. Préfixe audiobooks/
+          fileName,                   // 5. Sans préfixe (racine du bucket)
+        ].filter((k, i, arr) => arr.indexOf(k) === i); // Dédupliquer
 
-        const obj = await env.AUDIO_BUCKET.get(key);
-        if (obj) {
+        // ── Helper : servir un objet R2 ────────────────────────────────────
+        const serveR2Object = (obj, status, extraHeaders) => {
           const headers = new Headers(corsHeaders);
           obj.writeHttpMetadata(headers);
           if (!headers.get('Content-Type') || headers.get('Content-Type') === 'application/octet-stream') {
             headers.set('Content-Type', inferredType);
           }
           headers.set('Accept-Ranges', 'bytes');
-          headers.set('Content-Length', String(obj.size));
           headers.set('Cache-Control', 'public, max-age=31536000, immutable');
-          return new Response(obj.body, { status: 200, headers });
+          if (extraHeaders) {
+            Object.entries(extraHeaders).forEach(([hk, hv]) => headers.set(hk, hv));
+          }
+          return new Response(obj.body, { status: status || 200, headers });
+        };
+
+        const rangeHeader = request.headers.get('Range');
+        const rangeMatch = rangeHeader ? rangeHeader.match(/bytes=(\d+)-(\d+)?/) : null;
+
+        for (const tryKey of keysToTry) {
+          if (rangeMatch) {
+            const start = parseInt(rangeMatch[1], 10);
+            const end = rangeMatch[2] ? parseInt(rangeMatch[2], 10) : undefined;
+            const obj = await env.AUDIO_BUCKET.get(tryKey, {
+              range: end !== undefined ? { offset: start, length: end - start + 1 } : { offset: start }
+            });
+            if (obj) {
+              const actualEnd = end !== undefined ? Math.min(end, obj.size - 1) : (obj.size - 1);
+              const chunkLen = actualEnd - start + 1;
+              return serveR2Object(obj, 206, {
+                'Content-Length': String(chunkLen),
+                'Content-Range': `bytes ${start}-${actualEnd}/${obj.size}`,
+              });
+            }
+          } else {
+            const obj = await env.AUDIO_BUCKET.get(tryKey);
+            if (obj) {
+              return serveR2Object(obj, 200, {
+                'Content-Length': String(obj.size),
+              });
+            }
+          }
         }
+
+        // Toutes les tentatives ont échoué
+        console.error(`[R2] 404 après ${keysToTry.length} tentatives. Clé demandée: ${key}`);
       }
 
-      return new Response('Fichier introuvable dans R2', { status: 404, headers: corsHeaders });
+      return new Response(
+        JSON.stringify({ error: 'Fichier introuvable dans R2', key, bucket_configured: Boolean(env.AUDIO_BUCKET) }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // ─── POST /api/push/subscribe (Enregistrement Push Notification) ─

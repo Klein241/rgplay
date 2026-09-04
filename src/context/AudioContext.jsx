@@ -37,6 +37,8 @@ export const AudioProvider = ({ children }) => {
   const currentBookRef = useRef(null);
   const currentChapterIndexRef = useRef(0);
   const hasCachedChaptersRef = useRef(new Set());
+  // Compteur de tentatives de reprise (évite la boucle infinie du garde-fou)
+  const endedRetryCountRef = useRef(0);
 
   useEffect(() => { currentBookRef.current = currentBook; }, [currentBook]);
   useEffect(() => { currentChapterIndexRef.current = currentChapterIndex; }, [currentChapterIndex]);
@@ -140,12 +142,27 @@ export const AudioProvider = ({ children }) => {
     };
 
     const onEnded = () => {
-      // 🛡️ Garde-fou Anti-Coupure : Si la durée réelle est connue et qu'on est loin de la fin (coupure réseau / buffer vide)
-      if (audio.duration && isFinite(audio.duration) && audio.duration > 10 && audio.currentTime < (audio.duration - 3)) {
-        console.warn(`[AudioContext] Événement 'ended' prématuré détecté à ${audio.currentTime.toFixed(1)}s / ${audio.duration.toFixed(1)}s (interruption de flux). Tentative de reprise...`);
-        audio.play().catch(() => {});
+      // 🛡️ Garde-fou Anti-Coupure : Si la durée réelle est connue et qu'on est loin de la fin
+      // (coupure réseau / buffer vide), on tente UNE SEULE reprise pour éviter la boucle infinie
+      if (
+        audio.duration &&
+        isFinite(audio.duration) &&
+        audio.duration > 10 &&
+        audio.currentTime < (audio.duration - 5) &&
+        endedRetryCountRef.current < 1
+      ) {
+        endedRetryCountRef.current += 1;
+        console.warn(`[AudioContext] 'ended' prématuré à ${audio.currentTime.toFixed(1)}s / ${audio.duration.toFixed(1)}s. Reprise (tentative ${endedRetryCountRef.current}/1)...`);
+        audio.play().catch(() => {
+          // Si la reprise échoue, passer au chapitre suivant
+          endedRetryCountRef.current = 0;
+          handleNextChapterRef.current?.();
+        });
         return;
       }
+
+      // Réinitialiser le compteur de tentatives pour le prochain chapitre
+      endedRetryCountRef.current = 0;
 
       if (currentBookRef.current) {
         const book = currentBookRef.current;
@@ -236,6 +253,8 @@ export const AudioProvider = ({ children }) => {
   // Lancer la lecture d'un livre complet (démarrage ultra-rapide 0ms)
   // Lancer la lecture d'un livre complet (démarrage ultra-rapide 0ms & support 100% hors-ligne)
   const playBook = async (book, chapterIdx = 0, startTime = 0) => {
+    // Réinitialiser le compteur de reprise quand on change de chapitre
+    endedRetryCountRef.current = 0;
     setCurrentBook(book);
     setCurrentChapterIndex(chapterIdx);
     setIsPreviewMode(false);
