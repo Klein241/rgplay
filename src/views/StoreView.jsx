@@ -501,6 +501,7 @@ export const StoreView = ({ onSelectPlan }) => {
       {isRewardModalOpen && activeAdForModal && (
         <RewardedAdModal
           isOpen={isRewardModalOpen}
+          initialAdId={activeAdForModal.id}
           onClose={() => {
             setIsRewardModalOpen(false);
             setSeenAds(getSeenAds());

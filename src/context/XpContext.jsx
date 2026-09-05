@@ -253,36 +253,28 @@ export const XpProvider = ({ children }) => {
       return newState;
     });
 
-    // Enregistrer le livre dans la bibliothèque utilisateur
-    try {
-      await apiClient.purchaseAudiobook?.(book.id, {
-        payment_method: 'points_reward',
-        amount_paid: 0,
-        points_spent: pointsCost,
-      });
+    // Enregistrer le livre dans la bibliothèque utilisateur (synchrone, garanti)
+    // _addToLocalLibrary gère le format correct et dispatch rg:library-updated
+    apiClient._addToLocalLibrary(book);
 
-      // Synchroniser avec localStorage library pour compatibilité
-      const lib = JSON.parse(localStorage.getItem('rg_user_library') || '[]');
-      if (!lib.some(b => b.id === book.id)) {
-        lib.push(book);
-        localStorage.setItem('rg_user_library', JSON.stringify(lib));
-        window.dispatchEvent(new Event('rg:library-updated'));
-      }
+    fireCelebrationConfetti('default');
+    playRewardChime('reward');
 
-      fireCelebrationConfetti('default');
-      playRewardChime('reward');
+    showRewardToast(
+      '🎉 Livre Débloqué avec Succès !',
+      `"${book.title}" est maintenant disponible dans votre bibliothèque.`,
+      0,
+      -pointsCost
+    );
 
-      showRewardToast(
-        '🎉 Livre Débloqué avec Succès !',
-        `"${book.title}" est maintenant disponible dans votre bibliothèque.`,
-        0,
-        -pointsCost
-      );
+    // Sync API D1 en arrière-plan (non bloquant)
+    apiClient.purchaseAudiobook?.(book.id, {
+      payment_method: 'points_reward',
+      amount_paid: 0,
+      points_spent: pointsCost,
+    }).catch(() => {});
 
-      return { success: true };
-    } catch (err) {
-      return { success: true }; // Succès local garanti
-    }
+    return { success: true };
   }, [gamification.points]);
 
   // Calcul du niveau actuel

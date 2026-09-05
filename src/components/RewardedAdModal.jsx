@@ -47,7 +47,7 @@ function getAdRewardPoints() {
   }
 }
 
-export function RewardedAdModal({ isOpen, onClose }) {
+export function RewardedAdModal({ isOpen, onClose, initialAdId = null }) {
   const { points, awardPointsAndXp } = useXp();
   const [ads, setAds] = useState([]);
   const [currentAdIndex, setCurrentAdIndex] = useState(0);
@@ -73,23 +73,28 @@ export function RewardedAdModal({ isOpen, onClose }) {
       return;
     }
 
+    const initWithPool = (pool) => {
+      // Trouver l'index de la pub ciblée si un initialAdId est fourni
+      let startIndex = 0;
+      if (initialAdId) {
+        const idx = pool.findIndex(a => a.id === initialAdId);
+        if (idx !== -1) startIndex = idx;
+      }
+      setAds(pool);
+      setCurrentAdIndex(startIndex);
+      setPhase("preview");
+      setCtaClicked(false);
+      setIsLightboxOpen(false);
+      setCountdown(pool[startIndex]?.duration || 8);
+    };
+
     apiClient.getAds({ placement: 'reward_modal' }).then(loaded => {
       const pool = (Array.isArray(loaded) && loaded.length > 0) ? loaded : FALLBACK_OFFERS;
-      setAds(pool);
-      setCurrentAdIndex(0);
-      setPhase("preview");
-      setCtaClicked(false);
-      setIsLightboxOpen(false);
-      setCountdown(pool[0]?.duration || 8);
+      initWithPool(pool);
     }).catch(() => {
-      setAds(FALLBACK_OFFERS);
-      setCurrentAdIndex(0);
-      setPhase("preview");
-      setCtaClicked(false);
-      setIsLightboxOpen(false);
-      setCountdown(FALLBACK_OFFERS[0]?.duration || 8);
+      initWithPool(FALLBACK_OFFERS);
     });
-  }, [isOpen]);
+  }, [isOpen, initialAdId]);
 
   useEffect(() => {
     if (phase !== "watching") return;

@@ -31,7 +31,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
   const [downloadStatus, setDownloadStatus] = useState(null);
   const [reviewsHidden, setReviewsHidden] = useState(false); // admin toggle
   const [downloadProgress, setDownloadProgress] = useState(0);
-  const isAudioXpDisabled = typeof window !== 'undefined' && localStorage.getItem('rg_settings_audio_xp_disabled') !== 'false';
+  const isAudioXpDisabled = typeof window !== 'undefined' && localStorage.getItem('rg_settings_audio_xp_disabled') === 'true';
 
   // ── État réactif du cache hors-ligne ───────────────────────────────────────
   // IMPORTANT: On utilise un useState + useEffect pour être réactif aux mises
