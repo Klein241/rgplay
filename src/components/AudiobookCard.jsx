@@ -18,16 +18,22 @@ export const AudiobookCard = ({
 
   const isCurrentPlaying = currentBook?.id === book.id && isPlaying;
 
-  // Un livre est "audio" s'il a des chapitres audio ou une preview_url (pas seulement un PDF)
+  // Un livre est un ebook/PDF s'il a le format ebook/epub/pdf ou pdf_url (pas de lecture audio)
   const isPureEbook = Boolean(
-    (book.content_type === 'ebook' || book.content_type === 'epub' || book.content_type === 'pdf') &&
-    !book.chapters?.length &&
-    !book.preview_url
+    book.content_type === 'ebook' ||
+    book.content_type === 'epub' ||
+    book.content_type === 'pdf' ||
+    book.format === 'ebook' ||
+    book.format === 'pdf' ||
+    book.format === 'epub' ||
+    book.is_ebook ||
+    (typeof book.pdf_url === 'string' && book.pdf_url.trim().length > 0) ||
+    (typeof book.pdfUrl === 'string' && book.pdfUrl.trim().length > 0)
   );
 
   const handleQuickPlay = (e) => {
     e.stopPropagation();
-    // Les livres PDF/Ebook sans audio ouvrent le lecteur PDF, pas le lecteur audio
+    // Les livres PDF/Ebook ouvrent la fiche ou la liseuse, pas le lecteur audio
     if (isPureEbook) {
       onSelect(book);
       return;
@@ -176,25 +182,32 @@ export const AudiobookCard = ({
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
         />
 
-        {/* Hover / Play Overlay */}
-        <div className={`absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent transition-opacity duration-300 flex items-center justify-center p-3 ${
-          isCurrentPlaying ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-        }`}>
-          <button
-            type="button"
-            onClick={handleQuickPlay}
-            className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md border border-white/40 text-white flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95 transition-all"
-            title={isPureEbook ? 'Lire le livre' : 'Écouter'}
-          >
-            {isPureEbook ? (
-              <BookOpen className="w-5 h-5 text-pink-300" />
-            ) : isCurrentPlaying ? (
-              <Pause className="w-5 h-5 text-cyan-300" />
-            ) : (
-              <Play className="w-5 h-5 text-white ml-0.5 fill-white" />
-            )}
-          </button>
-        </div>
+        {/* Hover / Play Overlay — Masqué ou mode lecture pour livres PDF & ebook */}
+        {!isPureEbook ? (
+          <div className={`absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent transition-opacity duration-300 flex items-center justify-center p-3 ${
+            isCurrentPlaying ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+          }`}>
+            <button
+              type="button"
+              onClick={handleQuickPlay}
+              className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md border border-white/40 text-white flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95 transition-all"
+              title="Écouter"
+            >
+              {isCurrentPlaying ? (
+                <Pause className="w-5 h-5 text-cyan-300" />
+              ) : (
+                <Play className="w-5 h-5 text-white ml-0.5 fill-white" />
+              )}
+            </button>
+          </div>
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center p-3">
+            <span className="px-3.5 py-2 rounded-full bg-pink-600/90 backdrop-blur-md border border-pink-400/50 text-white text-xs font-bold flex items-center gap-1.5 shadow-xl group-hover:scale-105 transition-transform">
+              <BookOpen className="w-4 h-4 text-white" />
+              <span>Lire le livre</span>
+            </span>
+          </div>
+        )}
 
         {/* Price / Free Badge — FCFA uniquement, sans ambiguïté Points */}
         <div className="absolute top-2.5 right-2.5 flex flex-col items-end gap-1">

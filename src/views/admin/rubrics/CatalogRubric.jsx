@@ -1,6 +1,7 @@
+import React, { useState } from 'react';
 import {
   Plus, Search, LayoutGrid, List, BookOpen, Pause, Play,
-  Flame, Edit3, Trash2, Clock, Send
+  Flame, Edit3, Trash2, Clock, Send, Check, Loader2
 } from 'lucide-react';
 
 export const CatalogRubric = ({
@@ -21,6 +22,7 @@ export const CatalogRubric = ({
   setActiveRubric,
   handleEditBook,
   handleDeleteBook,
+  handleBulkDeleteBooks,
   handlePublishImmediately,
   setSocialModalBook,
   setSocialPlays,
@@ -28,6 +30,51 @@ export const CatalogRubric = ({
   setSocialRating,
   apiClient,
 }) => {
+  const [selectedCatalogIds, setSelectedCatalogIds] = useState([]);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+
+  const toggleSelectBook = (id) => {
+    setSelectedCatalogIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const selectAllCatalog = () => {
+    setSelectedCatalogIds(filteredBooks.map(b => b.id));
+  };
+
+  const deselectAllCatalog = () => {
+    setSelectedCatalogIds([]);
+  };
+
+  const isAllSelected = filteredBooks.length > 0 && filteredBooks.every(b => selectedCatalogIds.includes(b.id));
+
+  const handleBulkDelete = async () => {
+    if (selectedCatalogIds.length === 0) return;
+    setIsBulkDeleting(true);
+    try {
+      if (handleBulkDeleteBooks) {
+        const ok = await handleBulkDeleteBooks(selectedCatalogIds);
+        if (ok) setSelectedCatalogIds([]);
+      } else {
+        const count = selectedCatalogIds.length;
+        if (!window.confirm(`⚠️ Confirmer la suppression définitive de ces ${count} contenu(s) ? Cette action est irréversible.`)) {
+          setIsBulkDeleting(false);
+          return;
+        }
+        setBooks(prev => prev.filter(b => !selectedCatalogIds.includes(b.id)));
+        for (const id of selectedCatalogIds) {
+          await apiClient?.deleteAudiobook(id);
+          window.dispatchEvent(new CustomEvent('rg:book-deleted', { detail: { id } }));
+        }
+        setSelectedCatalogIds([]);
+      }
+    } catch (err) {
+      console.error('[handleBulkDelete] Erreur:', err);
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
   return (
     <div className="space-y-6 animate-fadeIn">
       {/* Header de la rubrique */}
@@ -62,6 +109,23 @@ export const CatalogRubric = ({
               className="rg-input pl-12 pr-4 py-3.5 rounded-2xl text-sm w-full"
             />
           </div>
+
+          {/* Sélection Multiple / Tout sélectionner */}
+          {filteredBooks.length > 0 && (
+            <button
+              type="button"
+              onClick={isAllSelected ? deselectAllCatalog : selectAllCatalog}
+              className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap border self-end sm:self-auto ${
+                selectedCatalogIds.length > 0
+                  ? 'bg-purple-600 text-white border-purple-400 shadow-md'
+                  : 'bg-white/5 hover:bg-white/10 text-slate-300 border-white/10'
+              }`}
+              title="Sélectionner ou désélectionner tout"
+            >
+              <Check className="w-3.5 h-3.5" />
+              <span>{isAllSelected ? 'Tout désélectionner' : selectedCatalogIds.length > 0 ? `Sélection (${selectedCatalogIds.length})` : 'Tout sélectionner'}</span>
+            </button>
+          )}
 
           {/* Switcher Mode Vue : Cartes vs Liste */}
           <div className="flex items-center gap-1 bg-white/5 p-1.5 rounded-2xl border border-white/10 self-end sm:self-auto">
@@ -119,6 +183,53 @@ export const CatalogRubric = ({
           ))}
         </div>
 
+        {/* Bannière d'action suppression groupée Catalog */}
+        {selectedCatalogIds.length > 0 && (
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-rose-950/90 via-purple-950/80 to-slate-900/90 border border-rose-500/50 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-3 animate-fadeIn">
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className="w-9 h-9 rounded-xl bg-rose-500/25 text-rose-300 border border-rose-500/40 flex items-center justify-center font-black text-sm shrink-0">
+                {selectedCatalogIds.length}
+              </div>
+              <div>
+                <p className="text-sm font-extrabold text-white flex items-center gap-1.5">
+                  <span>{selectedCatalogIds.length} contenu{selectedCatalogIds.length > 1 ? 's' : ''} sélectionné{selectedCatalogIds.length > 1 ? 's' : ''} pour suppression</span>
+                </p>
+                <p className="text-xs text-rose-300/80">
+                  Suppression définitive de Cloudflare D1 et du cache
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+              <button
+                type="button"
+                onClick={deselectAllCatalog}
+                disabled={isBulkDeleting}
+                className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-300 text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={handleBulkDelete}
+                disabled={isBulkDeleting}
+                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 active:scale-95 text-white text-xs font-black flex items-center gap-2 shadow-xl shadow-rose-600/40 transition-all cursor-pointer disabled:opacity-50"
+              >
+                {isBulkDeleting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Suppression...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>Supprimer la sélection ({selectedCatalogIds.length})</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Table / Grille des Livres */}
         {loadingBooks ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3.5 sm:gap-4">
@@ -140,17 +251,38 @@ export const CatalogRubric = ({
               return (
                 <div
                   key={book.id}
-                  className="flex flex-col justify-between rounded-2xl p-3 transition-all duration-300 group relative overflow-hidden"
+                  className={`flex flex-col justify-between rounded-2xl p-3 transition-all duration-300 group relative overflow-hidden ${
+                    selectedCatalogIds.includes(book.id)
+                      ? 'border-rose-500/80 bg-rose-950/20 shadow-[0_0_20px_rgba(244,63,94,0.25)]'
+                      : ''
+                  }`}
                   style={{
                     background: isPreviewing
                       ? 'linear-gradient(135deg, rgba(124, 58, 237, 0.22), rgba(168, 85, 247, 0.15))'
-                      : 'rgba(255, 255, 255, 0.035)',
+                      : selectedCatalogIds.includes(book.id) ? undefined : 'rgba(255, 255, 255, 0.035)',
                     border: isPreviewing
                       ? '1px solid rgba(168, 85, 247, 0.50)'
-                      : '1px solid rgba(255, 255, 255, 0.08)',
+                      : selectedCatalogIds.includes(book.id) ? '1px solid rgba(244, 63, 94, 0.8)' : '1px solid rgba(255, 255, 255, 0.08)',
                     boxShadow: isPreviewing ? '0 8px 30px rgba(168, 85, 247, 0.25)' : 'none',
                   }}
                 >
+                  {/* Case à cocher multi-sélection */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleSelectBook(book.id);
+                    }}
+                    className={`absolute top-2 right-2 z-20 w-6 h-6 rounded-lg flex items-center justify-center transition-all cursor-pointer shadow-lg ${
+                      selectedCatalogIds.includes(book.id)
+                        ? 'bg-rose-600 text-white border-2 border-rose-300 shadow-rose-600/50 scale-105'
+                        : 'bg-black/70 hover:bg-black/90 border border-white/30 text-white/30 hover:text-white backdrop-blur-md'
+                    }`}
+                    title={selectedCatalogIds.includes(book.id) ? 'Désélectionner' : 'Sélectionner pour suppression'}
+                  >
+                    <Check className={`w-3.5 h-3.5 stroke-[3] ${selectedCatalogIds.includes(book.id) ? 'opacity-100' : 'opacity-0 hover:opacity-50'}`} />
+                  </button>
+
                   {/* Cover avec ratio carré et bouton preview */}
                   <div className="relative aspect-square w-full rounded-xl overflow-hidden mb-2.5 bg-slate-900 border border-white/10">
                     <img
@@ -177,29 +309,31 @@ export const CatalogRubric = ({
                       )}
                     </div>
 
-                    {/* Play / Pause button overlay */}
-                    <button
-                      onClick={() => {
-                        if (isPreviewing) {
-                          catalogAudioRef.current?.pause();
-                          setPreviewingBookId(null);
-                        } else {
-                          setPreviewingBookId(book.id);
-                          if (catalogAudioRef.current) {
-                            catalogAudioRef.current.src = book.preview_url || book.chapters?.[0]?.audio_url || '';
-                            catalogAudioRef.current.play();
+                    {/* Play / Pause button overlay — uniquement pour audios (masqué sur ebooks / PDF) */}
+                    {!(book.content_type === 'ebook' || book.content_type === 'pdf' || book.pdf_url) && (
+                      <button
+                        onClick={() => {
+                          if (isPreviewing) {
+                            catalogAudioRef.current?.pause();
+                            setPreviewingBookId(null);
+                          } else {
+                            setPreviewingBookId(book.id);
+                            if (catalogAudioRef.current) {
+                              catalogAudioRef.current.src = book.preview_url || book.chapters?.[0]?.audio_url || '';
+                              catalogAudioRef.current.play();
+                            }
                           }
-                        }
-                      }}
-                      className={`absolute bottom-2 right-2 p-2 rounded-xl border backdrop-blur-md transition-all duration-200 active:scale-90 ${
-                        isPreviewing
-                          ? 'bg-purple-600 text-white border-purple-400 shadow-lg shadow-purple-500/40'
-                          : 'bg-black/60 hover:bg-black/80 text-white border-white/20 opacity-90 group-hover:opacity-100'
-                      }`}
-                      title="Écouter l'extrait"
-                    >
-                      {isPreviewing ? <Pause className="w-3.5 h-3.5 fill-white" /> : <Play className="w-3.5 h-3.5 fill-white ml-0.5" />}
-                    </button>
+                        }}
+                        className={`absolute bottom-2 right-2 p-2 rounded-xl border backdrop-blur-md transition-all duration-200 active:scale-90 ${
+                          isPreviewing
+                            ? 'bg-purple-600 text-white border-purple-400 shadow-lg shadow-purple-500/40'
+                            : 'bg-black/60 hover:bg-black/80 text-white border-white/20 opacity-90 group-hover:opacity-100'
+                        }`}
+                        title="Écouter l'extrait"
+                      >
+                        {isPreviewing ? <Pause className="w-3.5 h-3.5 fill-white" /> : <Play className="w-3.5 h-3.5 fill-white ml-0.5" />}
+                      </button>
+                    )}
                   </div>
 
                   {/* Détails du livre */}
@@ -322,6 +456,22 @@ export const CatalogRubric = ({
                   }}
                 >
                   <div className="flex items-center gap-4 min-w-0">
+                    {/* Case à cocher multi-sélection */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleSelectBook(book.id);
+                      }}
+                      className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all cursor-pointer shadow-lg shrink-0 ${
+                        selectedCatalogIds.includes(book.id)
+                          ? 'bg-rose-600 text-white border-2 border-rose-300 shadow-rose-600/50 scale-105'
+                          : 'bg-black/70 hover:bg-black/90 border border-white/30 text-white/30 hover:text-white'
+                      }`}
+                      title={selectedCatalogIds.includes(book.id) ? 'Désélectionner' : 'Sélectionner pour suppression'}
+                    >
+                      <Check className={`w-3.5 h-3.5 stroke-[3] ${selectedCatalogIds.includes(book.id) ? 'opacity-100' : 'opacity-0 hover:opacity-50'}`} />
+                    </button>
                     <div className="relative flex-shrink-0">
                       <img
                         src={book.cover_url}

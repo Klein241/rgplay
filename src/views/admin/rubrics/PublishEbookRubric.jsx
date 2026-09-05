@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   BookOpen, Plus, Search, Sparkles, Check, ChevronRight, Wand2,
   Loader2, Edit3, Trash2, Flame, FileText, CheckCircle2, Headphones, RefreshCw,
@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { DropZone } from '../components/DropZone';
 import { formatSize } from '../utils/adminHelpers';
+import { apiClient } from '../../../services/api';
 
 export const PublishEbookRubric = ({
   ebookSubTab,
@@ -25,6 +26,7 @@ export const PublishEbookRubric = ({
   setSocialRating,
   handleEditEbook,
   handleDeleteBook,
+  handleBulkDeleteBooks,
   ebookStep,
   setEbookStep,
   ebookTitle,
@@ -75,6 +77,57 @@ export const PublishEbookRubric = ({
   apiClient,
   setActiveRubric = () => {},
 }) => {
+  const [selectedEbookIds, setSelectedEbookIds] = useState([]);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+
+  const filteredEbooks = ebooksList.filter(b => {
+    const q = ebookSearch?.toLowerCase().trim() || '';
+    return !q || b.title?.toLowerCase().includes(q) || b.author?.toLowerCase().includes(q) || b.category_name?.toLowerCase().includes(q);
+  });
+
+  const toggleSelectEbook = (id) => {
+    setSelectedEbookIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const selectAllEbooks = () => {
+    setSelectedEbookIds(filteredEbooks.map(b => b.id));
+  };
+
+  const deselectAllEbooks = () => {
+    setSelectedEbookIds([]);
+  };
+
+  const isAllSelected = filteredEbooks.length > 0 && filteredEbooks.every(b => selectedEbookIds.includes(b.id));
+
+  const handleBulkDelete = async () => {
+    if (selectedEbookIds.length === 0) return;
+    setIsBulkDeleting(true);
+    try {
+      if (handleBulkDeleteBooks) {
+        const ok = await handleBulkDeleteBooks(selectedEbookIds);
+        if (ok) setSelectedEbookIds([]);
+      } else {
+        const count = selectedEbookIds.length;
+        if (!window.confirm(`⚠️ Confirmer la suppression définitive de ces ${count} livre(s) PDF / E-Book(s) ? Cette action est irréversible.`)) {
+          setIsBulkDeleting(false);
+          return;
+        }
+        setBooks(prev => prev.filter(b => !selectedEbookIds.includes(b.id)));
+        for (const id of selectedEbookIds) {
+          await apiClient.deleteAudiobook(id);
+          window.dispatchEvent(new CustomEvent('rg:book-deleted', { detail: { id } }));
+        }
+        setSelectedEbookIds([]);
+      }
+    } catch (err) {
+      console.error('[handleBulkDelete] Erreur:', err);
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
   return (
           <div className="space-y-6 animate-fadeIn">
             {/* Header de la rubrique avec Sub-Tabs */}
@@ -143,43 +196,119 @@ export const PublishEbookRubric = ({
                         className="rg-input w-full pl-11 pr-4 py-3 text-xs sm:text-sm"
                       />
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => { resetEbookForm(); setEbookSubTab('publish'); }}
-                      className="btn-gradient px-5 py-3 rounded-2xl text-xs font-black flex items-center justify-center gap-2 shadow-xl whitespace-nowrap cursor-pointer"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>Publier un Livre PDF / EPUB</span>
-                    </button>
+                    <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                      {filteredEbooks.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={isAllSelected ? deselectAllEbooks : selectAllEbooks}
+                          className={`px-4 py-3 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 border transition-all cursor-pointer whitespace-nowrap ${
+                            selectedEbookIds.length > 0
+                              ? 'bg-purple-600 text-white border-purple-400 shadow-lg shadow-purple-600/30'
+                              : 'bg-white/5 hover:bg-white/10 text-slate-300 border-white/10'
+                          }`}
+                          title="Sélectionner ou désélectionner tous les livres affichés"
+                        >
+                          <Check className="w-4 h-4" />
+                          <span>{isAllSelected ? 'Tout désélectionner' : selectedEbookIds.length > 0 ? `Tout sélectionner (${filteredEbooks.length})` : 'Tout sélectionner'}</span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => { resetEbookForm(); setEbookSubTab('publish'); }}
+                        className="btn-gradient px-5 py-3 rounded-2xl text-xs font-black flex items-center justify-center gap-2 shadow-xl whitespace-nowrap cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Publier un Livre PDF / EPUB</span>
+                      </button>
+                    </div>
                   </div>
 
                   <div className="flex items-center justify-between text-xs text-slate-400 pt-1 border-t border-white/5">
                     <span>
-                      {ebooksList.filter(b => {
-                        const q = ebookSearch.toLowerCase().trim();
-                        return !q || b.title?.toLowerCase().includes(q) || b.author?.toLowerCase().includes(q) || b.category_name?.toLowerCase().includes(q);
-                      }).length} livre{ebooksList.length > 1 ? 's' : ''} numérique{ebooksList.length > 1 ? 's' : ''} disponible{ebooksList.length > 1 ? 's' : ''} • Liseuse Read's Great Cloudflare D1
+                      {filteredEbooks.length} livre{filteredEbooks.length > 1 ? 's' : ''} numérique{filteredEbooks.length > 1 ? 's' : ''} disponible{filteredEbooks.length > 1 ? 's' : ''} • Liseuse Read's Great Cloudflare D1
                     </span>
                     <span className="text-purple-400 font-bold">Gamification : 100 Pts / Livre</span>
                   </div>
                 </div>
 
+                {/* Bannière d'action suppression groupée */}
+                {selectedEbookIds.length > 0 && (
+                  <div className="p-4 rounded-2xl bg-gradient-to-r from-rose-950/90 via-purple-950/80 to-slate-900/90 border border-rose-500/50 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-3 animate-fadeIn">
+                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                      <div className="w-9 h-9 rounded-xl bg-rose-500/25 text-rose-300 border border-rose-500/40 flex items-center justify-center font-black text-sm shrink-0">
+                        {selectedEbookIds.length}
+                      </div>
+                      <div>
+                        <p className="text-sm font-extrabold text-white flex items-center gap-1.5">
+                          <span>{selectedEbookIds.length} livre{selectedEbookIds.length > 1 ? 's' : ''} sélectionné{selectedEbookIds.length > 1 ? 's' : ''} pour suppression</span>
+                        </p>
+                        <p className="text-xs text-rose-300/80">
+                          Suppression définitive de la base Cloudflare D1 et du cache
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+                      <button
+                        type="button"
+                        onClick={deselectAllEbooks}
+                        disabled={isBulkDeleting}
+                        className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-300 text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        Annuler
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleBulkDelete}
+                        disabled={isBulkDeleting}
+                        className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 active:scale-95 text-white text-xs font-black flex items-center gap-2 shadow-xl shadow-rose-600/40 transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        {isBulkDeleting ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span>Suppression en cours...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 className="w-4 h-4" />
+                            <span>Supprimer la sélection ({selectedEbookIds.length})</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Grille des E-Books */}
-                {ebooksList.filter(b => {
-                  const q = ebookSearch.toLowerCase().trim();
-                  return !q || b.title?.toLowerCase().includes(q) || b.author?.toLowerCase().includes(q) || b.category_name?.toLowerCase().includes(q);
-                }).length > 0 ? (
+                {filteredEbooks.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {ebooksList.filter(b => {
-                      const q = ebookSearch.toLowerCase().trim();
-                      return !q || b.title?.toLowerCase().includes(q) || b.author?.toLowerCase().includes(q) || b.category_name?.toLowerCase().includes(q);
-                    }).map((book) => {
+                    {filteredEbooks.map((book) => {
                       const isEpub = book.format === 'epub' || book.pdf_url?.toLowerCase().endsWith('.epub');
+                      const isSelected = selectedEbookIds.includes(book.id);
                       return (
                         <div
                           key={book.id}
-                          className="group relative rounded-3xl p-5 bg-gradient-to-b from-white/[0.07] to-white/[0.02] hover:from-white/[0.12] hover:to-white/[0.04] border border-white/10 hover:border-purple-500/40 transition-all duration-300 shadow-xl flex flex-col justify-between gap-4"
+                          className={`group relative rounded-3xl p-5 bg-gradient-to-b from-white/[0.07] to-white/[0.02] hover:from-white/[0.12] hover:to-white/[0.04] border transition-all duration-300 shadow-xl flex flex-col justify-between gap-4 ${
+                            isSelected
+                              ? 'border-rose-500/80 bg-rose-950/20 shadow-[0_0_20px_rgba(244,63,94,0.3)]'
+                              : 'border-white/10 hover:border-purple-500/40'
+                          }`}
                         >
+                          {/* Case à cocher multi-sélection */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleSelectEbook(book.id);
+                            }}
+                            className={`absolute top-3 right-3 z-10 w-7 h-7 rounded-xl flex items-center justify-center transition-all cursor-pointer shadow-lg ${
+                              isSelected
+                                ? 'bg-rose-600 text-white border-2 border-rose-300 shadow-rose-600/50 scale-105'
+                                : 'bg-black/60 hover:bg-black/90 border border-white/20 text-white/40 hover:text-white backdrop-blur-md'
+                            }`}
+                            title={isSelected ? 'Désélectionner' : 'Sélectionner pour suppression groupée'}
+                          >
+                            <Check className={`w-4 h-4 stroke-[3] ${isSelected ? 'opacity-100' : 'opacity-0 hover:opacity-50'}`} />
+                          </button>
                           <div>
                             <div className="flex items-start gap-4">
                               {/* Couverture */}

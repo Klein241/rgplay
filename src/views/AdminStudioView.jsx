@@ -573,6 +573,35 @@ export const AdminStudioView = ({ onBookCreated }) => {
     }
   };
 
+  // Suppression groupée de livres (Admin Studio Back-Office)
+  const handleBulkDeleteBooks = async (bookIds) => {
+    if (!Array.isArray(bookIds) || bookIds.length === 0) return false;
+    const count = bookIds.length;
+    if (!window.confirm(`⚠️ Confirmer la suppression définitive de ces ${count} livre(s) PDF / E-Book(s) ? Cette action est irréversible.`)) {
+      return false;
+    }
+
+    // 1. Retrait optimiste immédiat de l'interface
+    setBooks(prev => prev.filter(b => !bookIds.includes(b.id)));
+
+    try {
+      // 2. Suppression de chaque livre
+      for (const id of bookIds) {
+        await apiClient.deleteAudiobook(id);
+        window.dispatchEvent(new CustomEvent('rg:book-deleted', { detail: { id } }));
+      }
+
+      // 3. Rechargement depuis le serveur
+      await new Promise(r => setTimeout(r, 600));
+      await loadBooks();
+      return true;
+    } catch (err) {
+      console.error('[handleBulkDeleteBooks] Erreur:', err);
+      await loadBooks();
+      return false;
+    }
+  };
+
   // Publier immédiatement un livre programmé
   const handlePublishImmediately = async (book) => {
     if (!window.confirm(`Publier immédiatement "${book.title}" pour tous les utilisateurs ?`)) return;
@@ -1115,6 +1144,7 @@ export const AdminStudioView = ({ onBookCreated }) => {
             setActiveRubric={setActiveRubric}
             handleEditBook={handleEditBook}
             handleDeleteBook={handleDeleteBook}
+            handleBulkDeleteBooks={handleBulkDeleteBooks}
             handlePublishImmediately={handlePublishImmediately}
             setSocialModalBook={setSocialModalBook}
             setSocialPlays={setSocialPlays}
@@ -1143,6 +1173,7 @@ export const AdminStudioView = ({ onBookCreated }) => {
             setSocialRating={setSocialRating}
             handleEditEbook={handleEditEbook}
             handleDeleteBook={handleDeleteBook}
+            handleBulkDeleteBooks={handleBulkDeleteBooks}
             ebookStep={ebookStep}
             setEbookStep={setEbookStep}
             ebookTitle={ebookTitle}
