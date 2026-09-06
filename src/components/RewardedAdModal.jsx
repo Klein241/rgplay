@@ -47,7 +47,32 @@ function getAdRewardPoints() {
   }
 }
 
-export function RewardedAdModal({ isOpen, onClose, initialAdId = null }) {
+const SEEN_ADS_KEY = "rg_seen_reward_ads";
+
+function getSeenAds() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SEEN_ADS_KEY) || "{}");
+    const now = Date.now();
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const valid = {};
+    for (const [id, ts] of Object.entries(raw)) {
+      if (typeof ts === 'number' && now - ts < DAY_MS) {
+        valid[id] = ts;
+      }
+    }
+    return valid;
+  } catch { return {}; }
+}
+
+function markAdSeen(adId) {
+  try {
+    const seen = getSeenAds();
+    seen[adId] = Date.now();
+    localStorage.setItem(SEEN_ADS_KEY, JSON.stringify(seen));
+  } catch {}
+}
+
+export function RewardedAdModal({ isOpen, onClose, initialAdId = null, initialAd = null }) {
   const { points, awardPointsAndXp } = useXp();
   const [ads, setAds] = useState([]);
   const [currentAdIndex, setCurrentAdIndex] = useState(0);
@@ -59,8 +84,9 @@ export function RewardedAdModal({ isOpen, onClose, initialAdId = null }) {
   const videoRef = useRef(null);
   const audioRef = useRef(null);
   const timerRef = useRef(null);
+  const rewardedAdIdsRef = useRef(new Set());
 
-  const currentAd = ads[currentAdIndex] || null;
+  const currentAd = ads[currentAdIndex] || initialAd || null;
   const rewardPts = currentAd?.rewardPoints || getAdRewardPoints() || 3;
   const AD_DURATION = currentAd?.duration || 8;
 
@@ -73,10 +99,15 @@ export function RewardedAdModal({ isOpen, onClose, initialAdId = null }) {
       return;
     }
 
-    const initWithPool = (pool) => {
-      // Trouver l'index de la pub ciblée si un initialAdId est fourni
+    const initWithPool = (rawPool) => {
+      let pool = Array.isArray(rawPool) && rawPool.length > 0 ? [...rawPool] : [...FALLBACK_OFFERS];
+      if (initialAd) {
+        pool = [initialAd, ...pool.filter(a => a.id !== initialAd.id)];
+      }
       let startIndex = 0;
-      if (initialAdId) {
+      if (initialAd) {
+        startIndex = 0;
+      } else if (initialAdId) {
         const idx = pool.findIndex(a => a.id === initialAdId);
         if (idx !== -1) startIndex = idx;
       }
@@ -88,13 +119,17 @@ export function RewardedAdModal({ isOpen, onClose, initialAdId = null }) {
       setCountdown(pool[startIndex]?.duration || 8);
     };
 
-    apiClient.getAds({ placement: 'reward_modal' }).then(loaded => {
+    if (initialAd) {
+      initWithPool([initialAd, ...FALLBACK_OFFERS]);
+    }
+
+    apiClient.getAds().then(loaded => {
       const pool = (Array.isArray(loaded) && loaded.length > 0) ? loaded : FALLBACK_OFFERS;
       initWithPool(pool);
     }).catch(() => {
-      initWithPool(FALLBACK_OFFERS);
+      if (!initialAd) initWithPool(FALLBACK_OFFERS);
     });
-  }, [isOpen, initialAdId]);
+  }, [isOpen, initialAdId, initialAd]);
 
   useEffect(() => {
     if (phase !== "watching") return;
@@ -124,31 +159,35 @@ export function RewardedAdModal({ isOpen, onClose, initialAdId = null }) {
     }
   };
 
+  const triggerReward = (source = "watch") => {
+    if (!currentAd) return;
+    if (rewardedAdIdsRef.current.has(currentAd.id)) return;
+    rewardedAdIdsRef.current.add(currentAd.id);
+
+    markAdSeen(currentAd.id);
+    awardPointsAndXp({
+      xp: 1,
+      points: rewardPts,
+      type: "ad_reward",
+      description: `${source === "cta" ? "Lien visité" : "Pub vue"} : ${currentAd?.title || "Sponsor"}`,
+    });
+    window.dispatchEvent(new CustomEvent('rg:ad-reward-completed', { detail: { points: rewardPts } }));
+    window.dispatchEvent(new CustomEvent('rg:ad-seen', { detail: { adId: currentAd.id } }));
+  };
+
   const handleAdComplete = () => {
     setPhase("done");
     if (videoRef.current) videoRef.current.pause();
     if (audioRef.current) audioRef.current.pause();
     if (!currentAd?.ctaUrl || ctaClicked) {
-      awardPointsAndXp({
-        xp: 1,
-        points: rewardPts,
-        type: "ad_reward",
-        description: `Pub vue : ${currentAd?.title || "Sponsor"}`,
-      });
-      window.dispatchEvent(new CustomEvent('rg:ad-reward-completed', { detail: { points: rewardPts } }));
+      triggerReward("watch");
     }
   };
 
   const handleCtaClick = () => {
     setCtaClicked(true);
     if (phase === "done" || phase === "watching") {
-      awardPointsAndXp({
-        xp: 1,
-        points: rewardPts,
-        type: "ad_reward",
-        description: `CTA cliqué : ${currentAd?.title || "Sponsor"}`,
-      });
-      window.dispatchEvent(new CustomEvent('rg:ad-reward-completed', { detail: { points: rewardPts } }));
+      triggerReward("cta");
       if (phase === "watching") {
         clearInterval(timerRef.current);
         setPhase("done");

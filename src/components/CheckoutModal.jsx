@@ -76,13 +76,20 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
 
   const isSubscriptionPlan = book?.id?.startsWith?.('pass_');
   const isAudioXpDisabled = typeof window !== 'undefined' && localStorage.getItem('rg_settings_audio_xp_disabled') === 'true';
-  const canUsePoints = !isSubscriptionPlan && (book?.content_type === 'ebook' || !isAudioXpDisabled);
+  const hasPointsPrice = Number(book?.unlock_points) > 0;
+  // Prix vraiment gratuit = price=0 ET pas de coût en points
+  const isTrulyFree = (book?.price === 0 || !book?.price) && !hasPointsPrice;
+  // Prix en points obligatoire quand price=0 mais unlock_points>0
+  const isPriceZeroWithPoints = (book?.price === 0 || !book?.price) && hasPointsPrice;
+  const canUsePoints = !isSubscriptionPlan && hasPointsPrice;
   const pointsCost = Number(book?.unlock_points) || 100;
   const hasEnoughPoints = points >= pointsCost;
   const isPoints = paymentMethod === 'points';
 
+  // Si le seul mode de paiement possible est les points (price=0 + unlock_points>0),
+  // on pré-sélectionne automatiquement 'points'
   const availableMethods = [
-    ...METHODS,
+    ...(isPriceZeroWithPoints ? [] : METHODS), // pas de FCFA si prix=0 mais points requis
     ...(canUsePoints ? [{
       id: 'points',
       label: 'Points RG',
@@ -96,7 +103,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
     }] : [])
   ];
 
-  const finalPrice = book?.discount_price || book?.price;
+  const finalPrice = isPriceZeroWithPoints ? 0 : (book?.discount_price || book?.price);
   const methodInfo = availableMethods.find(m => m.id === paymentMethod) || availableMethods[0];
   const isCard = paymentMethod === 'card';
 
@@ -120,9 +127,11 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
       setPayUrl('');
       setElapsedSec(0);
       setIsConfirming(false);
-      setPaymentMethod('orange_money');
+      // Pré-sélectionner Points si le prix est 0 mais des points sont requis
+      const bookHasPointsOnly = (book?.price === 0 || !book?.price) && Number(book?.unlock_points) > 0;
+      setPaymentMethod(bookHasPointsOnly ? 'points' : 'orange_money');
     }
-  }, [isOpen]);
+  }, [isOpen, book]);
 
   const clearAllIntervals = () => {
     if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);

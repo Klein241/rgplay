@@ -31,6 +31,9 @@ export const AudiobookCard = ({
     (typeof book.pdfUrl === 'string' && book.pdfUrl.trim().length > 0)
   );
 
+  // Un livre est vraiment gratuit SEULEMENT si price=0 ET pas de coût en points
+  const isTrulyFree = (book.price === 0 || !book.price) && !(Number(book.unlock_points) > 0);
+
   const handleQuickPlay = (e) => {
     e.stopPropagation();
     // Les livres PDF/Ebook ouvrent la fiche ou la liseuse, pas le lecteur audio
@@ -38,7 +41,7 @@ export const AudiobookCard = ({
       onSelect(book);
       return;
     }
-    if (isPurchased || book.price === 0 || book.is_free_for_members) {
+    if (isPurchased || isTrulyFree || book.is_free_for_members) {
       playBook(book, 0, 0);
       trackAction('preview_click', book.id);
     } else {
@@ -211,9 +214,13 @@ export const AudiobookCard = ({
 
         {/* Price / Free Badge — FCFA uniquement, sans ambiguïté Points */}
         <div className="absolute top-2.5 right-2.5 flex flex-col items-end gap-1">
-          {book.price === 0 || book.is_free_for_members ? (
+          {isTrulyFree || book.is_free_for_members ? (
             <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500/30 border border-emerald-400/50 text-emerald-300 backdrop-blur-md shadow-sm">
               GRATUIT
+            </span>
+          ) : Number(book.unlock_points) > 0 && !book.price ? (
+            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500/30 border border-amber-400/50 text-amber-300 backdrop-blur-md shadow-sm">
+              {book.unlock_points} pts ⭐
             </span>
           ) : book.discount_price ? (
             <>

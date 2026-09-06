@@ -207,6 +207,12 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
     (typeof book?.pdfUrl === 'string' && book.pdfUrl.trim().length > 0)
   );
 
+  // Un livre est vraiment gratuit SEULEMENT si price=0 ET aucun coût en points
+  // Si price=0 mais unlock_points>0, des points sont requis (pas gratuit)
+  const isTrulyFree = (book.price === 0 || !book.price) && !(Number(book.unlock_points) > 0);
+  const hasPointsPrice = Number(book.unlock_points) > 0;
+  const isAccessible = isPurchased || isTrulyFree || book.is_free_for_members;
+
   const DEFAULT_COVER = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80';
   const coverSrc = !book.cover_url
     ? DEFAULT_COVER
@@ -353,7 +359,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
             <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
               {(book.chapters?.length ? book.chapters : [{ id: 'ch0', title: 'Chapitre 1 : Introduction', duration_seconds: 1800 }]).map((chap, idx) => {
                 const isFreePreviewChap = idx <= 1;
-                const canPlay = isPurchased || book.price === 0 || isFreePreviewChap;
+                const canPlay = isAccessible || isFreePreviewChap;
 
                 return (
                   <div
@@ -668,7 +674,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
                       )}
                     </button>
 
-                    {(isPurchased || book.price === 0 || book.is_free_for_members) && (
+                    {isAccessible && (
                       <button
                         onClick={handleDownloadMp3}
                         disabled={isDownloading}
@@ -705,14 +711,14 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
               )}
 
               {/* Bouton principal Écouter / Lire / Acheter / Débloquer par Points */}
-              {(isPurchased || book.price === 0 || book.is_free_for_members) ? (
+              {isAccessible ? (
                 isEbookItem ? (
                   <button
                     onClick={() => setIsPdfReaderOpen(true)}
                     className="flex-1 btn-gradient py-3 px-6 rounded-2xl flex items-center justify-center gap-2 text-sm font-bold shadow-lg cursor-pointer"
                   >
                     <BookOpen className="w-4 h-4 text-white" />
-                    <span>{book.price === 0 ? 'Lire Gratuitement 📖' : 'Lire le Livre Numérique 📖'}</span>
+                    <span>{isTrulyFree ? 'Lire Gratuitement 📖' : 'Lire le Livre Numérique 📖'}</span>
                   </button>
                 ) : (
                   <button
@@ -720,7 +726,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
                     className="flex-1 btn-gradient py-3 px-6 rounded-2xl flex items-center justify-center gap-2 text-sm font-bold shadow-lg"
                   >
                     <Play className="w-4 h-4 fill-white" />
-                    <span>{book.price === 0 ? 'Écouter Gratuitement' : 'Écouter le Livre Complet'}</span>
+                    <span>{isTrulyFree ? 'Écouter Gratuitement' : 'Écouter le Livre Complet'}</span>
                   </button>
                 )
               ) : (
@@ -738,7 +744,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
                   </button>
 
                   {/* ── POINTS DE FIDÉLITÉ — Option secondaire (clairement séparée) ── */}
-                  {(isEbookItem || !isAudioXpDisabled) && (
+                  {hasPointsPrice && (isEbookItem || !isAudioXpDisabled) && (
                     <button
                       onClick={async () => {
                         setPointsUnlocking(true);

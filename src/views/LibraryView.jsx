@@ -246,7 +246,7 @@ export const LibraryView = ({ onSelectBook, onGoToDiscover }) => {
 
               const isFav = favoriteIds.includes(book.id);
               const isStarted = progressPercent > 0;
-              const isFree = book.price === 0 || !book.price;
+              const isFree = (book.price === 0 || !book.price) && !(Number(book.unlock_points) > 0);
               const hasPtsUnlock = book.unlock_points && Number(book.unlock_points) > 0;
 
               return (

@@ -84,7 +84,16 @@ const SEEN_ADS_KEY = 'rg_seen_reward_ads';
 
 function getSeenAds() {
   try {
-    return JSON.parse(localStorage.getItem(SEEN_ADS_KEY) || '{}');
+    const raw = JSON.parse(localStorage.getItem(SEEN_ADS_KEY) || '{}');
+    const now = Date.now();
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const valid = {};
+    for (const [id, ts] of Object.entries(raw)) {
+      if (typeof ts === 'number' && now - ts < DAY_MS) {
+        valid[id] = ts;
+      }
+    }
+    return valid;
   } catch { return {}; }
 }
 
@@ -94,99 +103,46 @@ function markAdSeen(adId) {
   localStorage.setItem(SEEN_ADS_KEY, JSON.stringify(seen));
 }
 
-// Carte de pub individuelle dans la grille "Gagner des Points"
-function EarnAdCard({ ad, onWatch, isSeen }) {
+// Mini-carte dans la bande publicitaire horizontale
+function AdBandCard({ ad, onWatch }) {
   const rewardPts = ad.rewardPoints || 3;
   const isImage = ad.mediaType === 'image' && ad.mediaUrl;
   const isVideo = ad.mediaType === 'video' && ad.mediaUrl;
-  const isAudio = ad.mediaType === 'audio' && ad.mediaUrl;
-  const ratio = ad.aspectRatio || '16:9';
-  const maxW = getMaxWidthStyle(ratio);
 
   return (
-    <div className={`relative rounded-3xl border overflow-hidden flex flex-col transition-all duration-300 ${
-      isSeen
-        ? 'border-emerald-500/25 bg-emerald-950/20 opacity-80'
-        : 'border-purple-500/30 bg-[#150a27]/80 hover:border-purple-400/50 hover:bg-[#1b0d33]'
-    }`}>
-      {/* Badge vu */}
-      {isSeen && (
-        <div className="absolute top-3 right-3 z-10 flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold">
-          <CheckCircle2 className="w-3 h-3" />
-          <span>Vu ✅</span>
-        </div>
-      )}
-
-      {/* Visuel pub */}
-      <div className={`mx-auto mt-4 w-full px-4 ${isImage ? 'max-w-xs' : maxW}`}>
-        <div
-          className="relative w-full rounded-xl overflow-hidden bg-black/40 flex items-center justify-center"
-          style={isImage ? { minHeight: '180px', maxHeight: '260px' } : getAspectStyle(ratio)}
-        >
-          {isVideo ? (
-            <video
-              src={ad.mediaUrl}
-              muted
-              playsInline
-              loop
-              autoPlay
-              className="absolute inset-0 w-full h-full object-contain"
-            />
-          ) : isAudio ? (
-            <div className="absolute inset-0 bg-gradient-to-br from-emerald-950 to-purple-950 flex flex-col items-center justify-center gap-2 text-emerald-300">
-              <Music className="w-8 h-8 animate-pulse" />
-              <span className="text-[10px] font-bold uppercase tracking-wide text-emerald-400">Spot Audio</span>
-            </div>
-          ) : isImage ? (
-            <img
-              src={ad.mediaUrl}
-              alt={ad.title}
-              className="w-auto h-auto max-w-full max-h-[260px] object-contain mx-auto"
-            />
-          ) : (
-            <div className={`absolute inset-0 bg-gradient-to-br ${ad.gradient || 'from-purple-600 to-pink-700'} flex flex-col items-center justify-center gap-2`}>
-              <span className="text-4xl">{ad.icon || '📢'}</span>
-            </div>
-          )}
+    <div
+      className="flex-shrink-0 w-[165px] rounded-2xl border border-purple-500/30 bg-[#150a27]/90 overflow-hidden flex flex-col shadow-lg hover:border-amber-500/50 hover:shadow-amber-900/30 transition-all duration-300 group"
+    >
+      {/* Visuel */}
+      <div className="relative w-full h-[110px] bg-black/40 overflow-hidden flex items-center justify-center">
+        {isVideo ? (
+          <video src={ad.mediaUrl} muted playsInline loop autoPlay className="absolute inset-0 w-full h-full object-cover" />
+        ) : isImage ? (
+          <img src={ad.mediaUrl} alt={ad.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+        ) : (
+          <div className={`absolute inset-0 bg-gradient-to-br ${ad.gradient || 'from-purple-600 to-pink-700'} flex flex-col items-center justify-center`}>
+            <span className="text-3xl">{ad.icon || '📢'}</span>
+          </div>
+        )}
+        {/* Badge points */}
+        <div className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-full bg-amber-500/90 text-slate-950 text-[9px] font-black flex items-center gap-0.5 shadow">
+          <span>+{rewardPts}</span><span>⭐</span>
         </div>
       </div>
 
       {/* Infos */}
-      <div className="p-4 flex flex-col gap-3 flex-1">
+      <div className="p-2.5 flex flex-col gap-2 flex-1">
         <div>
-          <div className="flex items-center gap-2 flex-wrap mb-1">
-            <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/30">
-              Partenaire
-            </span>
-            <span className="text-[11px] text-amber-300 font-bold bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
-              +{rewardPts} pts ⭐
-            </span>
-          </div>
-          <h3 className="font-extrabold text-sm text-white leading-snug">{ad.title}</h3>
-          {ad.tagline && <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-2">{ad.tagline}</p>}
+          <p className="text-white text-[11px] font-bold leading-snug line-clamp-2">{ad.title}</p>
+          {ad.tagline && <p className="text-slate-400 text-[10px] mt-0.5 line-clamp-1">{ad.tagline}</p>}
         </div>
-
-        {/* Durée */}
-        <div className="flex items-center gap-1.5 text-[10px] text-purple-400">
-          <Clock className="w-3 h-3" />
-          <span>{ad.duration || 8}s · Cliquez le lien pour valider</span>
-        </div>
-
-        {/* Bouton regarder */}
         <button
           type="button"
           onClick={() => onWatch(ad)}
-          className={`w-full py-2.5 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
-            isSeen
-              ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25'
-              : 'bg-gradient-to-r from-purple-600 via-fuchsia-600 to-pink-600 text-white shadow-lg hover:scale-[1.02] active:scale-95'
-          }`}
+          className="mt-auto w-full py-1.5 rounded-xl text-[11px] font-extrabold flex items-center justify-center gap-1 bg-gradient-to-r from-amber-500 via-orange-400 to-pink-500 text-white shadow hover:scale-[1.03] active:scale-95 transition-all cursor-pointer"
         >
-          {isSeen ? (
-            <><RefreshCw className="w-3.5 h-3.5" /><span>Revoir (+{rewardPts} pts)</span></>
-          ) : (
-            <><Play className="w-3.5 h-3.5 fill-current" /><span>Regarder → +{rewardPts} pts</span></>
-          )}
+          <Play className="w-3 h-3 fill-current" />
+          <span>Voir +{rewardPts} pts</span>
         </button>
       </div>
     </div>
@@ -198,7 +154,8 @@ export const StoreView = ({ onSelectPlan }) => {
   const [selected, setSelected] = useState('pass_month');
   const [earnAds, setEarnAds] = useState([]);
   const [isLoadingAds, setIsLoadingAds] = useState(false);
-  const [seenAds, setSeenAds] = useState(getSeenAds());
+  // visibleAdIds : IDs des pubs visibles dans la bande (les vues disparaissent)
+  const [visibleAdIds, setVisibleAdIds] = useState(null); // null = non initialisé
   const [activeAdForModal, setActiveAdForModal] = useState(null);
   const [isRewardModalOpen, setIsRewardModalOpen] = useState(false);
   const { points } = useXp();
@@ -206,34 +163,33 @@ export const StoreView = ({ onSelectPlan }) => {
   const loadEarnAds = useCallback(async () => {
     setIsLoadingAds(true);
     try {
-      // Charger toutes les pubs actives (tous les emplacements)
       const all = await apiClient.getAds();
+      const seen = getSeenAds();
       if (Array.isArray(all) && all.length > 0) {
-        setEarnAds(all.filter(a => a.active !== false));
+        const active = all.filter(a => a.active !== false);
+        setEarnAds(active);
+        const unvisitedIds = active.filter(a => !seen[a.id]).map(a => a.id);
+        setVisibleAdIds(new Set(unvisitedIds));
       } else {
-        // Fallback : pubs par défaut
-        setEarnAds([
+        const fallback = [
           {
-            id: 'fb-earn-1',
-            title: 'CamerPay — Paiement Mobile Money',
+            id: 'fb-earn-1', title: 'CamerPay — Paiement Mobile Money',
             tagline: 'Payez vos livres et abonnements en 1 clic.',
             mediaType: 'image', mediaUrl: null, aspectRatio: '16:9',
             gradient: 'from-amber-600 to-orange-700', icon: '💳',
-            duration: 8, rewardPoints: 3,
-            ctaUrl: 'https://camerpay.biz', ctaText: 'Découvrir CamerPay',
-            active: true,
+            duration: 8, rewardPoints: 3, ctaUrl: 'https://camerpay.biz', ctaText: 'Découvrir CamerPay', active: true,
           },
           {
-            id: 'fb-earn-2',
-            title: "Read's Great VIP Club",
+            id: 'fb-earn-2', title: "Read's Great VIP Club",
             tagline: "Rejoignez la communauté de lecteurs d'Afrique.",
             mediaType: 'image', mediaUrl: null, aspectRatio: '1:1',
             gradient: 'from-purple-600 to-indigo-700', icon: '📚',
-            duration: 8, rewardPoints: 3,
-            ctaUrl: 'https://wa.me/237699456779', ctaText: 'Rejoindre',
-            active: true,
+            duration: 8, rewardPoints: 3, ctaUrl: 'https://wa.me/237699456779', ctaText: 'Rejoindre', active: true,
           },
-        ]);
+        ];
+        setEarnAds(fallback);
+        const unvisitedIds = fallback.filter(a => !seen[a.id]).map(a => a.id);
+        setVisibleAdIds(new Set(unvisitedIds));
       }
     } catch {
       setEarnAds([]);
@@ -245,29 +201,39 @@ export const StoreView = ({ onSelectPlan }) => {
   useEffect(() => {
     if (activeTab === 'earn') {
       loadEarnAds();
-      setSeenAds(getSeenAds());
     }
     const handleUpdate = () => { if (activeTab === 'earn') loadEarnAds(); };
+    // Quand une pub est vue (récompense obtenue), la retirer de la bande
+    const handleAdSeen = (e) => {
+      const adId = e.detail?.adId;
+      if (adId) {
+        markAdSeen(adId);
+        setVisibleAdIds(prev => {
+          if (!prev) return prev;
+          const next = new Set(prev);
+          next.delete(adId);
+          return next;
+        });
+      }
+    };
     window.addEventListener('rg:ads-updated', handleUpdate);
-    window.addEventListener('rg:ad-reward-completed', () => setSeenAds(getSeenAds()));
+    window.addEventListener('rg:ad-seen', handleAdSeen);
     return () => {
       window.removeEventListener('rg:ads-updated', handleUpdate);
-      window.removeEventListener('rg:ad-reward-completed', () => setSeenAds(getSeenAds()));
+      window.removeEventListener('rg:ad-seen', handleAdSeen);
     };
   }, [activeTab, loadEarnAds]);
 
   const handleWatchAd = (ad) => {
-    markAdSeen(ad.id);
-    setSeenAds(getSeenAds());
     setActiveAdForModal(ad);
     setIsRewardModalOpen(true);
   };
 
-  const totalPoints = earnAds.reduce((acc, a) => acc + (a.rewardPoints || 3), 0);
-  const seenCount = earnAds.filter(a => seenAds[a.id]).length;
-  const earnedPoints = earnAds
-    .filter(a => seenAds[a.id])
-    .reduce((acc, a) => acc + (a.rewardPoints || 3), 0);
+  // Pubs visibles dans la bande (non encore vues)
+  const bandAds = visibleAdIds !== null
+    ? earnAds.filter(a => visibleAdIds.has(a.id))
+    : earnAds;
+  const totalPtsAvailable = bandAds.reduce((acc, a) => acc + (a.rewardPoints || 3), 0);
 
   return (
     <div className="pb-36 sm:pb-40 animate-fadeIn select-none">
@@ -405,7 +371,7 @@ export const StoreView = ({ onSelectPlan }) => {
           <div className="text-center space-y-2">
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold tracking-wide">
               <Sparkles className="w-4 h-4" />
-              <span>Publicités Récompensées</span>
+              <span>Bande Publicitaire Récompensée</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
               Gagnez des{' '}
@@ -414,57 +380,46 @@ export const StoreView = ({ onSelectPlan }) => {
               </span>
             </h1>
             <p className="text-xs text-slate-300 max-w-md mx-auto">
-              Regardez une publicité partenaire et cliquez le lien pour valider vos points instantanément.
+              Cliquez sur une pub, visitez le lien partenaire et vos points sont crédités instantanément.
+              Les pubs vues disparaissent automatiquement de la bande.
             </p>
           </div>
 
-          {/* Tableau de bord points */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="rounded-2xl border border-amber-500/25 bg-amber-950/20 p-3 text-center">
-              <div className="text-xl font-extrabold text-amber-300">{points}</div>
+          {/* Solde */}
+          <div className="flex items-center justify-center gap-4">
+            <div className="rounded-2xl border border-amber-500/25 bg-amber-950/20 px-5 py-3 text-center">
+              <div className="text-2xl font-extrabold text-amber-300">{points}</div>
               <div className="text-[10px] text-amber-400/70 font-semibold mt-0.5">Solde actuel</div>
             </div>
-            <div className="rounded-2xl border border-purple-500/25 bg-purple-950/20 p-3 text-center">
-              <div className="text-xl font-extrabold text-purple-300">{earnAds.length}</div>
-              <div className="text-[10px] text-purple-400/70 font-semibold mt-0.5">Pubs dispo.</div>
-            </div>
-            <div className="rounded-2xl border border-emerald-500/25 bg-emerald-950/20 p-3 text-center">
-              <div className="text-xl font-extrabold text-emerald-300">{totalPoints}</div>
-              <div className="text-[10px] text-emerald-400/70 font-semibold mt-0.5">Pts à gagner</div>
-            </div>
+            {bandAds.length > 0 && (
+              <div className="rounded-2xl border border-purple-500/25 bg-purple-950/20 px-5 py-3 text-center">
+                <div className="text-2xl font-extrabold text-purple-300">{bandAds.length}</div>
+                <div className="text-[10px] text-purple-400/70 font-semibold mt-0.5">Pubs restantes</div>
+              </div>
+            )}
+            {bandAds.length > 0 && (
+              <div className="rounded-2xl border border-emerald-500/25 bg-emerald-950/20 px-5 py-3 text-center">
+                <div className="text-2xl font-extrabold text-emerald-300">+{totalPtsAvailable}</div>
+                <div className="text-[10px] text-emerald-400/70 font-semibold mt-0.5">Pts à gagner</div>
+              </div>
+            )}
           </div>
 
-          {/* Barre de progression globale */}
-          {earnAds.length > 0 && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-400 font-medium">{seenCount}/{earnAds.length} pubs vues</span>
-                <span className="text-amber-300 font-bold">{earnedPoints} pts gagnés</span>
-              </div>
-              <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-amber-500 via-orange-400 to-pink-500 transition-all duration-500"
-                  style={{ width: earnAds.length > 0 ? `${(seenCount / earnAds.length) * 100}%` : '0%' }}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Grille de pubs */}
+          {/* ── BANDE PUBLICITAIRE HORIZONTALE ── */}
           {isLoadingAds ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-3 text-purple-300/60">
-              <RefreshCw className="w-8 h-8 animate-spin" />
+            <div className="flex flex-col items-center justify-center py-10 gap-3 text-purple-300/60">
+              <RefreshCw className="w-7 h-7 animate-spin" />
               <span className="text-sm font-medium">Chargement des offres...</span>
             </div>
-          ) : earnAds.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-4 text-slate-400">
-              <div className="w-16 h-16 rounded-2xl bg-purple-900/30 border border-purple-500/20 flex items-center justify-center text-3xl">📭</div>
+          ) : bandAds.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-4 text-slate-400">
+              <div className="w-16 h-16 rounded-2xl bg-emerald-950/40 border border-emerald-500/20 flex items-center justify-center text-3xl">✅</div>
               <div className="text-center">
-                <p className="font-bold text-white">Aucune publicité disponible</p>
-                <p className="text-sm mt-1">Les offres partenaires apparaîtront ici dès qu'elles seront publiées.</p>
+                <p className="font-bold text-white">Toutes les pubs ont été vues !</p>
+                <p className="text-sm mt-1 text-slate-400">Revenez demain pour de nouvelles offres partenaires.</p>
               </div>
               <button
-                onClick={loadEarnAds}
+                onClick={() => { setVisibleAdIds(null); loadEarnAds(); }}
                 className="px-4 py-2 rounded-xl bg-purple-600/20 border border-purple-500/30 text-purple-300 text-sm font-semibold flex items-center gap-2 hover:bg-purple-600/30 transition-colors cursor-pointer"
               >
                 <RefreshCw className="w-4 h-4" />
@@ -472,27 +427,33 @@ export const StoreView = ({ onSelectPlan }) => {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {earnAds.map(ad => (
-                <EarnAdCard
-                  key={ad.id}
-                  ad={ad}
-                  isSeen={!!seenAds[ad.id]}
-                  onWatch={handleWatchAd}
-                />
-              ))}
+            <div>
+              {/* Bande horizontale scroll */}
+              <div
+                className="flex gap-3 overflow-x-auto pb-3"
+                style={{ scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch' }}
+              >
+                {bandAds.map(ad => (
+                  <div key={ad.id} style={{ scrollSnapAlign: 'start' }}>
+                    <AdBandCard ad={ad} onWatch={handleWatchAd} />
+                  </div>
+                ))}
+              </div>
+              <p className="text-center text-[10px] text-slate-500 mt-1">
+                ← Faites glisser pour voir plus de pubs →
+              </p>
             </div>
           )}
 
-          {/* Rappel des règles */}
+          {/* Règles */}
           <div className="rounded-2xl border border-blue-500/20 bg-blue-950/15 p-4 text-xs text-blue-200/80 space-y-1.5">
             <p className="font-bold text-blue-300 flex items-center gap-1.5">
               <Shield className="w-4 h-4" /> Comment gagner des points ?
             </p>
-            <p>1. Cliquez <strong className="text-white">Regarder</strong> sur une publicité</p>
-            <p>2. Cliquez sur le <strong className="text-white">Lien Partenaire</strong> (CTA) qui apparaît</p>
-            <p>3. Vos <strong className="text-amber-300">points sont crédités instantanément</strong> !</p>
-            <p>4. Utilisez vos points pour <strong className="text-white">débloquer des livres audio</strong> gratuitement.</p>
+            <p>1. Cliquez <strong className="text-white">Voir</strong> sur une pub dans la bande</p>
+            <p>2. Cliquez sur le <strong className="text-white">Lien Partenaire</strong> qui apparaît</p>
+            <p>3. Vos <strong className="text-amber-300">points sont crédités instantanément</strong> et la pub disparaît !</p>
+            <p>4. Utilisez vos points pour <strong className="text-white">débloquer des livres</strong> gratuitement.</p>
           </div>
         </div>
       )}
@@ -501,11 +462,9 @@ export const StoreView = ({ onSelectPlan }) => {
       {isRewardModalOpen && activeAdForModal && (
         <RewardedAdModal
           isOpen={isRewardModalOpen}
+          initialAd={activeAdForModal}
           initialAdId={activeAdForModal.id}
-          onClose={() => {
-            setIsRewardModalOpen(false);
-            setSeenAds(getSeenAds());
-          }}
+          onClose={() => setIsRewardModalOpen(false)}
         />
       )}
     </div>
