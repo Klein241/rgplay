@@ -97,21 +97,88 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
     }
 
     if (activeFilter === 'all') return true;
-    if (activeFilter === 'new') return b.is_featured || b.is_pinned || b.price === 0;
-    if (activeFilter === 'points') return (b.unlock_points && Number(b.unlock_points) > 0) || b.price === 0;
 
-    const formatMatch = AUDIO_FORMATS.find(f => f.id === activeFilter);
-    if (formatMatch) {
-      return b.content_type === formatMatch.matchType || (formatMatch.id === 'audiobook' && b.format === 'audiobook');
+    // NOUVEAUTÉS : audios marqués nouveaux, étiquetés ou publiés récemment
+    if (activeFilter === 'new') {
+      const isExplicitNew = Boolean(
+        b.is_new ||
+        b.badge === 'NOUVEAU' ||
+        b.is_pinned ||
+        b.is_featured
+      );
+      const isRecentDate = b.created_at
+        ? (Date.now() - new Date(b.created_at).getTime() < 45 * 24 * 60 * 60 * 1000)
+        : false;
+      return isExplicitNew || isRecentDate;
+    }
+
+    // POINTS RG ⭐ : Uniquement les audios déblocables avec des Points RG (pas tous les gratuits)
+    if (activeFilter === 'points') {
+      return (Number(b.unlock_points) > 0) || (Number(b.points_price) > 0);
+    }
+
+    // FORMATS & GENRES AUDIO PRÉCIS
+    if (activeFilter === 'audiobook') {
+      return (
+        b.content_type === 'audiobook' ||
+        b.format === 'audiobook' ||
+        (!b.content_type &&
+         !b.category?.toLowerCase().includes('podcast') &&
+         !b.category?.toLowerCase().includes('music') &&
+         !b.category?.toLowerCase().includes('musique') &&
+         !b.category?.toLowerCase().includes('masterclass'))
+      );
+    }
+
+    if (activeFilter === 'podcast') {
+      return Boolean(
+        b.content_type === 'podcast' ||
+        b.category?.toLowerCase().includes('podcast') ||
+        b.genre?.toLowerCase().includes('podcast') ||
+        b.format === 'podcast' ||
+        (b.title && b.title.toLowerCase().includes('podcast'))
+      );
+    }
+
+    if (activeFilter === 'music') {
+      return Boolean(
+        b.content_type === 'music' ||
+        b.category?.toLowerCase().includes('music') ||
+        b.category?.toLowerCase().includes('musique') ||
+        b.format === 'music' ||
+        (b.genre && b.genre.toLowerCase().includes('musique'))
+      );
+    }
+
+    if (activeFilter === 'masterclass') {
+      return Boolean(
+        b.content_type === 'masterclass' ||
+        b.category?.toLowerCase().includes('masterclass') ||
+        (b.title && (
+          b.title.toLowerCase().includes('masterclass') ||
+          b.title.toLowerCase().includes('formation') ||
+          b.title.toLowerCase().includes('cours')
+        ))
+      );
     }
 
     return true;
   });
 
-  const featuredList = audioOnlyCatalog.filter(b => b.is_featured || b.is_pinned).slice(0, 4);
-  const currentFeatured = featuredList[0] || audioOnlyCatalog[0] || null;
-  const newBooks = audioOnlyCatalog.slice(0, 6);
-  const recommendations = audioOnlyCatalog.slice(2, 6);
+  // Tri chronologique des audios pour que les nouveautés soient toujours en haut
+  const sortedByNewest = [...audioOnlyCatalog].sort((a, b) => {
+    if (a.is_new && !b.is_new) return -1;
+    if (!a.is_new && b.is_new) return 1;
+    const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+    if (timeA && timeB && timeA !== timeB) return timeB - timeA;
+    return 0;
+  });
+
+  const featuredList = audioOnlyCatalog.filter(b => b.is_featured || b.is_pinned || b.badge === 'VEDETTE' || b.badge === 'À LA UNE');
+  const currentFeatured = featuredList[0] || sortedByNewest[0] || null;
+  const newBooks = sortedByNewest.slice(0, 8);
+  const recommendations = audioOnlyCatalog.filter(b => b.id !== currentFeatured?.id).slice(0, 6);
 
   // Info sur le filtre actif
   const currentFilterInfo =
@@ -357,8 +424,12 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
                 </div>
 
                 <div className="flex-1 text-center sm:text-left min-w-0">
-                  <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-400/30">
-                    ⭐ Vedette de la semaine
+                  <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-purple-500/30 to-pink-500/30 text-white border border-purple-400/50 shadow-sm flex items-center gap-1.5 w-fit mx-auto sm:mx-0">
+                    {currentFeatured.is_pinned || currentFeatured.badge === 'À LA UNE'
+                      ? '🔥 À LA UNE'
+                      : currentFeatured.is_featured || currentFeatured.badge === 'VEDETTE'
+                        ? '⭐ VEDETTE DU MOMENT'
+                        : '✨ NOUVELLE SORTIE AUDIO'}
                   </span>
                   <h2 className="text-lg sm:text-2xl font-black text-white mt-2 truncate font-heading group-hover:text-purple-200 transition-colors">
                     {currentFeatured.title}

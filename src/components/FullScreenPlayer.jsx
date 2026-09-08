@@ -10,6 +10,7 @@ import { shareAudioWithCover } from '../utils/shareUtils';
 import { SpeedSelectorModal } from './SpeedSelectorModal';
 import { SleepTimerModal } from './SleepTimerModal';
 import { BookChatModal } from './BookChatModal';
+import { AdBanner } from './AdBanner';
 
 export const FullScreenPlayer = () => {
   const {
@@ -312,6 +313,28 @@ export const FullScreenPlayer = () => {
               </div>
               <ChevronRight className="w-5 h-5 text-[#c4b0e8] group-hover:text-white flex-shrink-0" />
             </button>
+          </div>
+
+          {/* ── NOUVELLE LIGNE DANS LE LECTEUR : PUBLICITÉS & OFFRES PARTENAIRES ── */}
+          <div className="w-full mt-3 pt-2 border-t border-purple-500/20">
+            <div className="flex items-center justify-between mb-1.5 px-1">
+              <span className="text-[10px] font-black tracking-widest text-[#a78bfa] uppercase flex items-center gap-1.5 font-heading">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" /> SPONSORISÉ &amp; OFFRES PARTENAIRES
+              </span>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new Event('rg:open-reward-ad'))}
+                className="text-[9.5px] font-bold text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 px-2 py-0.5 rounded-full border border-amber-400/30 flex items-center gap-1 transition-all cursor-pointer shadow-sm hover:scale-105"
+                title="Gagner des points de déblocage gratuits"
+              >
+                <span>🎁 Gagner +50 pts ⭐</span>
+              </button>
+            </div>
+            <AdBanner
+              placement="player_banner"
+              onOpenRewardModal={(ad) => window.dispatchEvent(new CustomEvent('rg:open-reward-ad', { detail: { ad } }))}
+              className="my-1"
+            />
           </div>
 
           {/* ── SECTION INFÉRIEURE : PLAYLIST RÉCENTE (@iSalmanArt Screen 3) ── */}
