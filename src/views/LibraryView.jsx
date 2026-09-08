@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { 
   Music, ChevronRight, Headphones, Heart, BookOpen, User, Play, Sparkles,
   Search, Bookmark, CheckCircle2, Flame, ArrowRight, Eye, ShieldCheck, Gift,
-  FileText, Download, WifiOff, Wifi, Trash2
+  FileText, Download, WifiOff, Wifi, Trash2, Star, Loader2
 } from 'lucide-react';
 import { apiClient } from '../services/api';
 import { AudiobookCard } from '../components/AudiobookCard';
 import { AdBanner } from '../components/AdBanner';
 import { useAudio } from '../context/AudioContext';
 import { useXp } from '../context/XpContext';
-import { getOfflineBooks, removeOfflineAudio } from '../utils/offlineAudioCache';
+import { getOfflineBooks, removeOfflineAudio, downloadBookForOffline } from '../utils/offlineAudioCache';
 
 const SUB_TABS = [
   { id: 'ebooks', label: '📖 Catalogue PDF' },
@@ -25,6 +25,7 @@ export const LibraryView = ({ onSelectBook, onGoToDiscover }) => {
   const [allCatalog, setAllCatalog] = useState([]);
   const [offlineBooks, setOfflineBooks] = useState(() => getOfflineBooks());
   const [searchQuery, setSearchQuery] = useState('');
+  const [downloadingBookId, setDownloadingBookId] = useState(null);
   const [favoriteIds, setFavoriteIds] = useState(() => {
     try {
       const saved = localStorage.getItem('rg_favorite_book_ids');
@@ -55,12 +56,20 @@ export const LibraryView = ({ onSelectBook, onGoToDiscover }) => {
   useEffect(() => {
     loadData();
     const handleOfflineUpdate = () => setOfflineBooks(getOfflineBooks());
+    const handleFavUpdate = () => {
+      try {
+        const saved = localStorage.getItem('rg_favorite_book_ids');
+        if (saved) setFavoriteIds(JSON.parse(saved));
+      } catch (_) {}
+    };
     window.addEventListener('rg:library-updated', loadData);
     window.addEventListener('rg:book-deleted', loadData);
+    window.addEventListener('rg:favorite-toggled', handleFavUpdate);
     window.addEventListener('rg_offline_cache_updated', handleOfflineUpdate);
     return () => {
       window.removeEventListener('rg:library-updated', loadData);
       window.removeEventListener('rg:book-deleted', loadData);
+      window.removeEventListener('rg:favorite-toggled', handleFavUpdate);
       window.removeEventListener('rg_offline_cache_updated', handleOfflineUpdate);
     };
   }, []);
@@ -81,11 +90,18 @@ export const LibraryView = ({ onSelectBook, onGoToDiscover }) => {
   // 1. Filtrage exclusif des livres PDF & E-Books uploadés par l'admin
   const sourceBooks = allCatalog.length > 0 ? allCatalog : libraryBooks;
   
-  // Uniquement les livres publiés par l'admin avec un fichier PDF/EPUB réel (publiés via "Publier E-Book" ou "Import en masse")
   const ebookBooks = sourceBooks.filter((b) => {
+    // Si c'est un livre audio ou podcast, ce n'est pas un ebook pur
+    if (b.content_type === 'audiobook' || b.content_type === 'podcast' || b.content_type === 'music' || b.content_type === 'masterclass' || b.format === 'audio') {
+      return false;
+    }
     const isEbook = (
       b.content_type === 'ebook' ||
       b.content_type === 'epub' ||
+      b.content_type === 'pdf' ||
+      b.format === 'pdf' ||
+      b.format === 'epub' ||
+      b.is_ebook ||
       (typeof b.pdf_url === 'string' && b.pdf_url.trim().length > 0)
     );
     if (!isEbook) return false;
@@ -125,7 +141,7 @@ export const LibraryView = ({ onSelectBook, onGoToDiscover }) => {
   const purchasedDisplay = libraryBooks.length > 0 ? libraryBooks : ebookBooks.slice(0, 4);
 
   return (
-    <div className="space-y-6 pb-36 sm:pb-40 animate-fadeIn select-none">
+    <div className="space-y-6 pb-56 sm:pb-64 animate-fadeIn select-none">
       
       {/* ── EN-TÊTE BIBLIOTHÈQUE ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
@@ -177,7 +193,7 @@ export const LibraryView = ({ onSelectBook, onGoToDiscover }) => {
       {/* ── BANNIÈRE SPONSORISÉE HAUT DE BIBLIOTHÈQUE ── */}
       <AdBanner
         placement="library_top"
-        onOpenRewardModal={() => window.dispatchEvent(new Event('rg:open-reward-ad'))}
+        onOpenRewardModal={(ad) => window.dispatchEvent(new CustomEvent('rg:open-reward-ad', { detail: { ad } }))}
         className="my-1"
       />
 
@@ -300,14 +316,53 @@ export const LibraryView = ({ onSelectBook, onGoToDiscover }) => {
                       </div>
                     )}
 
-                    {/* Favori */}
-                    <button
-                      type="button"
-                      onClick={(e) => toggleFavorite(book.id, e)}
-                      className="absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <Heart className={`w-3 h-3 ${isFav ? 'text-rose-400 fill-rose-400' : 'text-white'}`} />
-                    </button>
+                    {/* Boutons d'action coin inférieur */}
+                    <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1 z-10">
+                      {/* Télécharger Hors-ligne */}
+                      <button
+                        type="button"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (downloadingBookId === book.id) return;
+                          setDownloadingBookId(book.id);
+                          try {
+                            await downloadBookForOffline(book);
+                            setOfflineBooks(getOfflineBooks());
+                          } catch (err) {
+                            console.warn('Erreur téléchargement offline:', err);
+                          } finally {
+                            setDownloadingBookId(null);
+                          }
+                        }}
+                        title={offlineBooks.some(ob => ob.id === book.id) ? 'Livre disponible hors-ligne' : 'Télécharger PDF pour lire hors-ligne'}
+                        disabled={downloadingBookId === book.id}
+                        className={`w-6 h-6 rounded-full backdrop-blur-sm flex items-center justify-center transition-all ${
+                          offlineBooks.some(ob => ob.id === book.id)
+                            ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-400/50'
+                            : downloadingBookId === book.id
+                              ? 'bg-purple-950/80 text-cyan-300 border border-cyan-400/40'
+                              : 'bg-black/60 hover:bg-black/80 text-white border border-white/20'
+                        }`}
+                      >
+                        {downloadingBookId === book.id ? (
+                          <Loader2 className="w-3 h-3 animate-spin text-cyan-300" />
+                        ) : offlineBooks.some(ob => ob.id === book.id) ? (
+                          <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                        ) : (
+                          <Download className="w-3 h-3 text-white" />
+                        )}
+                      </button>
+
+                      {/* Favori */}
+                      <button
+                        type="button"
+                        onClick={(e) => toggleFavorite(book.id, e)}
+                        title={isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+                        className="w-6 h-6 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-sm border border-white/20 flex items-center justify-center transition-all"
+                      >
+                        <Heart className={`w-3 h-3 ${isFav ? 'text-rose-400 fill-rose-400' : 'text-white'}`} />
+                      </button>
+                    </div>
                   </div>
 
                   {/* Info texte sous la couverture */}
@@ -318,6 +373,19 @@ export const LibraryView = ({ onSelectBook, onGoToDiscover }) => {
                     <p className="text-[10px] text-purple-300/70 truncate mt-0.5">
                       {book.author || "Read's Great"}
                     </p>
+
+                    {/* Note et téléchargements */}
+                    <div className="mt-1 flex items-center justify-between text-[9px] text-slate-300">
+                      <span className="flex items-center gap-0.5 text-amber-300 font-bold">
+                        <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
+                        <span>{book.rating ? Number(book.rating).toFixed(1) : '4.9'}</span>
+                      </span>
+                      <span className="flex items-center gap-0.5 text-cyan-300 font-medium">
+                        <Download className="w-2 h-2" />
+                        <span>{book.downloads_count || book.downloads || Math.round((Number(book.rating_count) || 40) * 3)}</span>
+                      </span>
+                    </div>
+
                     {/* Infos d'accès — clairement séparées : Prix réel OU Points fidélité */}
                     <div className="mt-1 flex flex-wrap gap-1">
                       {!isFree && (
@@ -657,6 +725,8 @@ export const LibraryView = ({ onSelectBook, onGoToDiscover }) => {
         </div>
       )}
 
+      {/* Spacer de sécurité pour garantir un défilement complet au-dessus de la barre de navigation et du mini-lecteur */}
+      <div className="h-32 sm:h-40 w-full pointer-events-none" aria-hidden="true" />
     </div>
   );
 };

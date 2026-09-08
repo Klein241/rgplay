@@ -241,6 +241,14 @@ export const BookChatModal = ({ book, isOpen, onClose }) => {
       });
 
       if (res.success && res.reply) {
+        let cleanReply = typeof res.reply === 'string' ? res.reply : '';
+        // Sécurité étanche : éliminer tout éventuel résidu de pensée interne <think>...</think>
+        cleanReply = cleanReply.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+        cleanReply = cleanReply.replace(/^(?:REASONING|THOUGHT|PENSÉE)[\s\S]*?(?=\n\n|\n[A-ZÀ-Ÿ]|$)/i, '').trim();
+        if (!cleanReply) {
+          cleanReply = "Je suis à votre disposition ! Posez-moi une question sur les leçons ou la mise en pratique de ce livre.";
+        }
+
         // Appliquer la déduction de points ou comptabiliser la réponse gratuite
         if (hasFreeLeft) {
           const nextCount = dailyFreeCount + 1;
@@ -255,7 +263,7 @@ export const BookChatModal = ({ book, isOpen, onClose }) => {
           {
             id: `assistant-${Date.now()}`,
             role: 'assistant',
-            content: res.reply,
+            content: cleanReply,
             matchedBook: res.matched_book || null,
             timestamp: new Date(),
           }

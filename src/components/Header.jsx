@@ -159,19 +159,36 @@ export const Header = ({
                 <StreakBadge onClick={onOpenStreak} />
               )}
 
-              {/* Notifications Push & Centre de Notifications */}
-              <button
-                onClick={onOpenNotifications || (() => requestPermission())}
-                title="Centre de notifications"
-                className="relative p-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-all active:scale-95"
-              >
-                <Bell className={`w-4 h-4 ${isSubscribed ? 'fill-purple-400 text-purple-300' : 'text-slate-300'}`} />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-pink-500 text-white text-[9px] font-black flex items-center justify-center shadow-md animate-pulse">
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </span>
-                )}
-              </button>
+              {/* Bouton d'activation push persistant et agrandi si non activé */}
+              {!isSubscribed ? (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const granted = await requestPermission();
+                    if (granted && onOpenNotifications) onOpenNotifications();
+                  }}
+                  title="Activer les notifications push pour ne manquer aucun livre audio"
+                  className="flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full text-xs font-black bg-gradient-to-r from-purple-600 via-fuchsia-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white shadow-[0_0_20px_rgba(168,85,247,0.45)] border border-purple-300/40 hover:scale-105 active:scale-95 transition-all cursor-pointer animate-pulse shrink-0"
+                >
+                  <Bell className="w-4 h-4 fill-white animate-bounce shrink-0" />
+                  <span className="hidden sm:inline font-black tracking-wide">Activer Alertes</span>
+                  <span className="sm:hidden font-black">Alertes</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onOpenNotifications}
+                  title="Centre de notifications"
+                  className="relative p-2 rounded-xl border border-purple-500/30 bg-purple-500/15 hover:bg-purple-500/25 text-purple-200 transition-all active:scale-95 cursor-pointer"
+                >
+                  <Bell className="w-4 h-4 fill-purple-400 text-purple-300" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-pink-500 text-white text-[9px] font-black flex items-center justify-center shadow-md animate-pulse">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </button>
+              )}
 
             {/* Solde de Points Récompenses — Monétisation & Engagement */}
             {!isAdminMode && (

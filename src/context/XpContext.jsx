@@ -13,8 +13,8 @@ const XpContext = createContext(null);
 const STORAGE_KEY = 'rg_gamification_state';
 
 const DEFAULT_STATE = {
-  xp: 30,
-  points: 10, // 10 points de découverte (pas suffisant pour débloquer un livre sans Mobile Money)
+  xp: 1000,
+  points: 1000, // 1000 points de bienvenue offerts (Sky Points)
   level: 1,
   readingMinutes: 0,
   listeningMinutes: 0,
@@ -23,7 +23,7 @@ const DEFAULT_STATE = {
   lastDailyRewardDate: null,
   unlockedBadges: ['badge-welcome'],
   recentTransactions: [
-    { id: 'tx-init-1', amount: 10, type: 'bonus', description: 'Bienvenue sur Read’s Great', createdAt: new Date().toISOString() },
+    { id: 'tx-init-1', amount: 1000, type: 'bonus', description: 'Bienvenue sur Read’s Great (1 000 Sky Points offerts)', createdAt: new Date().toISOString() },
   ],
 };
 
@@ -31,7 +31,15 @@ export const XpProvider = ({ children }) => {
   const [gamification, setGamification] = useState(() => {
     try {
       const cached = localStorage.getItem(STORAGE_KEY);
-      if (cached) return { ...DEFAULT_STATE, ...JSON.parse(cached) };
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        // Si l'utilisateur avait l'ancien petit solde initial (<= 100 points), on le met au niveau 1000 points
+        if ((parsed.points || 0) < 1000 && (!parsed.recentTransactions || parsed.recentTransactions.length <= 2)) {
+          parsed.points = Math.max(parsed.points || 0, 1000);
+          parsed.xp = Math.max(parsed.xp || 0, 1000);
+        }
+        return { ...DEFAULT_STATE, ...parsed };
+      }
     } catch {}
     return DEFAULT_STATE;
   });
@@ -148,6 +156,18 @@ export const XpProvider = ({ children }) => {
       return newState;
     });
   }, []);
+
+  // Écouteur global pour créditer des points (ex: parrainage, défis, bonus)
+  useEffect(() => {
+    const handleCustomAward = (e) => {
+      const { points = 0, xp = 50, description = 'Bonus de points' } = e.detail || {};
+      if (points > 0 || xp > 0) {
+        awardPointsAndXp({ points, xp, description });
+      }
+    };
+    window.addEventListener('rg:award-points', handleCustomAward);
+    return () => window.removeEventListener('rg:award-points', handleCustomAward);
+  }, [awardPointsAndXp]);
 
   // ── RÉCOMPENSE QUOTIDIENNE (DAILY LOGIN) ──────────────────────────────────
   const claimDailyReward = useCallback(() => {

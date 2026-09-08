@@ -36,12 +36,16 @@ export function App() {
   const [isNotifCenterOpen, setIsNotifCenterOpen] = useState(false);
   const [isStreakModalOpen, setIsStreakModalOpen] = useState(false);
   const [isRewardModalOpen, setIsRewardModalOpen] = useState(false);
+  const [selectedRewardAd, setSelectedRewardAd] = useState(null);
   const [isSkyChatOpen, setIsSkyChatOpen] = useState(false);
   const [featuredBookForOffer, setFeaturedBookForOffer] = useState(null);
 
   // Écouteur global pour ouvrir la modale de récompense sponsorisée
   useEffect(() => {
-    const handleOpenReward = () => setIsRewardModalOpen(true);
+    const handleOpenReward = (e) => {
+      setSelectedRewardAd(e?.detail?.ad || null);
+      setIsRewardModalOpen(true);
+    };
     const handleNavTab = (e) => { if (e.detail) setActiveTab(e.detail); };
     window.addEventListener('rg:open-reward-ad', handleOpenReward);
     window.addEventListener('rg:navigate-tab', handleNavTab);
@@ -82,7 +86,21 @@ export function App() {
         import('./utils/userId').then(({ recordReferredBy }) => {
           recordReferredBy(refCode);
         });
-        apiClient.registerReferral(refCode);
+        apiClient.registerReferral(refCode).then(() => {
+          const alreadyGranted = localStorage.getItem('rg_referred_bonus_granted');
+          if (!alreadyGranted) {
+            localStorage.setItem('rg_referred_bonus_granted', 'true');
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('rg:award-points', {
+                detail: {
+                  points: 500,
+                  xp: 100,
+                  description: '🎁 Cadeau de Parrainage : 500 Points Offerts !'
+                }
+              }));
+            }, 1000);
+          }
+        });
       }
     } catch (_) {}
   }, []);
@@ -452,8 +470,8 @@ export function App() {
                   onOpenInstallModal={() => setIsInstallModalOpen(true)}
                 />
 
-                {/* Zone de Contenu */}
-                <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 min-w-0">
+                {/* Zone de Contenu avec marge de scroll sécurisée au-dessus du BottomNav et du MiniPlayer */}
+                <main className="flex-1 px-4 sm:px-6 lg:px-8 pt-6 pb-48 sm:pb-56 md:pb-44 min-w-0">
                   {activeTab === 'discover' && (
                     <DiscoverView
                       searchQuery={searchQuery}
@@ -524,7 +542,12 @@ export function App() {
               {/* Modale de Récompense Sponsorisée & Pubs Gratuites Read's Great */}
               <RewardedAdModal
                 isOpen={isRewardModalOpen}
-                onClose={() => setIsRewardModalOpen(false)}
+                onClose={() => {
+                  setIsRewardModalOpen(false);
+                  setSelectedRewardAd(null);
+                }}
+                initialAd={selectedRewardAd}
+                initialAdId={selectedRewardAd?.id}
               />
 
               {/* Modales */}

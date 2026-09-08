@@ -18,6 +18,7 @@ import { BulkEbookImporter } from '../components/BulkEbookImporter';
 
 // ── Rubriques fragmentées (modules découplés) ─────────────────────────────────
 import { GamificationRubric } from './admin/rubrics/GamificationRubric';
+import { UsersRubric } from './admin/rubrics/UsersRubric';
 import { CategoriesRubric } from './admin/rubrics/CategoriesRubric';
 import { AnalyticsRubric } from './admin/rubrics/AnalyticsRubric';
 import { PushRubric } from './admin/rubrics/PushRubric';
@@ -490,13 +491,118 @@ export const AdminStudioView = ({ onBookCreated }) => {
     try {
       const serverData = await apiClient.getAdminAnalytics();
       const localData = getAnalyticsData();
-      if (serverData && serverData.uniqueVisitors > 0) {
+      if (serverData) {
+        // ── 1. Fusion des Pays ──
+        const countryMap = {};
+        [...(serverData.countries || []), ...(localData.countries || [])].forEach(c => {
+          if (!countryMap[c.code]) {
+            countryMap[c.code] = { ...c };
+          } else {
+            countryMap[c.code].visitors = Math.max(countryMap[c.code].visitors, c.visitors) + (countryMap[c.code].visitors === c.visitors ? 0 : 1);
+            countryMap[c.code].sessions = Math.max(countryMap[c.code].sessions, c.sessions);
+          }
+        });
+        const totalMergedVisitors = Object.values(countryMap).reduce((s, c) => s + c.visitors, 0) || 1;
+        const mergedCountries = Object.values(countryMap).map(c => ({
+          ...c,
+          pct: Math.round((c.visitors / totalMergedVisitors) * 100)
+        })).sort((a, b) => b.visitors - a.visitors);
+
+        // ── 2. Fusion des Sources ──
+        const sourceMap = {};
+        [...(serverData.sources || []), ...(localData.sources || [])].forEach(s => {
+          if (!sourceMap[s.source]) {
+            sourceMap[s.source] = { ...s };
+          } else {
+            sourceMap[s.source].count = Math.max(sourceMap[s.source].count, s.count);
+          }
+        });
+        const totalMergedSources = Object.values(sourceMap).reduce((s, c) => s + c.count, 0) || 1;
+        const mergedSources = Object.values(sourceMap).map(s => ({
+          ...s,
+          pct: Math.round((s.count / totalMergedSources) * 100)
+        })).sort((a, b) => b.count - a.count);
+
+        // ── 3. Fusion des Audios les Plus Écoutés ──
+        const audioMap = {};
+        [...(serverData.topAudios || []), ...(localData.topAudios || [])].forEach(a => {
+          const aId = a.id || a.audiobook_id;
+          if (!aId) return;
+          if (!audioMap[aId]) {
+            audioMap[aId] = { ...a, id: aId };
+          } else {
+            audioMap[aId].plays = Math.max(Number(audioMap[aId].plays) || 0, Number(a.plays) || 0);
+            audioMap[aId].total_seconds = Math.max(Number(audioMap[aId].total_seconds) || 0, Number(a.total_seconds || a.seconds) || 0);
+          }
+        });
+        const mergedTopAudios = Object.values(audioMap).sort((a, b) => (Number(b.plays) || 0) - (Number(a.plays) || 0)).slice(0, 15);
+
+        // ── 4. Fusion des Statistiques Publicitaires (Facebook Ads) ──
+        const sAds = serverData.adStats || {};
+        const lAds = localData.adStats || {};
+        const campMap = {};
+        [...(sAds.campaigns || []), ...(lAds.campaigns || [])].forEach(c => {
+          if (!campMap[c.id]) {
+            campMap[c.id] = { ...c };
+          } else {
+            campMap[c.id].impressions = Math.max(campMap[c.id].impressions, c.impressions);
+            campMap[c.id].clicks = Math.max(campMap[c.id].clicks, c.clicks);
+            campMap[c.id].completions = Math.max(campMap[c.id].completions, c.completions);
+            campMap[c.id].points = Math.max(campMap[c.id].points, c.points);
+          }
+        });
+        const mergedCampaigns = Object.values(campMap).map(c => ({
+          ...c,
+          ctr: c.impressions > 0 ? ((c.clicks / c.impressions) * 100).toFixed(1) : '0.0',
+          vtr: c.impressions > 0 ? ((c.completions / c.impressions) * 100).toFixed(1) : '0.0',
+        }));
+        const totalImp = Math.max(sAds.impressions || 0, lAds.impressions || 0, mergedCampaigns.reduce((sum, c) => sum + c.impressions, 0));
+        const totalClk = Math.max(sAds.clicks || 0, lAds.clicks || 0, mergedCampaigns.reduce((sum, c) => sum + c.clicks, 0));
+        const totalCmp = Math.max(sAds.completions || 0, lAds.completions || 0, mergedCampaigns.reduce((sum, c) => sum + c.completions, 0));
+        const totalPts = Math.max(sAds.pointsDistributed || 0, lAds.pointsDistributed || 0, mergedCampaigns.reduce((sum, c) => sum + c.points, 0));
+
+        const mergedAdStats = {
+          impressions: totalImp,
+          clicks: totalClk,
+          completions: totalCmp,
+          ctr: totalImp > 0 ? ((totalClk / totalImp) * 100).toFixed(1) : '0.0',
+          vtr: totalImp > 0 ? ((totalCmp / totalImp) * 100).toFixed(1) : '0.0',
+          pointsDistributed: totalPts,
+          campaigns: mergedCampaigns,
+        };
+
+        // ── 5. Fusion du Flux des Visiteurs Récents ──
+        const visitorMap = {};
+        [...(serverData.recentVisitors || []), ...(localData.recentVisitors || [])].forEach(v => {
+          const key = v.session_id || v.visitor_id;
+          if (!key) return;
+          if (!visitorMap[key]) {
+            visitorMap[key] = { ...v };
+          } else {
+            visitorMap[key] = {
+              ...visitorMap[key],
+              ...v,
+              audios: [...(visitorMap[key].audios || []), ...(v.audios || [])],
+              ebooks: [...(visitorMap[key].ebooks || []), ...(v.ebooks || [])],
+              actions: [...(visitorMap[key].actions || []), ...(v.actions || [])],
+            };
+          }
+        });
+        const mergedRecentVisitors = Object.values(visitorMap)
+          .sort((a, b) => (new Date(b.started_at || b.last_active_at || 0).getTime() - new Date(a.started_at || a.last_active_at || 0).getTime()))
+          .slice(0, 50);
+
         setAnalyticsData({
           ...localData,
           ...serverData,
-          sources: serverData.sources?.length > 0 ? serverData.sources : localData.sources,
-          topAudios: serverData.topAudios?.length > 0 ? serverData.topAudios : localData.topAudios,
-          recentVisitors: serverData.recentVisitors?.length > 0 ? serverData.recentVisitors : localData.recentVisitors,
+          uniqueVisitors: Math.max(serverData.uniqueVisitors || 0, localData.uniqueVisitors || 0, mergedRecentVisitors.length),
+          todayVisitors: Math.max(serverData.todayVisitors || 0, localData.todayVisitors || 0, 1),
+          countries: mergedCountries,
+          sources: mergedSources,
+          topAudios: mergedTopAudios,
+          adStats: mergedAdStats,
+          recentVisitors: mergedRecentVisitors,
+          convRate: serverData.convRate || localData.convRate || '0.0',
         });
       } else {
         setAnalyticsData(localData);
@@ -628,13 +734,13 @@ export const AdminStudioView = ({ onBookCreated }) => {
     setAuthor(book.author || '');
     setNarrator(book.narrator || '');
     setCategoryId(book.category_id || 'cat-1');
-    setPrice(String(book.price || '3500'));
+    setPrice(String(book.price ?? ''));
     setDiscountPrice(String(book.discount_price || ''));
     setDescription(book.description || '');
     setSynopsis(book.synopsis || '');
     setPdfUrl(book.pdf_url || '');
     setPageCount(book.page_count || 180);
-    setUnlockPoints(book.unlock_points || 100);
+    setUnlockPoints(book.unlock_points ?? 0);
     setCompanionEbookId(book.companion_ebook_id || '');
     setAudioMatchResult(null);
     setCoverData(book.cover_url ? { public_url: book.cover_url, r2_key: book.cover_r2_key || '' } : null);
@@ -738,7 +844,7 @@ export const AdminStudioView = ({ onBookCreated }) => {
       format: contentType === 'ebook' ? 'ebook' : (contentType === 'hybrid' ? 'hybrid' : 'audio'),
       pdf_url: pdfUrl || (contentType === 'ebook' ? 'https://raw.githubusercontent.com/Klein241/bibliotequereadgreat/main/sample.pdf' : null),
       page_count: Number(pageCount) || 180,
-      unlock_points: Number(unlockPoints) || 100,
+      unlock_points: Number(unlockPoints) >= 0 ? Number(unlockPoints) : 0,
       category_id: categoryId,
       category_name: categories.find(c => c.id === categoryId)?.name || 'Business & Finance',
       price: Number(price),
@@ -797,11 +903,11 @@ export const AdminStudioView = ({ onBookCreated }) => {
     setNarrator('');
     setPdfUrl('');
     setPageCount(180);
-    setUnlockPoints(100);
+    setUnlockPoints(0);
     setCompanionEbookId('');
     setAudioMatchResult(null);
-    setPrice(cfg.pricePlaceholder);
-    setDiscountPrice(cfg.discountPricePlaceholder);
+    setPrice('');
+    setDiscountPrice('');
     setDescription('');
     setSynopsis('');
     setCoverData(null);
@@ -994,6 +1100,7 @@ export const AdminStudioView = ({ onBookCreated }) => {
     { id: 'publish-ebook', label: '📖 Publier E-Book & PDF', icon: FileText, badge: ebooksList.length > 0 ? `${ebooksList.length}` : "Read's Great" },
     { id: 'bulk-ebooks', label: '📦 Import en Masse (500+)', icon: FolderPlus, badge: 'Nouveau' },
     { id: 'publish', label: '🎙️ Publier Audio & Masterclass', icon: UploadCloud },
+    { id: 'users', label: '👥 Utilisateurs & Sky Points', icon: Users, badge: '⭐ Points' },
     { id: 'categories', label: 'Catalogues & Catégories', icon: Grid, badge: categories.length },
     { id: 'gamification', label: '⭐ Gamification & Points', icon: Sparkles, badge: 'Read\'s Great' },
     { id: 'ai-tts', label: 'Studio IA (Texte ➔ Voix)', icon: Wand2, badge: 'Pro' },
@@ -1305,6 +1412,13 @@ export const AdminStudioView = ({ onBookCreated }) => {
             setChapterTtsAudioUrl={setChapterTtsAudioUrl}
             setChapterTtsText={setChapterTtsText}
           />
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════
+            RUBRIQUE : UTILISATEURS & CRÉDIT SKY POINTS
+            ══════════════════════════════════════════════════════════════════ */}
+        {activeRubric === 'users' && (
+          <UsersRubric />
         )}
 
         {/* ══════════════════════════════════════════════════════════════════

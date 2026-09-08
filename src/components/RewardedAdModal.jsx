@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { useXp } from "../context/XpContext";
 import { apiClient } from "../services/api";
+import { trackAdImpression, trackAdClick, trackAdComplete } from "../services/tracker";
 
 const FALLBACK_OFFERS = [
   {
@@ -125,7 +126,11 @@ export function RewardedAdModal({ isOpen, onClose, initialAdId = null, initialAd
 
     apiClient.getAds().then(loaded => {
       const pool = (Array.isArray(loaded) && loaded.length > 0) ? loaded : FALLBACK_OFFERS;
-      initWithPool(pool);
+      if (initialAd) {
+        setAds([initialAd, ...pool.filter(a => a.id !== initialAd.id)]);
+      } else {
+        initWithPool(pool);
+      }
     }).catch(() => {
       if (!initialAd) initWithPool(FALLBACK_OFFERS);
     });
@@ -159,6 +164,12 @@ export function RewardedAdModal({ isOpen, onClose, initialAdId = null, initialAd
     }
   };
 
+  useEffect(() => {
+    if (isOpen && currentAd) {
+      trackAdImpression(currentAd, 'rewarded_modal');
+    }
+  }, [isOpen, currentAd?.id]);
+
   const triggerReward = (source = "watch") => {
     if (!currentAd) return;
     if (rewardedAdIdsRef.current.has(currentAd.id)) return;
@@ -171,6 +182,7 @@ export function RewardedAdModal({ isOpen, onClose, initialAdId = null, initialAd
       type: "ad_reward",
       description: `${source === "cta" ? "Lien visité" : "Pub vue"} : ${currentAd?.title || "Sponsor"}`,
     });
+    trackAdComplete(currentAd, 'rewarded_modal', rewardPts);
     window.dispatchEvent(new CustomEvent('rg:ad-reward-completed', { detail: { points: rewardPts } }));
     window.dispatchEvent(new CustomEvent('rg:ad-seen', { detail: { adId: currentAd.id } }));
   };
@@ -186,6 +198,7 @@ export function RewardedAdModal({ isOpen, onClose, initialAdId = null, initialAd
 
   const handleCtaClick = () => {
     setCtaClicked(true);
+    trackAdClick(currentAd, 'rewarded_modal');
     if (phase === "done" || phase === "watching") {
       triggerReward("cta");
       if (phase === "watching") {
@@ -331,6 +344,20 @@ export function RewardedAdModal({ isOpen, onClose, initialAdId = null, initialAd
                   <span>Regarder la pub ({AD_DURATION}s)</span>
                   <Clock className="w-3.5 h-3.5 opacity-60" />
                 </button>
+
+                {!isVideo && !isAudio && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      triggerReward("view");
+                      setPhase("done");
+                    }}
+                    className="w-full py-2.5 rounded-2xl font-bold text-xs flex items-center justify-center gap-1.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg hover:scale-[1.02] active:scale-95 transition-all cursor-pointer"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span>J'ai vu cette annonce (+{rewardPts} pts)</span>
+                  </button>
+                )}
               </div>
             </>
           )}

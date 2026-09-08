@@ -654,21 +654,117 @@ puis envoie les requêtes HTTP POST ci-dessus pour finaliser la publication sur 
             )}
 
             {activeCodeTab === 'mcp' && (
-              <div className="p-4 rounded-2xl bg-slate-950/90 border border-emerald-500/30 font-mono text-xs text-slate-200">
-                <pre className="whitespace-pre-wrap leading-relaxed text-emerald-300 text-[11px]">
+              <div className="space-y-4">
+                {/* Mode 1 : Manus IA (HTTP Transport sans Node local) */}
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-950/40 via-slate-900 to-indigo-950/40 border border-emerald-500/40 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-emerald-400 font-black text-xs">
+                      <Sparkles className="w-4 h-4" />
+                      <span>Configuration Manus IA (Transport HTTP — 100% Cloud)</span>
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-extrabold border border-emerald-500/40">
+                      Recommandé
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    Aucun processus Node.js à lancer en local ! L'API Cloudflare de RG Play gère nativement le protocole MCP HTTP pour Manus IA.
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 text-xs font-mono">
+                    <div className="p-2.5 rounded-xl bg-slate-950/80 border border-white/10 space-y-1">
+                      <span className="text-[10px] text-slate-400 font-sans font-bold block">Nom du serveur</span>
+                      <div className="flex items-center justify-between text-white font-bold">
+                        <span>RG play</span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopy('RG play', 'mcp_name')}
+                          className="text-slate-400 hover:text-emerald-400 text-xs"
+                        >
+                          {copiedScopeId === 'mcp_name' ? '✓' : 'Copier'}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-slate-950/80 border border-white/10 space-y-1">
+                      <span className="text-[10px] text-slate-400 font-sans font-bold block">Type de transport</span>
+                      <div className="text-emerald-400 font-bold">HTTP</div>
+                    </div>
+
+                    <div className="sm:col-span-2 p-2.5 rounded-xl bg-slate-950/80 border border-emerald-500/30 space-y-1">
+                      <span className="text-[10px] text-emerald-400 font-sans font-bold block">URL du serveur</span>
+                      <div className="flex items-center justify-between text-white break-all">
+                        <span className="text-emerald-300">https://rg-play.pages.dev/api/mcp</span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopy('https://rg-play.pages.dev/api/mcp', 'mcp_url')}
+                          className="text-slate-400 hover:text-emerald-400 text-xs ml-2 flex-shrink-0"
+                        >
+                          {copiedScopeId === 'mcp_url' ? '✓ Copié' : 'Copier'}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="sm:col-span-2 p-2.5 rounded-xl bg-slate-950/80 border border-white/10 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-amber-300 font-sans font-bold">
+                          ⚠️ En-têtes personnalisés (indispensable)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(`Bearer ${generatedKey.fullKey}`, 'mcp_header_val')}
+                          className="text-slate-400 hover:text-amber-400 text-xs"
+                        >
+                          {copiedScopeId === 'mcp_header_val' ? '✓ Copié' : 'Copier la valeur'}
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                        <div>
+                          <span className="text-[10px] text-slate-500 font-sans block">Nom de l'en-tête (gauche) :</span>
+                          <span className="text-white font-bold">Authorization</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-500 font-sans block">Valeur (droite) :</span>
+                          <span className="text-amber-300 break-all">{`Bearer ${generatedKey.fullKey.slice(0, 16)}...`}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Mode 2 : Claude Desktop / Cursor / Local */}
+                <div className="p-4 rounded-2xl bg-slate-950/90 border border-white/10 space-y-2 font-mono text-xs">
+                  <div className="flex items-center justify-between font-sans text-xs text-slate-400">
+                    <span>Alternative : Configuration Claude Desktop / Cursor (JSON)</span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(JSON.stringify({
+                        mcpServers: {
+                          rgplay: {
+                            url: "https://rg-play.pages.dev/api/mcp",
+                            headers: {
+                              Authorization: `Bearer ${generatedKey.fullKey}`
+                            }
+                          }
+                        }
+                      }, null, 2), 'mcp_json')}
+                      className="text-slate-400 hover:text-white"
+                    >
+                      {copiedScopeId === 'mcp_json' ? '✓ Copié' : 'Copier JSON'}
+                    </button>
+                  </div>
+                  <pre className="whitespace-pre-wrap leading-relaxed text-emerald-300 text-[11px]">
 {JSON.stringify({
   mcpServers: {
     rgplay: {
-      command: "node",
-      args: ["./mcp-rgplay/index.js"],
-      env: {
-        RGPLAY_API_BASE: "https://rg-play.pages.dev/api",
-        RGPLAY_API_KEY: generatedKey.fullKey
+      url: "https://rg-play.pages.dev/api/mcp",
+      headers: {
+        Authorization: `Bearer ${generatedKey.fullKey}`
       }
     }
   }
 }, null, 2)}
-                </pre>
+                  </pre>
+                </div>
               </div>
             )}
 

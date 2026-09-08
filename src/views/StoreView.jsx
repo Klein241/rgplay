@@ -236,7 +236,7 @@ export const StoreView = ({ onSelectPlan }) => {
   const totalPtsAvailable = bandAds.reduce((acc, a) => acc + (a.rewardPoints || 3), 0);
 
   return (
-    <div className="pb-36 sm:pb-40 animate-fadeIn select-none">
+    <div className="pb-56 sm:pb-64 animate-fadeIn select-none">
 
       {/* ── ONGLETS NAVIGATION ── */}
       <div className="flex items-center gap-2 max-w-2xl mx-auto px-4 pt-4 mb-6">
@@ -467,6 +467,9 @@ export const StoreView = ({ onSelectPlan }) => {
           onClose={() => setIsRewardModalOpen(false)}
         />
       )}
+
+      {/* Spacer de sécurité pour garantir un défilement complet au-dessus de la barre de navigation et du mini-lecteur */}
+      <div className="h-32 sm:h-40 w-full pointer-events-none" aria-hidden="true" />
     </div>
   );
 };

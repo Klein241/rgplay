@@ -231,9 +231,9 @@ export const BulkEbookImporter = () => {
   // ── Phase 2 : Configuration globale ──
   const [globalConfig, setGlobalConfig] = useState({
     categoryId: 'cat-1',
-    price: '3500',
+    price: '0',
     discountPrice: '',
-    unlockPoints: '100',
+    unlockPoints: '0',
     language: 'fr',
     publishMode: 'immediate', // 'immediate' | 'progressive' | 'individual'
     progressiveBatchSize: '5',       // livres/jour
@@ -517,9 +517,9 @@ export const BulkEbookImporter = () => {
                 cover_url: coverUrl,
                 cover_r2_key: coverR2Key,
                 category_id: globalConfig.categoryId,
-                price: Number(globalConfig.price || 3500),
-                discount_price: Number(globalConfig.discountPrice || 0),
-                unlock_points: Number(globalConfig.unlockPoints || 100),
+                price: globalConfig.price === '' ? 0 : Number(globalConfig.price),
+                discount_price: globalConfig.discountPrice === '' ? 0 : Number(globalConfig.discountPrice),
+                unlock_points: globalConfig.unlockPoints === '' ? 0 : Number(globalConfig.unlockPoints),
                 language: globalConfig.language,
                 format: entry.format,
                 scheduled_at: scheduledAt,

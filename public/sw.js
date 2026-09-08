@@ -8,7 +8,7 @@
  *               → Audio offline servi depuis le cache rg-play-audio-offline
  */
 
-const SW_VERSION = 'v2.1.0';
+const SW_VERSION = 'v2.2.0';
 const CACHE_SHELL  = `rg-play-shell-${SW_VERSION}`;
 const CACHE_AUDIO  = 'rg-play-audio-offline'; // Partagé avec offlineAudioCache.js
 
@@ -65,17 +65,34 @@ self.addEventListener('fetch', (event) => {
   // ── 3a. Requêtes cross-origin : laisser le navigateur gérer (CDN, polices)
   if (url.origin !== APP_ORIGIN) return;
 
-  // ── 3b. Audio hors-ligne : Cache-First dans CACHE_AUDIO
-  if (url.pathname.startsWith('/api/r2/') || url.pathname.startsWith('/api/audio/')) {
+  // ── 3b. Audio : Streaming ultra-rapide natif (Zéro latence 2G/3G) ────────
+  const isAudioRequest = 
+    url.pathname.startsWith('/api/r2/') || 
+    url.pathname.startsWith('/api/audio/') ||
+    url.pathname.startsWith('/api/chapters/') ||
+    url.pathname.startsWith('/api/audiobooks/') ||
+    url.pathname.includes('/stream') ||
+    url.pathname.includes('/preview') ||
+    url.pathname.endsWith('.mp3') ||
+    url.pathname.endsWith('.m4a') ||
+    url.pathname.endsWith('.wav') ||
+    url.pathname.endsWith('.webm') ||
+    url.pathname.endsWith('.aac') ||
+    request.headers.get('Range') !== null;
+
+  if (isAudioRequest) {
+    // RÈGLE D'OR STREAMING MOBILE (2G/3G) :
+    // Quand l'utilisateur est en ligne, NE PAS passer par event.respondWith() !
+    // Cela libère la pile réseau native HTTP/3 et le décodeur C++ du navigateur (gain de 3 à 8s).
+    if (self.navigator.onLine) {
+      return;
+    }
+    // En mode hors-ligne : servir depuis le cache CACHE_AUDIO
     event.respondWith(
       caches.open(CACHE_AUDIO).then(async (cache) => {
         const cached = await cache.match(request);
         if (cached) return cached;
-        // En ligne : récupérer et servir (pas mis en cache automatiquement ici,
-        // c'est offlineAudioCache.js qui décide quoi cacher)
-        return fetch(request).catch(() =>
-          new Response('Audio non disponible hors-ligne', { status: 503 })
-        );
+        return new Response('Audio non disponible hors-ligne', { status: 503 });
       })
     );
     return;

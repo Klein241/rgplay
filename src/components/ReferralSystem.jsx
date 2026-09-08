@@ -58,9 +58,8 @@ export const ReferralCard = ({ profile }) => {
 
   const shareWhatsApp = () => {
     const text = encodeURIComponent(
-      `🎧 Rejoins-moi sur *RG Play* — la bibliothèque audio premium d'Afrique !\n\n` +
-      `📚 Livres audio, Masterclasses & Podcasts en français\n` +
-      `🎁 Utilise mon code *${data.code}* pour obtenir -10% sur ton premier achat.\n\n` +
+      `🎧 Rejoins-moi sur *RG Play* — la bibliothèque audio & e-books premium d'Afrique !\n\n` +
+      `🎁 Clique sur mon lien de parrainage pour recevoir immédiatement *500 points cadeaux* offerts pour débloquer tes premiers livres audio et e-books :\n\n` +
       `👉 ${referralLink}`
     );
     window.open(`https://wa.me/?text=${text}`, '_blank');
@@ -86,11 +85,11 @@ export const ReferralCard = ({ profile }) => {
               <Gift className="w-5 h-5 text-amber-400" />
             </div>
             <div>
-              <p className="text-sm font-bold text-white">Parrainage & Récompenses</p>
+              <p className="text-sm font-bold text-white">Parrainage &amp; Récompenses</p>
               <p className="text-[11px] text-slate-400">
                 {data.referrals.length > 0
-                  ? `${data.referrals.length} ami(s) parrainé(s) · ${data.creditsEarned} FCFA gagnés`
-                  : 'Gagnez 20% sur chaque achat de vos filleuls'}
+                  ? `${data.referrals.length} ami(s) parrainé(s) · ${data.referrals.length * 500} points gagnés`
+                  : 'Invitez vos amis : 500 points pour vous, 500 points pour eux !'}
               </p>
             </div>
           </div>
@@ -134,7 +133,7 @@ export const ReferralCard = ({ profile }) => {
                 </div>
                 <div>
                   <h2 className="text-lg font-black text-white">Programme Parrainage</h2>
-                  <p className="text-xs text-amber-300">Gagnez de l'argent en invitant vos amis</p>
+                  <p className="text-xs text-amber-300">Gagnez 500 points chacun à chaque invitation</p>
                 </div>
               </div>
 
@@ -142,8 +141,8 @@ export const ReferralCard = ({ profile }) => {
               <div className="grid grid-cols-3 gap-3">
                 {[
                   { label: 'Filleuls', value: data.referrals.length, icon: Users, color: 'text-blue-400' },
-                  { label: 'Gagnés (FCFA)', value: data.creditsEarned, icon: Wallet, color: 'text-emerald-400' },
-                  { label: 'En attente', value: data.pendingCredits, icon: TrendingUp, color: 'text-amber-400' },
+                  { label: 'Points Gagnés', value: data.referrals.length * 500, icon: Zap, color: 'text-amber-400' },
+                  { label: 'Cadeau / Ami', value: '+500 pts', icon: Gift, color: 'text-emerald-400' },
                 ].map((stat) => (
                   <div
                     key={stat.label}
@@ -162,9 +161,9 @@ export const ReferralCard = ({ profile }) => {
               {/* Comment ça marche */}
               <div className="space-y-2">
                 {[
-                  { step: '1', text: 'Partagez votre lien personnel à vos amis et contacts', icon: Share2 },
-                  { step: '2', text: 'Votre ami s\'inscrit et bénéficie de -10% sur son premier achat', icon: Zap },
-                  { step: '3', text: 'Vous gagnez 20% du montant dépensé en crédits RG Play', icon: Wallet },
+                  { step: '1', text: 'Partagez votre lien de parrainage personnel à vos amis et contacts', icon: Share2 },
+                  { step: '2', text: 'Votre ami rejoint RG Play et reçoit 500 points offerts immédiatement', icon: Zap },
+                  { step: '3', text: 'Vous recevez également 500 points de récompense sur votre compte', icon: Gift },
                 ].map((item) => (
                   <div key={item.step} className="flex items-start gap-3">
                     <div

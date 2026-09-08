@@ -149,6 +149,19 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
         if (ogDesc) ogDesc.setAttribute('content', `🎧 Écoutez "${book.title}" par ${book.author}. ${book.description || ''}`);
         if (ogUrl) ogUrl.setAttribute('content', `${window.location.origin}/?book=${book.id}`);
       } catch (_) {}
+
+      // ⚡ PRE-WARMING RÉSEAU (0 ms de latence au clic sur « Écouter »)
+      // Précharge discrètement la connexion et les premiers kilo-octets du premier chapitre
+      try {
+        const audioToPrewarm = book.chapters?.[0]?.audio_url || book.preview_url;
+        if (audioToPrewarm && !audioToPrewarm.startsWith('blob:') && typeof document !== 'undefined') {
+          const prefetchLink = document.createElement('link');
+          prefetchLink.rel = 'prefetch';
+          prefetchLink.as = 'fetch';
+          prefetchLink.href = audioToPrewarm;
+          document.head.appendChild(prefetchLink);
+        }
+      } catch (_) {}
     }
   }, [book?.id]);
 
@@ -199,12 +212,14 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
     book?.content_type === 'ebook' ||
     book?.content_type === 'epub' ||
     book?.content_type === 'pdf' ||
-    book?.format === 'ebook' ||
-    book?.format === 'pdf' ||
-    book?.format === 'epub' ||
+    (book?.format === 'ebook' && !book?.content_type) ||
+    (book?.format === 'pdf' && !book?.content_type) ||
+    (book?.format === 'epub' && !book?.content_type) ||
     book?.is_ebook ||
-    (typeof book?.pdf_url === 'string' && book.pdf_url.trim().length > 0) ||
-    (typeof book?.pdfUrl === 'string' && book.pdfUrl.trim().length > 0)
+    // Fallback uniquement si content_type absent ET pas audio
+    (!book?.content_type && !book?.content_type?.startsWith('audio') &&
+      (typeof book?.pdf_url === 'string' && book.pdf_url.trim().length > 0) &&
+      !(book?.chapters?.length > 0))
   );
 
   // Un livre est vraiment gratuit SEULEMENT si price=0 ET aucun coût en points
@@ -604,7 +619,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
           {/* ── BANNIÈRE SPONSORISÉE FICHE LIVRE ── */}
           <AdBanner
             placement="book_detail"
-            onOpenRewardModal={() => window.dispatchEvent(new Event('rg:open-reward-ad'))}
+            onOpenRewardModal={(ad) => window.dispatchEvent(new CustomEvent('rg:open-reward-ad', { detail: { ad } }))}
             className="my-2"
           />
 
@@ -738,7 +753,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
                   >
                     <Smartphone className="w-4 h-4" />
                     <span>
-                      {(book.discount_price || book.price || 1500).toLocaleString('fr-FR')} FCFA
+                      {(book.discount_price != null ? book.discount_price : book.price != null ? book.price : '—').toLocaleString('fr-FR')} FCFA
                       <span className="block text-[10px] font-normal opacity-80">Payer par Mobile Money</span>
                     </span>
                   </button>
@@ -757,13 +772,20 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
                         setPointsUnlocking(false);
                       }}
                       disabled={pointsUnlocking}
-                      className="px-4 py-3.5 rounded-2xl font-bold text-xs flex items-center justify-center gap-1.5 bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/35 hover:to-orange-500/35 text-amber-300 border border-amber-500/40 hover:scale-[1.02] transition-all cursor-pointer whitespace-nowrap"
+                      className="px-4 py-3.5 rounded-2xl font-black text-xs flex items-center justify-center gap-1.5 transition-all hover:scale-[1.02] active:scale-95 cursor-pointer whitespace-nowrap"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(245,158,11,0.30) 0%, rgba(234,88,12,0.30) 100%)',
+                        border: '1.5px solid rgba(245,158,11,0.65)',
+                        color: '#fcd34d',
+                        boxShadow: '0 0 16px rgba(245,158,11,0.30), inset 0 1px 0 rgba(255,255,255,0.12)',
+                        textShadow: '0 1px 4px rgba(0,0,0,0.5)',
+                      }}
                       title={`Débloquer avec vos points de fidélité (Solde : ${points} pts)`}
                     >
-                      <Gift className="w-3.5 h-3.5" />
+                      <Gift className="w-3.5 h-3.5 text-amber-300" />
                       <span>
-                        {Number(book.unlock_points) || 100} pts ⭐
-                        <span className="block text-[9px] font-normal opacity-70">Fidélité ({points} dispo)</span>
+                        ⭐ {Number(book.unlock_points) > 0 ? Number(book.unlock_points) : '—'} pts
+                        <span className="block text-[9px] font-normal opacity-80">Fidélité · {points} dispo</span>
                       </span>
                     </button>
                   )}

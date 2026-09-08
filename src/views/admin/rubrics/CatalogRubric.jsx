@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import {
   Plus, Search, LayoutGrid, List, BookOpen, Pause, Play,
-  Flame, Edit3, Trash2, Clock, Send, Check, Loader2
+  Flame, Edit3, Trash2, Clock, Send, Check, Loader2,
+  DollarSign, Sparkles, Sliders, X, CheckCircle2, Tag, ShieldAlert
 } from 'lucide-react';
 
 export const CatalogRubric = ({
@@ -32,6 +33,12 @@ export const CatalogRubric = ({
 }) => {
   const [selectedCatalogIds, setSelectedCatalogIds] = useState([]);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+  const [bulkActionModal, setBulkActionModal] = useState(null); // 'price_points' | 'type' | null
+  const [bulkPrice, setBulkPrice] = useState('0');
+  const [bulkPoints, setBulkPoints] = useState('0');
+  const [bulkType, setBulkType] = useState('audiobook');
+  const [bulkSuccessMsg, setBulkSuccessMsg] = useState('');
 
   const toggleSelectBook = (id) => {
     setSelectedCatalogIds(prev =>
@@ -49,6 +56,67 @@ export const CatalogRubric = ({
 
   const isAllSelected = filteredBooks.length > 0 && filteredBooks.every(b => selectedCatalogIds.includes(b.id));
 
+  // ── 1. MODIFICATION DU PRIX & POINTS EN MASSE ──
+  const handleApplyBulkPriceAndPoints = async () => {
+    if (selectedCatalogIds.length === 0) return;
+    setIsBulkUpdating(true);
+    try {
+      const p = Math.max(0, Number(bulkPrice || 0));
+      const pts = Math.max(0, Number(bulkPoints || 0));
+      const res = await apiClient?.bulkUpdateAudiobooks(selectedCatalogIds, { price: p, unlock_points: pts });
+      if (res?.success) {
+        setBooks(prev => prev.map(b => selectedCatalogIds.includes(b.id) ? { ...b, price: p, unlock_points: pts } : b));
+        window.dispatchEvent(new CustomEvent('rg:library-updated'));
+        setBulkSuccessMsg(`✅ ${selectedCatalogIds.length} livre(s) mis à jour : ${p} FCFA • ${pts} Points !`);
+        setTimeout(() => {
+          setBulkSuccessMsg('');
+          setBulkActionModal(null);
+          setSelectedCatalogIds([]);
+        }, 2200);
+      } else {
+        alert(res?.error || 'Erreur lors de la mise à jour groupée');
+      }
+    } catch (err) {
+      console.error('[bulkPriceAndPoints] Erreur:', err);
+      alert('Erreur: ' + err.message);
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
+
+  // ── 2. MODIFICATION DU TYPE / FORMAT EN MASSE ──
+  const handleApplyBulkType = async () => {
+    if (selectedCatalogIds.length === 0) return;
+    setIsBulkUpdating(true);
+    try {
+      const updates = { content_type: bulkType };
+      if (bulkType === 'audiobook' || bulkType === 'podcast' || bulkType === 'music' || bulkType === 'masterclass') {
+        updates.format = 'audio';
+      } else if (bulkType === 'ebook' || bulkType === 'pdf') {
+        updates.format = 'pdf';
+      }
+      const res = await apiClient?.bulkUpdateAudiobooks(selectedCatalogIds, updates);
+      if (res?.success) {
+        setBooks(prev => prev.map(b => selectedCatalogIds.includes(b.id) ? { ...b, ...updates } : b));
+        window.dispatchEvent(new CustomEvent('rg:library-updated'));
+        setBulkSuccessMsg(`✅ ${selectedCatalogIds.length} contenu(s) converti(s) en "${bulkType}" !`);
+        setTimeout(() => {
+          setBulkSuccessMsg('');
+          setBulkActionModal(null);
+          setSelectedCatalogIds([]);
+        }, 2200);
+      } else {
+        alert(res?.error || 'Erreur lors du changement de type');
+      }
+    } catch (err) {
+      console.error('[bulkType] Erreur:', err);
+      alert('Erreur: ' + err.message);
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
+
+  // ── 3. SUPPRESSION EN MASSE ──
   const handleBulkDelete = async () => {
     if (selectedCatalogIds.length === 0) return;
     setIsBulkDeleting(true);
@@ -183,49 +251,300 @@ export const CatalogRubric = ({
           ))}
         </div>
 
-        {/* Bannière d'action suppression groupée Catalog */}
+        {/* ── BARRE D'ACTIONS GROUPÉES / MODIFICATION DE MASSE ── */}
         {selectedCatalogIds.length > 0 && (
-          <div className="p-4 rounded-2xl bg-gradient-to-r from-rose-950/90 via-purple-950/80 to-slate-900/90 border border-rose-500/50 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-3 animate-fadeIn">
-            <div className="flex items-center gap-3 w-full sm:w-auto">
-              <div className="w-9 h-9 rounded-xl bg-rose-500/25 text-rose-300 border border-rose-500/40 flex items-center justify-center font-black text-sm shrink-0">
-                {selectedCatalogIds.length}
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-950/95 via-indigo-950/90 to-slate-900/95 border border-purple-500/50 shadow-2xl space-y-3 animate-fadeIn">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <div className="w-10 h-10 rounded-xl bg-purple-500/25 text-purple-300 border border-purple-400/40 flex items-center justify-center font-black text-sm shrink-0 shadow-inner">
+                  {selectedCatalogIds.length}
+                </div>
+                <div>
+                  <p className="text-sm font-extrabold text-white flex items-center gap-2">
+                    <span>{selectedCatalogIds.length} contenu{selectedCatalogIds.length > 1 ? 's' : ''} sélectionné{selectedCatalogIds.length > 1 ? 's' : ''}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-400/30">
+                      Actions de masse
+                    </span>
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    Modifiez le prix, les Sky Points ou le type pour toute la sélection en 1 clic
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-extrabold text-white flex items-center gap-1.5">
-                  <span>{selectedCatalogIds.length} contenu{selectedCatalogIds.length > 1 ? 's' : ''} sélectionné{selectedCatalogIds.length > 1 ? 's' : ''} pour suppression</span>
-                </p>
-                <p className="text-xs text-rose-300/80">
-                  Suppression définitive de Cloudflare D1 et du cache
-                </p>
+
+              {/* Boutons d'actions groupées */}
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+                {/* 1. Bouton Prix & Points */}
+                <button
+                  type="button"
+                  onClick={() => setBulkActionModal('price_points')}
+                  disabled={isBulkUpdating || isBulkDeleting}
+                  className="px-3.5 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-300 text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                  title="Modifier le prix et les points de toute la sélection"
+                >
+                  <DollarSign className="w-4 h-4 text-amber-400" />
+                  <span>Prix & Points</span>
+                </button>
+
+                {/* 2. Bouton Changer de Type */}
+                <button
+                  type="button"
+                  onClick={() => setBulkActionModal('type')}
+                  disabled={isBulkUpdating || isBulkDeleting}
+                  className="px-3.5 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 text-cyan-300 text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                  title="Changer le type de contenu (Audiobook / E-Book / Podcast)"
+                >
+                  <Tag className="w-4 h-4 text-cyan-400" />
+                  <span>Type / Format</span>
+                </button>
+
+                {/* 3. Bouton Suppression */}
+                <button
+                  type="button"
+                  onClick={handleBulkDelete}
+                  disabled={isBulkUpdating || isBulkDeleting}
+                  className="px-3.5 py-2 rounded-xl bg-rose-600/80 hover:bg-rose-500 border border-rose-400/40 text-white text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 shadow-md shadow-rose-950/50"
+                  title="Supprimer définitivement la sélection"
+                >
+                  {isBulkDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  <span>Supprimer</span>
+                </button>
+
+                {/* 4. Annuler */}
+                <button
+                  type="button"
+                  onClick={deselectAllCatalog}
+                  disabled={isBulkUpdating || isBulkDeleting}
+                  className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-slate-300 text-xs font-bold transition-all cursor-pointer"
+                >
+                  Annuler
+                </button>
               </div>
             </div>
-            <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
-              <button
-                type="button"
-                onClick={deselectAllCatalog}
-                disabled={isBulkDeleting}
-                className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-300 text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
-              >
-                Annuler
-              </button>
-              <button
-                type="button"
-                onClick={handleBulkDelete}
-                disabled={isBulkDeleting}
-                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 active:scale-95 text-white text-xs font-black flex items-center gap-2 shadow-xl shadow-rose-600/40 transition-all cursor-pointer disabled:opacity-50"
-              >
-                {isBulkDeleting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Suppression...</span>
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="w-4 h-4" />
-                    <span>Supprimer la sélection ({selectedCatalogIds.length})</span>
-                  </>
-                )}
-              </button>
+
+            {bulkSuccessMsg && (
+              <div className="p-2.5 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-bold flex items-center gap-2 animate-fadeIn">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                <span>{bulkSuccessMsg}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── MODAL 1 : MODIFICATION PRIX & POINTS EN MASSE ── */}
+        {bulkActionModal === 'price_points' && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
+            <div className="bg-[#1a0f2e] border border-purple-500/40 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-400 font-bold">
+                    <DollarSign className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-white font-['Outfit']">Modifier Prix & Points</h3>
+                    <p className="text-xs text-slate-400">Appliquer à {selectedCatalogIds.length} contenu(s) sélectionné(s)</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setBulkActionModal(null)}
+                  className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Champ Prix */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                  <span>Prix d'achat (FCFA)</span>
+                  <span className="text-[11px] text-amber-400">0 = Gratuit sans achat</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    step="50"
+                    value={bulkPrice}
+                    onChange={e => setBulkPrice(e.target.value)}
+                    className="rg-input w-full px-4 py-3 rounded-2xl text-sm font-bold text-white pr-16"
+                    placeholder="0"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold">FCFA</span>
+                </div>
+                {/* Raccourcis rapides */}
+                <div className="flex items-center gap-1.5 pt-1">
+                  {['0', '500', '1500', '2900', '3500'].map(val => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setBulkPrice(val)}
+                      className={`text-[11px] px-2.5 py-1 rounded-lg border font-bold transition-all ${
+                        bulkPrice === val
+                          ? 'bg-amber-500 text-black border-amber-400 font-black'
+                          : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'
+                      }`}
+                    >
+                      {val === '0' ? 'Gratuit (0F)' : `${val}F`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Champ Sky Points */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                  <span>Sky Points pour débloquer</span>
+                  <span className="text-[11px] text-purple-400">0 = Pas de points requis</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={bulkPoints}
+                    onChange={e => setBulkPoints(e.target.value)}
+                    className="rg-input w-full px-4 py-3 rounded-2xl text-sm font-bold text-white pr-16"
+                    placeholder="0"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-purple-400 font-bold">Points</span>
+                </div>
+                {/* Raccourcis rapides */}
+                <div className="flex items-center gap-1.5 pt-1">
+                  {['0', '5', '10', '50', '100'].map(val => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setBulkPoints(val)}
+                      className={`text-[11px] px-2.5 py-1 rounded-lg border font-bold transition-all ${
+                        bulkPoints === val
+                          ? 'bg-purple-600 text-white border-purple-400 font-black'
+                          : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'
+                      }`}
+                    >
+                      {val === '0' ? '0 pt' : `${val} pts`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Boutons d'action du modal */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setBulkActionModal(null)}
+                  disabled={isBulkUpdating}
+                  className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-bold transition-all"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApplyBulkPriceAndPoints}
+                  disabled={isBulkUpdating}
+                  className="btn-gradient px-5 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 shadow-xl shadow-purple-600/40 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {isBulkUpdating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Mise à jour en cours...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>Appliquer à {selectedCatalogIds.length} livre(s)</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── MODAL 2 : CHANGER LE TYPE / FORMAT EN MASSE ── */}
+        {bulkActionModal === 'type' && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
+            <div className="bg-[#1a0f2e] border border-cyan-500/40 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-400 font-bold">
+                    <Tag className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-white font-['Outfit']">Convertir le Format / Type</h3>
+                    <p className="text-xs text-slate-400">Appliquer à {selectedCatalogIds.length} contenu(s) sélectionné(s)</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setBulkActionModal(null)}
+                  className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Sélection du Type */}
+              <div className="space-y-2.5">
+                {[
+                  { id: 'audiobook', icon: '🎧', label: 'Livre Audio', desc: 'Format audio pur avec chapitres et lecteur audio' },
+                  { id: 'ebook', icon: '📖', label: 'E-Book / PDF', desc: 'Format livre numérique écrit pour la liseuse PDF/EPUB' },
+                  { id: 'podcast', icon: '🎙️', label: 'Podcast & Émission', desc: 'Format audio épisodique' },
+                  { id: 'hybrid', icon: '🔥', label: 'Pack Hybride', desc: 'Livre audio accompagné du fichier PDF de lecture' },
+                ].map(opt => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setBulkType(opt.id)}
+                    className={`w-full p-3.5 rounded-2xl border text-left flex items-center gap-3 transition-all cursor-pointer ${
+                      bulkType === opt.id
+                        ? 'bg-cyan-500/20 border-cyan-400 shadow-md shadow-cyan-950/50'
+                        : 'bg-white/5 border-white/10 hover:bg-white/10 text-slate-400'
+                    }`}
+                  >
+                    <span className="text-2xl shrink-0">{opt.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-xs font-bold ${bulkType === opt.id ? 'text-white' : 'text-slate-300'}`}>
+                        {opt.label}
+                      </p>
+                      <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                        {opt.desc}
+                      </p>
+                    </div>
+                    {bulkType === opt.id && (
+                      <CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0" />
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {/* Boutons d'action du modal */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setBulkActionModal(null)}
+                  disabled={isBulkUpdating}
+                  className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-bold transition-all"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApplyBulkType}
+                  disabled={isBulkUpdating}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-black flex items-center gap-2 shadow-xl shadow-cyan-600/40 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {isBulkUpdating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Conversion en cours...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>Convertir en "{bulkType}"</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         )}

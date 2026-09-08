@@ -94,20 +94,20 @@ export const BADGES_CATALOG = [
 // ── RÈGLES DE RÉCOMPENSES EN POINTS & XP (ÉCONOMIE ÉQUILIBRÉE POUR PROTÉGER MOBILE MONEY) ─
 export const REWARD_RULES = {
   DAILY_LOGIN_BASE_XP: 10,
-  DAILY_LOGIN_BASE_POINTS: 2,           // Réduit de 10 à 2 points
+  DAILY_LOGIN_BASE_POINTS: 10,          // 10 points quotidiens gratuits offerts chaque jour !
   READING_INTERVAL_MINUTES: 5,         // Toutes les 5 minutes
   READING_INTERVAL_XP: 5,
-  READING_INTERVAL_POINTS: 1,          // 1 seul point par 5 min de lecture
+  READING_INTERVAL_POINTS: 2,          // 2 points par 5 min de lecture
   LISTENING_INTERVAL_MINUTES: 5,       // Toutes les 5 minutes
   LISTENING_INTERVAL_XP: 5,
-  LISTENING_INTERVAL_POINTS: 1,        // 1 seul point par 5 min d'écoute
-  SPONSOR_AD_POINTS: 3,                // Réduit de 25-30 à 3 points pour forcer le Mobile Money
-  SPONSOR_AD_XP: 10,
-  REFERRAL_POINTS: 15,
-  REFERRAL_XP: 20,
-  BOOK_COMPLETED_XP: 40,
-  BOOK_COMPLETED_POINTS: 10,
-  POINTS_TO_UNLOCK_STANDARD_BOOK: 300, // Augmenté de 100 à 300 points (Mobile Money privilégié)
+  LISTENING_INTERVAL_POINTS: 2,        // 2 points par 5 min d'écoute
+  SPONSOR_AD_POINTS: 10,               // 10 points par visionnage sponsorisé
+  SPONSOR_AD_XP: 15,
+  REFERRAL_POINTS: 500,          // 500 points pour le parrain + 500 points pour le filleul
+  REFERRAL_XP: 100,              // XP bonus parrainage
+  BOOK_COMPLETED_XP: 50,
+  BOOK_COMPLETED_POINTS: 25,
+  POINTS_TO_UNLOCK_STANDARD_BOOK: 100, // Coût standard d'un livre
 };
 
 /**

@@ -125,7 +125,7 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
   };
 
   return (
-    <div className="relative space-y-6 pb-36 sm:pb-40 animate-fadeIn select-none">
+    <div className="relative space-y-6 pb-56 sm:pb-64 animate-fadeIn select-none">
 
       {/* ── EN-TÊTE DÉCOUVRIR AVEC LA BULLE (+) HÉROS (identique à l'Agent SKY) ── */}
       <div className="flex items-center justify-between pt-1 gap-3">
@@ -399,7 +399,7 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
           )}
 
           {/* 2. BANNIÈRE SPONSORISÉE DU DÉBUT */}
-          <AdBanner placement="discover_hero" onOpenRewardModal={() => window.dispatchEvent(new Event('rg:open-reward-ad'))} className="my-2" />
+          <AdBanner placement="discover_hero" onOpenRewardModal={(ad) => window.dispatchEvent(new CustomEvent('rg:open-reward-ad', { detail: { ad } }))} className="my-2" />
 
           {/* 3. SECTION NOUVEAUTÉS */}
           <section className="space-y-4">
@@ -438,7 +438,7 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
           </section>
 
           {/* 5. BANNIÈRE SPONSORISÉE MILIEU DE FLUX */}
-          <AdBanner placement="discover_feed" onOpenRewardModal={() => window.dispatchEvent(new Event('rg:open-reward-ad'))} className="my-3" />
+          <AdBanner placement="discover_feed" onOpenRewardModal={(ad) => window.dispatchEvent(new CustomEvent('rg:open-reward-ad', { detail: { ad } }))} className="my-3" />
 
           {/* 6. TOUT LE CATALOGUE AUDIO */}
           <section className="space-y-4">
@@ -456,10 +456,14 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
           </section>
 
           {/* 7. BANNIÈRE SPONSORISÉE PIED DE PAGE */}
-          <AdBanner placement="discover_bottom" onOpenRewardModal={() => window.dispatchEvent(new Event('rg:open-reward-ad'))} className="my-4" />
+          <div className="mb-14 sm:mb-20">
+            <AdBanner placement="discover_bottom" onOpenRewardModal={(ad) => window.dispatchEvent(new CustomEvent('rg:open-reward-ad', { detail: { ad } }))} className="my-4" />
+          </div>
         </div>
       )}
 
+      {/* Spacer de sécurité pour garantir un défilement parfait au-dessus de la barre de navigation et du mini-lecteur */}
+      <div className="h-32 sm:h-40 w-full pointer-events-none" aria-hidden="true" />
     </div>
   );
 };

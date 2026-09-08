@@ -4,10 +4,11 @@ import {
   Edit3, Sparkles, Phone, Mail, Download, Wifi, WifiOff,
   Play, Trash2, Settings, MessageCircle, Zap, Star,
   Smartphone, Check, RefreshCw, X, ArrowRight, ShieldCheck, ExternalLink,
-  Gift, Award, Flame, Clock
+  Gift, Award, Flame, Clock, Bell
 } from 'lucide-react';
 import { useAudio } from '../context/AudioContext';
 import { useXp } from '../context/XpContext';
+import { usePush } from '../context/PushContext';
 import { UserProfileModal } from '../components/UserProfileModal';
 import { downloadAudioMp3, getOfflineBooks, removeOfflineAudio, getOfflineCacheSize, cacheAudioForOffline } from '../utils/offlineAudioCache';
 import { trackAction } from '../services/tracker';
@@ -99,6 +100,7 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
   const [cacheSize, setCacheSize] = useState(null);
   const [downloadingId, setDownloadingId] = useState(null);
   const [downloadMsg, setDownloadMsg] = useState(null);
+  const { permission: pushPermission, isSubscribed, requestPermission } = usePush();
 
   // Modales interactives
   const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
@@ -262,7 +264,7 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
   const weeklyPct = Math.min(100, Math.round((profile.weeklyProgressMinutes || 0) / (profile.weeklyGoalMinutes || 60) * 100));
 
   return (
-    <div className="pb-36 sm:pb-40 max-w-2xl mx-auto space-y-6 animate-fadeIn">
+    <div className="pb-56 sm:pb-64 max-w-2xl mx-auto space-y-6 animate-fadeIn">
 
       {/* ── En-Tête Profil ── */}
       <div className="card-lg space-y-5 relative overflow-hidden">
@@ -660,7 +662,7 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
           {/* Bannière de Points & Récompenses Sponsorisées */}
           <AdBanner
             placement="profile_header"
-            onOpenRewardModal={() => window.dispatchEvent(new Event('rg:open-reward-ad'))}
+            onOpenRewardModal={(ad) => window.dispatchEvent(new CustomEvent('rg:open-reward-ad', { detail: { ad } }))}
           />
 
           {/* Carte Solde de Points */}
@@ -989,6 +991,51 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
             </div>
           </div>
 
+          {/* Notifications Push de l'Appareil */}
+          <div className="card-md flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 border border-purple-500/30 bg-gradient-to-r from-purple-950/40 to-slate-900/40">
+            <div className="flex items-center gap-3">
+              <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border ${
+                pushPermission === 'granted'
+                  ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
+                  : 'bg-purple-500/20 border-purple-500/40 text-purple-300'
+              }`}>
+                <Bell className={`w-5 h-5 ${pushPermission === 'granted' ? 'fill-emerald-400' : 'animate-bounce fill-purple-300'}`} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs sm:text-sm font-bold text-white">Notifications &amp; Alertes Sorties</p>
+                  {pushPermission === 'granted' ? (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      ✓ Activées
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      Non activées
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Recevez directement les alertes des nouveaux livres audio, PDF et promotions VIP.
+                </p>
+              </div>
+            </div>
+
+            {pushPermission !== 'granted' ? (
+              <button
+                onClick={requestPermission}
+                className="py-3 px-5 rounded-2xl bg-gradient-to-r from-purple-600 via-fuchsia-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-xs sm:text-sm font-black shadow-lg shadow-purple-600/40 hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2 shrink-0 border border-purple-300/40 animate-pulse"
+              >
+                <Bell className="w-4 h-4 fill-white" />
+                <span>Activer les Notifications</span>
+              </button>
+            ) : (
+              <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-bold px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 self-start sm:self-auto">
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Appareil Synchronisé</span>
+              </div>
+            )}
+          </div>
+
           {/* PWA Install */}
           <div className="card-md flex items-center justify-between gap-4 border border-pink-500/20">
             <div className="flex items-center gap-3">
@@ -1236,6 +1283,9 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
         onClose={() => setIsProfileModalOpen(false)}
         onProfileSaved={(updated) => setProfile(updated)}
       />
+
+      {/* Spacer de sécurité pour garantir un défilement complet au-dessus de la barre de navigation et du mini-lecteur */}
+      <div className="h-32 sm:h-40 w-full pointer-events-none" aria-hidden="true" />
     </div>
   );
 };

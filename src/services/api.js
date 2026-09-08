@@ -922,6 +922,33 @@ export const apiClient = {
     };
   },
 
+  // Modification groupée de livres en masse (Admin)
+  async bulkUpdateAudiobooks(bookIds, updates) {
+    try {
+      const res = await fetch(`${API_BASE}/admin/books/bulk-update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ book_ids: bookIds, updates }),
+      });
+      const data = await res.json();
+      // Mettre à jour le cache local pour refléter immédiatement les changements
+      try {
+        const cached = JSON.parse(localStorage.getItem('rg_cached_books') || '[]');
+        const updatedCache = cached.map(b => {
+          if (bookIds.includes(b.id)) {
+            return { ...b, ...updates };
+          }
+          return b;
+        });
+        localStorage.setItem('rg_cached_books', JSON.stringify(updatedCache));
+      } catch (_) {}
+      return data;
+    } catch (e) {
+      console.error('[bulkUpdateAudiobooks] Erreur:', e);
+      return { success: false, error: e.message };
+    }
+  },
+
   // Supprimer un livre audio (Admin)
   async deleteAudiobook(bookId) {
     // 1. Marquer IMMÉDIATEMENT comme supprimé dans le registre local
@@ -1387,6 +1414,67 @@ export const apiClient = {
       if (res.ok) return await res.json();
     } catch (_) {}
     return null;
+  },
+
+  // ── Analytics & Statistiques Administrateur ───────────────────────
+  async getAdminAnalytics() {
+    try {
+      const res = await fetch(`${API_BASE}/admin/analytics`, {
+        headers: { 'X-Admin': 'true', 'Cache-Control': 'no-cache' },
+      });
+      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn('Erreur chargement analytics serveur:', e);
+    }
+    return null;
+  },
+
+  async trackAnalyticsEvent(payload) {
+    try {
+      await fetch(`${API_BASE}/analytics/event`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        keepalive: true,
+      });
+    } catch (_) {}
+  },
+
+  // ── Gestion des Utilisateurs & Sky Points (Admin) ─────────────────
+  async getAdminUsers() {
+    try {
+      const res = await fetch(`${API_BASE}/admin/users`, {
+        headers: { 'X-Admin': 'true', 'Cache-Control': 'no-cache' },
+      });
+      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn('Erreur chargement utilisateurs admin:', e);
+    }
+    return [];
+  },
+
+  async creditUserPoints(userId, points, reason = 'Crédit Sky Points par l’Admin') {
+    try {
+      const res = await fetch(`${API_BASE}/admin/users/credit-points`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin': 'true',
+        },
+        body: JSON.stringify({ user_id: userId, points, xp: points, reason }),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+      const err = await res.json().catch(() => ({}));
+      return { success: false, error: err.error || 'Erreur lors du crédit' };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
   },
 };
 

@@ -504,7 +504,13 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                           onClose();
                           window.dispatchEvent(new Event('rg:open-reward-ad'));
                         }}
-                        className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
+                        className="px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all hover:scale-[1.03] active:scale-95 cursor-pointer"
+                        style={{
+                          background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)',
+                          border: '1.5px solid rgba(251,191,36,0.70)',
+                          color: '#0f0f0f',
+                          boxShadow: '0 0 14px rgba(245,158,11,0.45), inset 0 1px 0 rgba(255,255,255,0.25)',
+                        }}
                       >
                         <span>🎬 Gagner des points (+30 pts)</span>
                       </button>

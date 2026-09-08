@@ -96,18 +96,22 @@ export const NotificationCenterModal = ({ isOpen, onClose, onNavigateContent }) 
 
         {/* Statut permission push si non accordée */}
         {permission !== 'granted' && (
-          <div className="p-3 mx-4 mt-4 rounded-2xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <Bell size={16} className="text-purple-400 flex-shrink-0" />
-              <p className="text-xs text-slate-300">
-                Activez les notifications pour recevoir les alertes sur votre écran.
-              </p>
+          <div className="p-4 mx-4 mt-4 rounded-2xl bg-gradient-to-r from-purple-900/40 via-fuchsia-900/30 to-pink-900/40 border border-purple-400/40 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-lg shadow-purple-950/50">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-purple-600/30 border border-purple-400/40 flex items-center justify-center text-purple-300 shrink-0">
+                <Bell size={20} className="animate-bounce fill-purple-300" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-white">Alertes directes sur votre appareil</p>
+                <p className="text-[11px] text-purple-200/80">Ne manquez plus les nouveaux livres audio et promotions.</p>
+              </div>
             </div>
             <button
               onClick={requestPermission}
-              className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold whitespace-nowrap transition-colors"
+              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-xs font-black tracking-wide whitespace-nowrap shadow-md shadow-purple-600/40 hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5"
             >
-              Activer
+              <Bell size={14} className="fill-white" />
+              <span>Activer les Notifications</span>
             </button>
           </div>
         )}
