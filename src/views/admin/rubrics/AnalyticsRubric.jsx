@@ -185,7 +185,7 @@ export const AnalyticsRubric = ({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
         {/* Origine par Pays (IP Cloudflare Réelle) */}
-        <div className="card-lg space-y-4 border border-blue-500/20 bg-gradient-to-br from-[#0c1228] to-[#070b18]">
+        <div className="card-lg space-y-4 border border-blue-500/20 bg-linear-to-br from-[#0c1228] to-[#070b18]">
           <h2 className="text-sm font-bold text-white flex items-center justify-between">
             <span className="flex items-center gap-2">
               <Globe className="w-4 h-4 text-blue-400" />
@@ -200,7 +200,7 @@ export const AnalyticsRubric = ({
             <div className="py-8 text-center space-y-2">
               <Globe className="w-8 h-8 text-slate-600 mx-auto animate-pulse" />
               <p className="text-xs text-slate-400">Enregistrement des pays en direct via les connexions Edge...</p>
-              <p className="text-[11px] text-slate-400/80">Chaque visiteur est automatiquement géo-détecté par son adresse IP.</p>
+              <p className="text-2xs text-slate-400/80">Chaque visiteur est automatiquement géo-détecté par son adresse IP.</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -218,7 +218,7 @@ export const AnalyticsRubric = ({
                   </div>
                   <div className="h-2 rounded-full bg-white/10 overflow-hidden">
                     <div
-                      className="h-full bg-gradient-to-r from-blue-500 via-indigo-500 to-emerald-400 rounded-full transition-all duration-700"
+                      className="h-full bg-linear-to-r from-blue-500 via-indigo-500 to-emerald-400 rounded-full transition-all duration-700"
                       style={{ width: `${Math.max(5, c.pct)}%` }}
                     />
                   </div>
@@ -263,7 +263,7 @@ export const AnalyticsRubric = ({
                     </div>
                     <div className="h-2 rounded-full bg-white/10 overflow-hidden">
                       <div
-                        className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-emerald-400 rounded-full transition-all duration-700"
+                        className="h-full bg-linear-to-r from-purple-500 via-pink-500 to-emerald-400 rounded-full transition-all duration-700"
                         style={{ width: `${Math.max(5, src.pct)}%` }}
                       />
                     </div>
@@ -276,7 +276,7 @@ export const AnalyticsRubric = ({
       </div>
 
       {/* ── 3. TOP AUDIOS ÉCOUTÉS EN DIRECT (RÉEL) ── */}
-      <div className="card-lg space-y-4 border border-emerald-500/20 bg-gradient-to-br from-[#0c1c14] to-[#07120c]">
+      <div className="card-lg space-y-4 border border-emerald-500/20 bg-linear-to-br from-[#0c1c14] to-[#07120c]">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
             <h2 className="text-sm sm:text-base font-black text-white flex items-center gap-2">
@@ -297,14 +297,14 @@ export const AnalyticsRubric = ({
             {displayTopAudios.map((aud, idx) => (
               <div key={aud.id || idx} className="p-3 rounded-2xl bg-white/4 border border-white/8 hover:border-emerald-500/40 flex items-center justify-between gap-3 text-xs transition-all">
                 <div className="flex items-center gap-3 min-w-0">
-                  <span className="w-7 h-7 rounded-xl bg-emerald-500/20 text-emerald-300 font-black flex items-center justify-center text-xs flex-shrink-0 font-mono border border-emerald-500/30">
+                  <span className="w-7 h-7 rounded-xl bg-emerald-500/20 text-emerald-300 font-black flex items-center justify-center text-xs shrink-0 font-mono border border-emerald-500/30">
                     {idx + 1}
                   </span>
                   {aud.cover_url && (
                     <img
                       src={aud.cover_url}
                       alt={aud.title}
-                      className="w-9 h-9 rounded-xl object-cover flex-shrink-0 border border-white/10"
+                      className="w-9 h-9 rounded-xl object-cover shrink-0 border border-white/10"
                       onError={(e) => { e.currentTarget.style.display = 'none'; }}
                     />
                   )}
@@ -316,7 +316,7 @@ export const AnalyticsRubric = ({
                     </p>
                   </div>
                 </div>
-                <div className="text-right flex-shrink-0">
+                <div className="text-right shrink-0">
                   <span className="px-2.5 py-1 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-black text-xs font-mono">
                     {Number(aud.plays).toLocaleString('fr-FR')} écoute{Number(aud.plays) > 1 ? 's' : ''}
                   </span>
@@ -328,7 +328,7 @@ export const AnalyticsRubric = ({
       </div>
 
       {/* ── 4. MODULE STATISTIQUES PUBLICITAIRES (STYLE FACEBOOK ADS MANAGER) ── */}
-      <div className="card-lg space-y-5 border border-pink-500/25 bg-gradient-to-br from-[#1c0a1e] via-[#160818] to-[#0d040e]">
+      <div className="card-lg space-y-5 border border-pink-500/25 bg-linear-to-br from-[#1c0a1e] via-[#160818] to-[#0d040e]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
           <div className="flex items-center gap-2.5">
             <span className="p-2 rounded-xl bg-pink-500/20 text-pink-400 border border-pink-500/30">
@@ -341,13 +341,13 @@ export const AnalyticsRubric = ({
                   Ads Manager
                 </span>
               </h2>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-2xs text-slate-400">
                 Mesure du ROI publicitaire : impressions de bannières, clics sortants (CTR), vidéos terminées (VTR) et points attribués
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2 self-start sm:self-auto">
-            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-pink-500/20 text-pink-200 border border-pink-500/30">
+            <span className="text-2xs font-bold px-3 py-1 rounded-full bg-pink-500/20 text-pink-200 border border-pink-500/30">
               {adStats.campaigns?.length || 0} campagne{adStats.campaigns?.length > 1 ? 's' : ''} active{adStats.campaigns?.length > 1 ? 's' : ''}
             </span>
           </div>
@@ -425,7 +425,7 @@ export const AnalyticsRubric = ({
                     <td className="p-3 font-bold text-white max-w-[200px] truncate">
                       {camp.title}
                     </td>
-                    <td className="p-3 text-slate-300 capitalize text-[11px]">
+                    <td className="p-3 text-slate-300 capitalize text-2xs">
                       <span className="px-2 py-0.5 rounded-md bg-white/6 border border-white/10 text-[10px]">
                         {camp.format}
                       </span>
@@ -458,7 +458,7 @@ export const AnalyticsRubric = ({
             </h2>
             <p className="text-xs text-slate-400">Historique détaillé avec pays, appareil, temps de connexion, audios et clics</p>
           </div>
-          <span className="text-[11px] px-3 py-1 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-bold">
+          <span className="text-2xs px-3 py-1 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-bold">
             Live Cloudflare D1
           </span>
         </div>
@@ -490,7 +490,7 @@ export const AnalyticsRubric = ({
                 >
                   <div className="flex items-center justify-between gap-3 flex-wrap">
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-purple-600 to-pink-600 flex items-center justify-center font-black text-xs text-white flex-shrink-0 shadow-md">
+                      <div className="w-9 h-9 rounded-xl bg-linear-to-tr from-purple-600 to-pink-600 flex items-center justify-center font-black text-xs text-white shrink-0 shadow-md">
                         {vis.user_name ? vis.user_name[0].toUpperCase() : '👤'}
                       </div>
                       <div className="min-w-0">
@@ -523,7 +523,7 @@ export const AnalyticsRubric = ({
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-2 shrink-0">
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                         vis.source === 'WhatsApp' ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' :
                         vis.source === 'Facebook' ? 'bg-blue-500/15 text-blue-300 border-blue-500/30' :
@@ -565,7 +565,7 @@ export const AnalyticsRubric = ({
                   {/* Tiroir d'interaction détaillé */}
                   {isSelected && (
                     <div className="mt-3 pt-3 border-t border-white/10 space-y-2.5 text-xs animate-fadeIn">
-                      <p className="font-bold text-purple-300 text-[11px] uppercase tracking-wider">
+                      <p className="font-bold text-purple-300 text-2xs uppercase tracking-wider">
                         Journal d'Activité &amp; Historique Complet :
                       </p>
 
@@ -574,9 +574,9 @@ export const AnalyticsRubric = ({
                         <div className="space-y-1">
                           <p className="text-[10px] font-bold text-purple-400">🎧 Audios Écoutés :</p>
                           {vis.audios.map((a, i) => (
-                            <div key={i} className="flex items-center justify-between p-2 rounded-xl bg-white/4 text-slate-300 text-[11px]">
+                            <div key={i} className="flex items-center justify-between p-2 rounded-xl bg-white/4 text-slate-300 text-2xs">
                               <span className="flex items-center gap-1.5 truncate">
-                                <Headphones className="w-3 h-3 text-purple-400 flex-shrink-0" />
+                                <Headphones className="w-3 h-3 text-purple-400 shrink-0" />
                                 <span className="font-semibold text-white">{a.audiobook_title || 'Audio'}</span>
                               </span>
                               <span className="text-slate-400 font-mono font-bold">{a.seconds_listened || 0}s</span>
@@ -590,9 +590,9 @@ export const AnalyticsRubric = ({
                         <div className="space-y-1">
                           <p className="text-[10px] font-bold text-cyan-400">📖 E-Books &amp; Livres Lus :</p>
                           {vis.ebooks.map((b, i) => (
-                            <div key={i} className="flex items-center justify-between p-2 rounded-xl bg-white/4 text-slate-300 text-[11px]">
+                            <div key={i} className="flex items-center justify-between p-2 rounded-xl bg-white/4 text-slate-300 text-2xs">
                               <span className="flex items-center gap-1.5 truncate">
-                                <BookOpen className="w-3 h-3 text-cyan-400 flex-shrink-0" />
+                                <BookOpen className="w-3 h-3 text-cyan-400 shrink-0" />
                                 <span className="font-semibold text-white">{b.audiobook_title || 'Livre PDF'}</span>
                               </span>
                               <span className="text-cyan-300 font-mono text-[10px]">Lecture ouverte</span>
@@ -606,9 +606,9 @@ export const AnalyticsRubric = ({
                         <div className="space-y-1">
                           <p className="text-[10px] font-bold text-emerald-400">📥 Téléchargements :</p>
                           {vis.downloads.map((d, i) => (
-                            <div key={i} className="flex items-center justify-between p-2 rounded-xl bg-white/4 text-slate-300 text-[11px]">
+                            <div key={i} className="flex items-center justify-between p-2 rounded-xl bg-white/4 text-slate-300 text-2xs">
                               <span className="flex items-center gap-1.5 truncate">
-                                <Download className="w-3 h-3 text-emerald-400 flex-shrink-0" />
+                                <Download className="w-3 h-3 text-emerald-400 shrink-0" />
                                 <span className="font-semibold text-white">{d.audiobook_title || d.action}</span>
                               </span>
                               <span className="text-emerald-300 font-mono text-[10px]">Fichier hors-ligne</span>
@@ -629,7 +629,7 @@ export const AnalyticsRubric = ({
                       )}
 
                       {!hasAudios && !hasEbooks && !hasDownloads && (!vis.actions || vis.actions.length === 0) && (
-                        <p className="text-[11px] text-slate-400 italic">Visite simple sans écoute d'audio.</p>
+                        <p className="text-2xs text-slate-400 italic">Visite simple sans écoute d'audio.</p>
                       )}
                     </div>
                   )}
@@ -641,7 +641,7 @@ export const AnalyticsRubric = ({
       </div>
 
       {/* ── SECTION DÉDIÉE : CONSOMMATION & COÛT DE L'API DEEPSEEK IA ── */}
-      <div className="card-lg space-y-4 border border-indigo-500/25 bg-gradient-to-br from-[#120a26] via-[#160d30] to-[#0f0720]">
+      <div className="card-lg space-y-4 border border-indigo-500/25 bg-linear-to-br from-[#120a26] via-[#160d30] to-[#0f0720]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
           <div className="flex items-center gap-2.5">
             <span className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
@@ -654,13 +654,13 @@ export const AnalyticsRubric = ({
                   deepseek-v4-flash
                 </span>
               </h2>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-2xs text-slate-400">
                 Suivi transparent des requêtes envoyées à DeepSeek (enrichissements, tuteur Agent SKY, recherche)
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2 self-start sm:self-auto">
-            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-purple-500/20 text-purple-200 border border-purple-500/30">
+            <span className="text-2xs font-bold px-3 py-1 rounded-full bg-purple-500/20 text-purple-200 border border-purple-500/30">
               ~0.5 FCFA / appel
             </span>
           </div>
@@ -693,7 +693,7 @@ export const AnalyticsRubric = ({
         {/* Alerte usage modéré / élevé */}
         {isHighUsage && (
           <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-2.5 text-xs text-amber-300">
-            <AlertTriangle className="w-4 h-4 flex-shrink-0 text-amber-400" />
+            <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
             <span>Usage soutenu aujourd'hui ({todayCalls} appels). DeepSeek Flash reste très économique (~{todayCalls * COST_PER_CALL_FCFA} FCFA).</span>
           </div>
         )}
@@ -704,7 +704,7 @@ export const AnalyticsRubric = ({
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Dernières requêtes IA :</p>
             <div className="space-y-1 max-h-36 overflow-y-auto pr-1 no-scrollbar">
               {apiUsage.calls.slice(0, 10).map((c, i) => (
-                <div key={c.id || i} className="flex items-center justify-between p-2 rounded-xl bg-white/3 border border-white/6 text-[11px] text-slate-300">
+                <div key={c.id || i} className="flex items-center justify-between p-2 rounded-xl bg-white/3 border border-white/6 text-2xs text-slate-300">
                   <span className="font-mono text-purple-300">{c.endpoint || 'Chat / Enrich'}</span>
                   <span className="text-slate-400">{c.date} à {c.time}</span>
                 </div>

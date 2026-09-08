@@ -253,7 +253,7 @@ export const CatalogRubric = ({
 
         {/* ── BARRE D'ACTIONS GROUPÉES / MODIFICATION DE MASSE ── */}
         {selectedCatalogIds.length > 0 && (
-          <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-950/95 via-indigo-950/90 to-slate-900/95 border border-purple-500/50 shadow-2xl space-y-3 animate-fadeIn">
+          <div className="p-4 rounded-2xl bg-linear-to-r from-purple-950/95 via-indigo-950/90 to-slate-900/95 border border-purple-500/50 shadow-2xl space-y-3 animate-fadeIn">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
               <div className="flex items-center gap-3 w-full sm:w-auto">
                 <div className="w-10 h-10 rounded-xl bg-purple-500/25 text-purple-300 border border-purple-400/40 flex items-center justify-center font-black text-sm shrink-0 shadow-inner">
@@ -357,7 +357,7 @@ export const CatalogRubric = ({
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
                   <span>Prix d'achat (FCFA)</span>
-                  <span className="text-[11px] text-amber-400">0 = Gratuit sans achat</span>
+                  <span className="text-2xs text-amber-400">0 = Gratuit sans achat</span>
                 </label>
                 <div className="relative">
                   <input
@@ -378,7 +378,7 @@ export const CatalogRubric = ({
                       key={val}
                       type="button"
                       onClick={() => setBulkPrice(val)}
-                      className={`text-[11px] px-2.5 py-1 rounded-lg border font-bold transition-all ${
+                      className={`text-2xs px-2.5 py-1 rounded-lg border font-bold transition-all ${
                         bulkPrice === val
                           ? 'bg-amber-500 text-black border-amber-400 font-black'
                           : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'
@@ -394,7 +394,7 @@ export const CatalogRubric = ({
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
                   <span>Sky Points pour débloquer</span>
-                  <span className="text-[11px] text-purple-400">0 = Pas de points requis</span>
+                  <span className="text-2xs text-purple-400">0 = Pas de points requis</span>
                 </label>
                 <div className="relative">
                   <input
@@ -415,7 +415,7 @@ export const CatalogRubric = ({
                       key={val}
                       type="button"
                       onClick={() => setBulkPoints(val)}
-                      className={`text-[11px] px-2.5 py-1 rounded-lg border font-bold transition-all ${
+                      className={`text-2xs px-2.5 py-1 rounded-lg border font-bold transition-all ${
                         bulkPoints === val
                           ? 'bg-purple-600 text-white border-purple-400 font-black'
                           : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'
@@ -505,7 +505,7 @@ export const CatalogRubric = ({
                       <p className={`text-xs font-bold ${bulkType === opt.id ? 'text-white' : 'text-slate-300'}`}>
                         {opt.label}
                       </p>
-                      <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                      <p className="text-2xs text-slate-400 truncate mt-0.5">
                         {opt.desc}
                       </p>
                     </div>
@@ -530,7 +530,7 @@ export const CatalogRubric = ({
                   type="button"
                   onClick={handleApplyBulkType}
                   disabled={isBulkUpdating}
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-black flex items-center gap-2 shadow-xl shadow-cyan-600/40 transition-all cursor-pointer disabled:opacity-50"
+                  className="px-5 py-2.5 rounded-xl bg-linear-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-black flex items-center gap-2 shadow-xl shadow-cyan-600/40 transition-all cursor-pointer disabled:opacity-50"
                 >
                   {isBulkUpdating ? (
                     <>
@@ -599,7 +599,7 @@ export const CatalogRubric = ({
                     }`}
                     title={selectedCatalogIds.includes(book.id) ? 'Désélectionner' : 'Sélectionner pour suppression'}
                   >
-                    <Check className={`w-3.5 h-3.5 stroke-[3] ${selectedCatalogIds.includes(book.id) ? 'opacity-100' : 'opacity-0 hover:opacity-50'}`} />
+                    <Check className={`w-3.5 h-3.5 stroke-3 ${selectedCatalogIds.includes(book.id) ? 'opacity-100' : 'opacity-0 hover:opacity-50'}`} />
                   </button>
 
                   {/* Cover avec ratio carré et bouton preview */}
@@ -614,7 +614,7 @@ export const CatalogRubric = ({
                     {/* Badges au-dessus de la cover */}
                     <div className="absolute top-2 left-2 right-2 flex items-center justify-between pointer-events-none gap-1 flex-wrap">
                       {Boolean(book.is_pinned) ? (
-                        <span className="rg-badge bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-black shadow-md border border-amber-300/40 text-[10px] px-2 py-0.5">
+                        <span className="rg-badge bg-linear-to-r from-amber-400 to-amber-500 text-slate-950 font-black shadow-md border border-amber-300/40 text-[10px] px-2 py-0.5">
                           📌 Épinglé
                         </span>
                       ) : book.status === 'scheduled' && book.scheduled_at ? (
@@ -669,7 +669,7 @@ export const CatalogRubric = ({
                       <h3 className="text-xs sm:text-sm font-extrabold text-white truncate font-['Outfit'] group-hover:text-purple-300 transition-colors" title={book.title}>
                         {book.title}
                       </h3>
-                      <p className="text-[11px] text-slate-400 truncate" title={book.author}>
+                      <p className="text-2xs text-slate-400 truncate" title={book.author}>
                         {book.author}
                       </p>
                     </div>
@@ -688,7 +688,7 @@ export const CatalogRubric = ({
                       {book.status === 'scheduled' && (
                         <button
                           onClick={() => handlePublishImmediately?.(book)}
-                          className="w-full mb-1.5 py-1 px-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-[10px] flex items-center justify-center gap-1 shadow-md active:scale-95 transition-all cursor-pointer"
+                          className="w-full mb-1.5 py-1 px-2 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-[10px] flex items-center justify-center gap-1 shadow-md active:scale-95 transition-all cursor-pointer"
                           title="Publier immédiatement pour tous les utilisateurs"
                         >
                           <Send className="w-3 h-3" />
@@ -789,9 +789,9 @@ export const CatalogRubric = ({
                       }`}
                       title={selectedCatalogIds.includes(book.id) ? 'Désélectionner' : 'Sélectionner pour suppression'}
                     >
-                      <Check className={`w-3.5 h-3.5 stroke-[3] ${selectedCatalogIds.includes(book.id) ? 'opacity-100' : 'opacity-0 hover:opacity-50'}`} />
+                      <Check className={`w-3.5 h-3.5 stroke-3 ${selectedCatalogIds.includes(book.id) ? 'opacity-100' : 'opacity-0 hover:opacity-50'}`} />
                     </button>
-                    <div className="relative flex-shrink-0">
+                    <div className="relative shrink-0">
                       <img
                         src={book.cover_url}
                         alt={book.title}
@@ -808,7 +808,7 @@ export const CatalogRubric = ({
                     <div className="min-w-0 space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         {Boolean(book.is_pinned) && (
-                          <span className="rg-badge bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-black shadow-md border border-amber-300/40">
+                          <span className="rg-badge bg-linear-to-r from-amber-400 to-amber-500 text-slate-950 font-black shadow-md border border-amber-300/40">
                             📌 Épinglé en tête
                           </span>
                         )}
@@ -837,12 +837,12 @@ export const CatalogRubric = ({
                   </div>
 
                   {/* Actions boutons */}
-                  <div className="flex items-center gap-2 self-end sm:self-center flex-shrink-0 flex-wrap sm:flex-nowrap">
+                  <div className="flex items-center gap-2 self-end sm:self-center shrink-0 flex-wrap sm:flex-nowrap">
                     {/* Bouton Publication Immédiate si le livre est programmé */}
                     {book.status === 'scheduled' && (
                       <button
                         onClick={() => handlePublishImmediately?.(book)}
-                        className="px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-600/30 transition-all active:scale-95 cursor-pointer"
+                        className="px-3 py-2 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-600/30 transition-all active:scale-95 cursor-pointer"
                         title="Publier immédiatement pour tous les utilisateurs"
                       >
                         <Send className="w-3.5 h-3.5" />

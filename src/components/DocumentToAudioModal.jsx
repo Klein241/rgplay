@@ -232,7 +232,7 @@ export const DocumentToAudioModal = ({ isOpen, onClose, onApplyToChapter }) => {
 
         {/* En-tête */}
         <div className="flex items-center gap-4 border-b border-white/10 pb-5">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-purple-600 via-fuchsia-600 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/35 flex-shrink-0">
+          <div className="w-14 h-14 rounded-2xl bg-linear-to-tr from-purple-600 via-fuchsia-600 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/35 shrink-0">
             <Wand2 className="w-7 h-7 text-white" />
           </div>
           <div>
@@ -281,13 +281,13 @@ export const DocumentToAudioModal = ({ isOpen, onClose, onApplyToChapter }) => {
             placeholder="Collez ici le texte du chapitre à transformer en livre audio ou uploadez votre fichier..."
             className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 resize-none leading-relaxed"
           />
-          <p className="text-[11px] text-slate-500 text-right">
+          <p className="text-2xs text-slate-500 text-right">
             {inputText.split(/\s+/).filter(Boolean).length} mots • ~{Math.round(inputText.split(/\s+/).filter(Boolean).length / 150)} min de lecture estimée
           </p>
         </div>
 
         {/* 2. Choix de la Voix & Paramètres IA */}
-        <div className="glass-card rounded-2xl p-5 border border-purple-500/20 space-y-4 bg-gradient-to-br from-purple-950/20 to-transparent">
+        <div className="glass-card rounded-2xl p-5 border border-purple-500/20 space-y-4 bg-linear-to-br from-purple-950/20 to-transparent">
           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
             <Mic className="w-4 h-4 text-purple-400" />
             <span>Sélection de la Voix & Intonation</span>
@@ -363,7 +363,7 @@ export const DocumentToAudioModal = ({ isOpen, onClose, onApplyToChapter }) => {
             <div className="flex items-center gap-4 bg-black/40 p-4 rounded-2xl border border-white/5">
               <button
                 onClick={handleTogglePlay}
-                className="w-12 h-12 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/40 hover:scale-110 active:scale-95 transition-all flex-shrink-0"
+                className="w-12 h-12 rounded-full bg-linear-to-r from-emerald-500 to-teal-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/40 hover:scale-110 active:scale-95 transition-all shrink-0"
               >
                 {isPlaying ? <Pause className="w-5 h-5 fill-white" /> : <Play className="w-5 h-5 fill-white ml-0.5" />}
               </button>
@@ -372,7 +372,7 @@ export const DocumentToAudioModal = ({ isOpen, onClose, onApplyToChapter }) => {
                 <p className="text-xs font-bold text-white truncate">
                   Piste générée : {voiceProfiles.find((v) => v.id === selectedVoice)?.name}
                 </p>
-                <p className="text-[11px] text-slate-400 mt-0.5">
+                <p className="text-2xs text-slate-400 mt-0.5">
                   Qualité Studio • Format WAV Haute Définition
                 </p>
               </div>

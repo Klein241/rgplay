@@ -140,14 +140,14 @@ export const CategoriesRubric = ({
             >
               <div className="flex items-center gap-3 min-w-0">
                 <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg text-white font-bold"
+                  className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-lg text-white font-bold"
                   style={{ background: cat.color || '#9d4edd' }}
                 >
                   <Sparkles className="w-5 h-5" />
                 </div>
                 <div className="min-w-0">
                   <h3 className="text-xs font-bold text-white truncate">{cat.name}</h3>
-                  <p className="text-[11px] text-slate-400">{bookCount} livre{bookCount > 1 ? 's' : ''}</p>
+                  <p className="text-2xs text-slate-400">{bookCount} livre{bookCount > 1 ? 's' : ''}</p>
                 </div>
               </div>
 

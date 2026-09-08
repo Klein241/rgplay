@@ -38,7 +38,7 @@ export class ErrorBoundary extends React.Component {
                 Le module n'a pas pu se charger correctement en raison du cache de votre navigateur.
               </p>
               {this.state.error && (
-                <p className="text-[11px] font-mono text-rose-300 bg-rose-950/40 p-2.5 rounded-xl mt-3 border border-rose-500/20 text-left overflow-x-auto">
+                <p className="text-2xs font-mono text-rose-300 bg-rose-950/40 p-2.5 rounded-xl mt-3 border border-rose-500/20 text-left overflow-x-auto">
                   {this.state.error.message || String(this.state.error)}
                 </p>
               )}

@@ -1131,7 +1131,7 @@ export const AdminStudioView = ({ onBookCreated }) => {
     <div className="flex flex-col lg:flex-row gap-6 min-h-[calc(100vh-120px)] animate-fadeIn">
 
       {/* ── Sidebar de Navigation Admin ── */}
-      <aside className="w-full lg:w-72 flex-shrink-0">
+      <aside className="w-full lg:w-72 shrink-0">
         <div
           className="rounded-3xl p-4 sm:p-5 space-y-3 sticky top-24 backdrop-blur-2xl"
           style={{
@@ -1209,7 +1209,7 @@ export const AdminStudioView = ({ onBookCreated }) => {
                   {systemStatus?.d1 === 'connected' ? 'En ligne' : 'Local'}
                 </span>
               </div>
-              <div className="flex items-center justify-between text-[11px] text-slate-400">
+              <div className="flex items-center justify-between text-2xs text-slate-400">
                 <span>Stockage R2</span>
                 <span className="text-purple-300 font-bold">Actif (WebP/MP3)</span>
               </div>

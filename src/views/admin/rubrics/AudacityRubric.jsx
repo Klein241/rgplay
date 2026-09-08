@@ -261,7 +261,7 @@ export const AudacityRubric = ({ onApplyDspToPublishing }) => {
         {/* Onglets Mode : Découpe Directe ou Fusion Multi-Pistes */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* Option 1 */}
-          <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-500/10 to-teal-500/5 border border-emerald-500/25 space-y-3">
+          <div className="p-4 rounded-2xl bg-linear-to-br from-emerald-500/10 to-teal-500/5 border border-emerald-500/25 space-y-3">
             <div className="flex items-center gap-2 text-emerald-300 font-bold text-xs uppercase tracking-wider">
               <Scissors className="w-4 h-4 text-emerald-400" />
               <span>Option 1 : Découpe Rapide d'un Fichier Audio</span>
@@ -303,7 +303,7 @@ export const AudacityRubric = ({ onApplyDspToPublishing }) => {
           </div>
 
           {/* Option 2 */}
-          <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-500/10 to-fuchsia-500/5 border border-purple-500/25 space-y-3">
+          <div className="p-4 rounded-2xl bg-linear-to-br from-purple-500/10 to-fuchsia-500/5 border border-purple-500/25 space-y-3">
             <div className="flex items-center gap-2 text-purple-300 font-bold text-xs uppercase tracking-wider">
               <Sliders className="w-4 h-4 text-purple-400" />
               <span>Option 2 : Fusion Multi-Pistes & Effets DSP</span>
@@ -337,7 +337,7 @@ export const AudacityRubric = ({ onApplyDspToPublishing }) => {
             <div className="space-y-2">
               {dspTracks.map((t, idx) => (
                 <div key={t.id} className="flex items-center justify-between p-3 rounded-xl bg-white/4 border border-white/8 text-xs">
-                  <span className="font-bold text-white truncate max-w-[240px]">{idx + 1}. {t.name}</span>
+                  <span className="font-bold text-white truncate max-w-60">{idx + 1}. {t.name}</span>
                   <div className="flex items-center gap-2">
                     <button onClick={() => moveDspTrack(idx, -1)} className="p-1 text-slate-400 hover:text-white" title="Monter"><ArrowUp className="w-3.5 h-3.5" /></button>
                     <button onClick={() => moveDspTrack(idx, 1)} className="p-1 text-slate-400 hover:text-white" title="Descendre"><ArrowDown className="w-3.5 h-3.5" /></button>
@@ -413,7 +413,7 @@ export const AudacityRubric = ({ onApplyDspToPublishing }) => {
                   <button
                     type="button"
                     onClick={() => onApplyDspToPublishing(dspProcessedUrl, dspDuration)}
-                    className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md flex items-center gap-1.5 transition-all cursor-pointer"
+                    className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md flex items-center gap-1.5 transition-all cursor-pointer"
                   >
                     <UploadCloud className="w-3.5 h-3.5" />
                     <span>Insérer dans la Publication</span>

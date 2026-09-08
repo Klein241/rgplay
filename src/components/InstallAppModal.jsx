@@ -100,8 +100,8 @@ export const InstallAppModal = ({ isOpen, onClose }) => {
 
         {/* En-tête de la Modale */}
         <div className="flex items-center gap-4 mb-6 pr-8">
-          <div className="relative flex-shrink-0">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-purple-600 via-fuchsia-600 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/40 border border-purple-400/30">
+          <div className="relative shrink-0">
+            <div className="w-16 h-16 rounded-2xl bg-linear-to-tr from-purple-600 via-fuchsia-600 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/40 border border-purple-400/30">
               <Headphones className="w-8 h-8 text-white" />
             </div>
             <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 border-2 border-[#16112e] flex items-center justify-center">
@@ -134,12 +134,12 @@ export const InstallAppModal = ({ isOpen, onClose }) => {
             const Icon = item.icon;
             return (
               <div key={index} className="flex items-start gap-3 p-3.5 rounded-2xl bg-white/5 border border-white/8">
-                <div className="p-2 rounded-xl bg-white/5 flex-shrink-0 mt-0.5">
+                <div className="p-2 rounded-xl bg-white/5 shrink-0 mt-0.5">
                   <Icon className={`w-4 h-4 ${item.color}`} />
                 </div>
                 <div>
                   <h4 className="text-xs font-bold text-slate-100">{item.title}</h4>
-                  <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">{item.desc}</p>
+                  <p className="text-2xs text-slate-400 mt-0.5 leading-snug">{item.desc}</p>
                 </div>
               </div>
             );
@@ -184,25 +184,25 @@ export const InstallAppModal = ({ isOpen, onClose }) => {
         {isSupported && (
           <div className="p-3.5 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-between gap-4 mb-5">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-300 flex-shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-300 shrink-0">
                 <Bell className="w-4.5 h-4.5" />
               </div>
               <div>
                 <p className="text-xs font-bold text-white">Notifications Push</p>
-                <p className="text-[11px] text-slate-300">
+                <p className="text-2xs text-slate-300">
                   {isSubscribed ? 'Alertes activées sur cet appareil' : 'Soyez averti des nouveaux livres audio'}
                 </p>
               </div>
             </div>
 
             {isSubscribed || pushSuccess ? (
-              <span className="text-xs font-bold text-emerald-400 flex items-center gap-1 flex-shrink-0">
+              <span className="text-xs font-bold text-emerald-400 flex items-center gap-1 shrink-0">
                 <CheckCircle2 className="w-4 h-4" /> Activé
               </span>
             ) : (
               <button
                 onClick={handleEnablePush}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-500 text-white border border-purple-400/40 shadow-md transition-colors flex-shrink-0"
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-500 text-white border border-purple-400/40 shadow-md transition-colors shrink-0"
               >
                 Activer
               </button>

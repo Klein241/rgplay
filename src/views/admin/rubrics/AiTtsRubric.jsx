@@ -162,7 +162,7 @@ export const AiTtsRubric = ({ chapters = [], onApplyTtsToChapter }) => {
                 <FileText className="w-3.5 h-3.5" />
                 <span>Importer un fichier (.txt, .md)</span>
               </button>
-              <span className="text-[11px] text-slate-400">{ttsText.length} caractères</span>
+              <span className="text-2xs text-slate-400">{ttsText.length} caractères</span>
             </div>
           </div>
           <textarea

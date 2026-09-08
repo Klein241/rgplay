@@ -80,7 +80,7 @@ export const ChapterAiModal = ({
             <label className="text-xs font-bold text-slate-300">
               Texte / Script à Enregistrer & Synthétiser
             </label>
-            <span className="text-[11px] text-slate-400">
+            <span className="text-2xs text-slate-400">
               {chapterTtsText.length} caractères • ≈ {Math.max(1, Math.round(chapterTtsText.trim().split(/\s+/).filter(Boolean).length / 2.6))}s
             </span>
           </div>

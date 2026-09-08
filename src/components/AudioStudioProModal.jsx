@@ -305,7 +305,7 @@ export const AudioStudioProModal = ({ isOpen, onClose, onApplyToChapter }) => {
 
         {/* En-tête Studio Audio */}
         <div className="flex items-center gap-4 border-b border-white/10 pb-5">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-purple-600 via-fuchsia-600 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/35 flex-shrink-0">
+          <div className="w-14 h-14 rounded-2xl bg-linear-to-tr from-purple-600 via-fuchsia-600 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/35 shrink-0">
             <Sliders className="w-7 h-7 text-white" />
           </div>
           <div>
@@ -369,20 +369,20 @@ export const AudioStudioProModal = ({ isOpen, onClose, onApplyToChapter }) => {
                   className="flex items-center justify-between p-3.5 rounded-2xl bg-white/5 border border-white/8 hover:border-purple-500/30 transition-all"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <span className="w-6 h-6 rounded-full bg-purple-600/30 text-purple-300 flex items-center justify-center text-xs font-black flex-shrink-0">
+                    <span className="w-6 h-6 rounded-full bg-purple-600/30 text-purple-300 flex items-center justify-center text-xs font-black shrink-0">
                       {idx + 1}
                     </span>
                     <div className="min-w-0">
                       <p className="text-xs sm:text-sm font-bold text-white truncate max-w-xs sm:max-w-md">
                         {track.name}
                       </p>
-                      <p className="text-[11px] text-slate-400">
+                      <p className="text-2xs text-slate-400">
                         {track.size} • {track.duration ? formatDuration(track.duration) : 'Chargement...'}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <div className="flex items-center gap-1.5 shrink-0">
                     {/* Monter / Descendre */}
                     <button
                       onClick={() => moveTrack(idx, -1)}
@@ -417,7 +417,7 @@ export const AudioStudioProModal = ({ isOpen, onClose, onApplyToChapter }) => {
         </div>
 
         {/* 2. Options de Traitement de la Voix & DSP Audio Pro */}
-        <div className="glass-card rounded-2xl p-5 border border-purple-500/25 space-y-4 bg-gradient-to-br from-purple-950/20 to-transparent">
+        <div className="glass-card rounded-2xl p-5 border border-purple-500/25 space-y-4 bg-linear-to-br from-purple-950/20 to-transparent">
           <div className="flex items-center gap-2">
             <Wand2 className="w-5 h-5 text-fuchsia-400" />
             <h3 className="text-sm font-bold text-white uppercase tracking-wider">
@@ -430,7 +430,7 @@ export const AudioStudioProModal = ({ isOpen, onClose, onApplyToChapter }) => {
             <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
               <div>
                 <p className="text-xs font-bold text-slate-100">Réduction de Bruit (De-Hum)</p>
-                <p className="text-[11px] text-slate-400">Coupe les parasites et grondements sous 85Hz</p>
+                <p className="text-2xs text-slate-400">Coupe les parasites et grondements sous 85Hz</p>
               </div>
               <button
                 onClick={() => setEnableNoiseReduction(!enableNoiseReduction)}
@@ -448,7 +448,7 @@ export const AudioStudioProModal = ({ isOpen, onClose, onApplyToChapter }) => {
             <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
               <div>
                 <p className="text-xs font-bold text-slate-100">Égaliseur Voix Studio</p>
-                <p className="text-[11px] text-slate-400">Boost la clarté et l'intelligibilité des mots</p>
+                <p className="text-2xs text-slate-400">Boost la clarté et l'intelligibilité des mots</p>
               </div>
               <button
                 onClick={() => setEnableVocalClarity(!enableVocalClarity)}
@@ -466,7 +466,7 @@ export const AudioStudioProModal = ({ isOpen, onClose, onApplyToChapter }) => {
             <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
               <div>
                 <p className="text-xs font-bold text-slate-100">Compresseur & Normalisation</p>
-                <p className="text-[11px] text-slate-400">Équilibre le volume sans distorsion ni saturation</p>
+                <p className="text-2xs text-slate-400">Équilibre le volume sans distorsion ni saturation</p>
               </div>
               <button
                 onClick={() => setEnableCompression(!enableCompression)}
@@ -484,7 +484,7 @@ export const AudioStudioProModal = ({ isOpen, onClose, onApplyToChapter }) => {
             <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
               <div>
                 <p className="text-xs font-bold text-slate-100">Grain Chaleureux (Warmth)</p>
-                <p className="text-[11px] text-slate-400">Timbre rond type livre audio professionnel</p>
+                <p className="text-2xs text-slate-400">Timbre rond type livre audio professionnel</p>
               </div>
               <button
                 onClick={() => setEnableWarmth(!enableWarmth)}
@@ -536,7 +536,7 @@ export const AudioStudioProModal = ({ isOpen, onClose, onApplyToChapter }) => {
             <div className="flex flex-col sm:flex-row items-center gap-4 bg-black/40 p-4 rounded-2xl border border-white/5">
               <button
                 onClick={handleTogglePlayMaster}
-                className="w-12 h-12 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/40 hover:scale-110 active:scale-95 transition-all flex-shrink-0"
+                className="w-12 h-12 rounded-full bg-linear-to-r from-emerald-500 to-teal-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/40 hover:scale-110 active:scale-95 transition-all shrink-0"
               >
                 {isPlayingMaster ? <Pause className="w-5 h-5 fill-white" /> : <Play className="w-5 h-5 fill-white ml-0.5" />}
               </button>

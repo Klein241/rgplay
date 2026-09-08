@@ -273,7 +273,7 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
 
         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
           {/* Avatar */}
-          <div className="relative flex-shrink-0">
+          <div className="relative shrink-0">
             <img
               src={profile.avatar || defaultProfile.avatar}
               alt={profile.name}
@@ -281,7 +281,7 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
             />
             <button
               onClick={() => setIsProfileModalOpen(true)}
-              className="absolute -bottom-1.5 -right-1.5 w-8 h-8 rounded-full bg-gradient-to-tr from-purple-600 to-pink-500 border-2 border-[#07041A] flex items-center justify-center shadow-lg hover:scale-110 transition-transform text-white cursor-pointer"
+              className="absolute -bottom-1.5 -right-1.5 w-8 h-8 rounded-full bg-linear-to-tr from-purple-600 to-pink-500 border-2 border-[#07041A] flex items-center justify-center shadow-lg hover:scale-110 transition-transform text-white cursor-pointer"
               title="Modifier la photo"
             >
               <Edit3 className="w-3.5 h-3.5" />
@@ -310,14 +310,14 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
               {profile.phone ? (
                 <span className="flex items-center gap-1 text-slate-300"><Phone size={12} className="text-purple-400" /> {profile.phone}</span>
               ) : (
-                <span className="text-[11px] text-slate-500 italic">Aucun numéro enregistré</span>
+                <span className="text-2xs text-slate-500 italic">Aucun numéro enregistré</span>
               )}
               {profile.email && <span className="flex items-center gap-1"><Mail size={12} className="text-purple-400" /> {profile.email}</span>}
             </div>
 
             <button
               onClick={() => setIsProfileModalOpen(true)}
-              className="mt-2 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-xs font-bold shadow-md flex items-center gap-1.5 transition-all mx-auto sm:mx-0 active:scale-95 cursor-pointer"
+              className="mt-2 px-4 py-2 rounded-xl bg-linear-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-xs font-bold shadow-md flex items-center gap-1.5 transition-all mx-auto sm:mx-0 active:scale-95 cursor-pointer"
             >
               <Edit3 size={13} />
               {profile.is_registered ? 'Modifier mon profil' : '✨ Créer mon profil'}
@@ -349,7 +349,7 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
           </div>
           <div className="h-2 rounded-full bg-white/10 overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-purple-500 via-fuchsia-500 to-pink-500 rounded-full transition-all duration-700 shadow-lg shadow-purple-500/50"
+              className="h-full bg-linear-to-r from-purple-500 via-fuchsia-500 to-pink-500 rounded-full transition-all duration-700 shadow-lg shadow-purple-500/50"
               style={{ width: `${weeklyPct}%` }}
             />
           </div>
@@ -416,7 +416,7 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
           downloadMsg.type === 'error'   ? 'bg-rose-500/20 border border-rose-500/40 text-rose-300' :
                                            'bg-amber-500/20 border border-amber-500/40 text-amber-300'
         }`}>
-          {downloadMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" /> : <ShieldCheck className="w-4 h-4 text-amber-400 flex-shrink-0" />}
+          {downloadMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" /> : <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />}
           <span>{downloadMsg.text}</span>
         </div>
       )}
@@ -428,12 +428,12 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
         <div className="space-y-5 animate-fadeIn">
 
           {/* ── CARTE GAMIFICATION & NIVEAU READ'S GREAT ── */}
-          <div className="card-lg space-y-4 border border-purple-500/30 bg-gradient-to-br from-purple-950/60 via-[#1c0d38] to-[#120724] relative overflow-hidden shadow-2xl shadow-purple-950/50">
+          <div className="card-lg space-y-4 border border-purple-500/30 bg-linear-to-br from-purple-950/60 via-[#1c0d38] to-[#120724] relative overflow-hidden shadow-2xl shadow-purple-950/50">
             <div className="absolute top-0 right-0 w-40 h-40 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
 
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3.5">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-purple-600 via-pink-600 to-amber-500 flex items-center justify-center text-2xl shadow-lg shadow-purple-600/30 shrink-0">
+                <div className="w-14 h-14 rounded-2xl bg-linear-to-tr from-purple-600 via-pink-600 to-amber-500 flex items-center justify-center text-2xl shadow-lg shadow-purple-600/30 shrink-0">
                   {levelInfo.currentLevel.icon}
                 </div>
                 <div>
@@ -461,7 +461,7 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
                     setTimeout(() => setDownloadMsg(null), 3000);
                   }
                 }}
-                className="w-full sm:w-auto px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white shadow-lg shadow-amber-500/25 transition-all hover:scale-105 active:scale-95 cursor-pointer whitespace-nowrap"
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 bg-linear-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white shadow-lg shadow-amber-500/25 transition-all hover:scale-105 active:scale-95 cursor-pointer whitespace-nowrap"
               >
                 <Flame className="w-4 h-4 text-white animate-bounce" />
                 <span>Bonus Quotidien (+15 XP)</span>
@@ -479,7 +479,7 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
               </div>
               <div className="h-2.5 rounded-full bg-black/40 border border-white/10 overflow-hidden p-0.5">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-purple-500 via-pink-500 to-amber-400 transition-all duration-700 shadow-md shadow-purple-500/50"
+                  className="h-full rounded-full bg-linear-to-r from-purple-500 via-pink-500 to-amber-400 transition-all duration-700 shadow-md shadow-purple-500/50"
                   style={{ width: `${levelInfo.percentage}%` }}
                 />
               </div>
@@ -511,7 +511,7 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
                 </div>
                 <div>
                   <h3 className="text-sm sm:text-base font-black text-white font-['Outfit']">Mon Abonnement</h3>
-                  <p className="text-[11px] text-slate-400">Statut et formule d'écoute actuelle</p>
+                  <p className="text-2xs text-slate-400">Statut et formule d'écoute actuelle</p>
                 </div>
               </div>
               <span className={`text-xs font-black px-3 py-1 rounded-full border ${currentPlan.bg} ${currentPlan.color} ${currentPlan.border}`}>
@@ -522,7 +522,7 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
             <ul className="space-y-2 pt-1 border-t border-white/10">
               {currentPlan.features.map((feat, idx) => (
                 <li key={idx} className="flex items-center gap-2 text-xs text-slate-300">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                   <span>{feat}</span>
                 </li>
               ))}
@@ -566,7 +566,7 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
                 </div>
                 <div>
                   <p className="text-sm font-bold text-white">Flammes d'Écoute</p>
-                  <p className="text-[11px] text-slate-400">Votre série quotidienne · Niveaux & Récompenses</p>
+                  <p className="text-2xs text-slate-400">Votre série quotidienne · Niveaux & Récompenses</p>
                 </div>
               </div>
               <StreakBadge onClick={() => setIsStreakModalOpen(true)} />
@@ -584,15 +584,15 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
                 </div>
                 <div>
                   <h3 className="text-sm sm:text-base font-black text-white font-['Outfit']">Portefeuille RG Play</h3>
-                  <p className="text-[11px] text-slate-400">Paiements instantanés et recharge en 1 clic</p>
+                  <p className="text-2xs text-slate-400">Paiements instantanés et recharge en 1 clic</p>
                 </div>
               </div>
             </div>
 
             {/* Affichage Solde */}
-            <div className="flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r from-emerald-500/15 to-teal-500/10 border border-emerald-500/30">
+            <div className="flex items-center justify-between p-4 rounded-2xl bg-linear-to-r from-emerald-500/15 to-teal-500/10 border border-emerald-500/30">
               <div>
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Solde Disponible</p>
+                <p className="text-2xs font-bold text-slate-400 uppercase tracking-wider">Solde Disponible</p>
                 <p className="text-2xl sm:text-3xl font-black text-emerald-400 font-['Outfit'] mt-0.5">
                   {(profile.solde || 0).toLocaleString('fr-FR')} FCFA
                 </p>
@@ -666,7 +666,7 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
           />
 
           {/* Carte Solde de Points */}
-          <div className="card-lg border border-amber-500/30 bg-gradient-to-r from-[#1f0e38] to-[#160829] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="card-lg border border-amber-500/30 bg-linear-to-r from-[#1f0e38] to-[#160829] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3.5">
               <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-2xl text-amber-400 shadow-lg shadow-amber-500/20">
                 ⭐
@@ -694,7 +694,7 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
               </button>
               <button
                 onClick={() => window.dispatchEvent(new Event('rg:open-reward-ad'))}
-                className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl font-bold text-xs bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl font-bold text-xs bg-linear-to-r from-purple-600 to-pink-600 text-white shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Gift className="w-4 h-4" />
                 <span>+25 Pts Sponsor</span>
@@ -725,7 +725,7 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
                     key={badge.id}
                     className={`p-3.5 rounded-2xl border transition-all flex items-start gap-3 ${
                       isUnlocked
-                        ? 'bg-gradient-to-br from-purple-950/50 to-pink-950/30 border-purple-500/40 shadow-lg shadow-purple-950/30'
+                        ? 'bg-linear-to-br from-purple-950/50 to-pink-950/30 border-purple-500/40 shadow-lg shadow-purple-950/30'
                         : 'bg-white/3 border-white/5 opacity-50'
                     }`}
                   >
@@ -743,7 +743,7 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
                           <span className="text-[9px] text-slate-500">Verrouillé</span>
                         )}
                       </div>
-                      <p className="text-[11px] text-slate-300/80 mt-0.5 line-clamp-2 leading-tight">
+                      <p className="text-2xs text-slate-300/80 mt-0.5 line-clamp-2 leading-tight">
                         {badge.description}
                       </p>
                       <span className="inline-block text-[9px] font-bold text-amber-400/90 mt-1">
@@ -811,7 +811,7 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
                     src={book.cover_url || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=200&q=60'}
                     alt={book.title}
                     onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=200&q=60'; }}
-                    className="w-16 h-16 rounded-2xl object-cover border border-white/10 flex-shrink-0 shadow-lg"
+                    className="w-16 h-16 rounded-2xl object-cover border border-white/10 shrink-0 shadow-lg"
                   />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold text-white truncate font-['Outfit']">{book.title}</p>
@@ -824,7 +824,7 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
                     {/* Bouton Écouter direct */}
                     <button
                       onClick={() => playBook(book, 0, 0)}
-                      className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer"
+                      className="px-3.5 py-2 rounded-xl bg-linear-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer"
                     >
                       <Play className="w-3.5 h-3.5 fill-white" />
                       <span>Écouter</span>
@@ -902,7 +902,7 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
                     src={book.cover_url || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=200&q=60'}
                     alt={book.title}
                     onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=200&q=60'; }}
-                    className="w-14 h-14 rounded-2xl object-cover border border-white/10 flex-shrink-0"
+                    className="w-14 h-14 rounded-2xl object-cover border border-white/10 shrink-0"
                   />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold text-white truncate font-['Outfit']">{book.title}</p>
@@ -911,7 +911,7 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
                       <Wifi className="w-3 h-3" /> Disponible sans connexion
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="flex items-center gap-2 shrink-0">
                     <button
                       onClick={() => playBook(book, 0, 0)}
                       className="px-3 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shadow-md"
@@ -992,7 +992,7 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
           </div>
 
           {/* Notifications Push de l'Appareil */}
-          <div className="card-md flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 border border-purple-500/30 bg-gradient-to-r from-purple-950/40 to-slate-900/40">
+          <div className="card-md flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 border border-purple-500/30 bg-linear-to-r from-purple-950/40 to-slate-900/40">
             <div className="flex items-center gap-3">
               <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border ${
                 pushPermission === 'granted'
@@ -1014,7 +1014,7 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
                     </span>
                   )}
                 </div>
-                <p className="text-[11px] text-slate-400 mt-0.5">
+                <p className="text-2xs text-slate-400 mt-0.5">
                   Recevez directement les alertes des nouveaux livres audio, PDF et promotions VIP.
                 </p>
               </div>
@@ -1023,7 +1023,7 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
             {pushPermission !== 'granted' ? (
               <button
                 onClick={requestPermission}
-                className="py-3 px-5 rounded-2xl bg-gradient-to-r from-purple-600 via-fuchsia-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-xs sm:text-sm font-black shadow-lg shadow-purple-600/40 hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2 shrink-0 border border-purple-300/40 animate-pulse"
+                className="py-3 px-5 rounded-2xl bg-linear-to-r from-purple-600 via-fuchsia-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-xs sm:text-sm font-black shadow-lg shadow-purple-600/40 hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2 shrink-0 border border-purple-300/40 animate-pulse"
               >
                 <Bell className="w-4 h-4 fill-white" />
                 <span>Activer les Notifications</span>
@@ -1066,7 +1066,7 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
                 <div className={`w-11 h-11 rounded-2xl flex items-center justify-center text-white shadow-lg ${
-                  selectedTopUpMethod === 'orange' ? 'bg-gradient-to-tr from-orange-600 to-amber-500' : 'bg-gradient-to-tr from-yellow-500 to-amber-600'
+                  selectedTopUpMethod === 'orange' ? 'bg-linear-to-tr from-orange-600 to-amber-500' : 'bg-linear-to-tr from-yellow-500 to-amber-600'
                 }`}>
                   <Wallet className="w-6 h-6" />
                 </div>
@@ -1143,7 +1143,7 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
                 </>
               ) : (
                 <>
-                  <Check className="w-4 h-4 stroke-[3]" />
+                  <Check className="w-4 h-4 stroke-3" />
                   <span>Confirmer la Recharge (+{Number(topUpAmount).toLocaleString()} FCFA)</span>
                 </>
               )}
@@ -1160,7 +1160,7 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
           <div className="glass-card rounded-3xl w-full max-w-md border border-amber-500/30 overflow-hidden shadow-2xl p-6 space-y-5">
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center text-slate-950 shadow-lg">
+                <div className="w-11 h-11 rounded-2xl bg-linear-to-tr from-amber-500 to-orange-500 flex items-center justify-center text-slate-950 shadow-lg">
                   <Crown className="w-6 h-6" />
                 </div>
                 <div>
@@ -1195,7 +1195,7 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-black text-white font-['Outfit']">{p.label}</span>
-                      {isSelected && <Check className="w-3.5 h-3.5 text-amber-400 stroke-[3]" />}
+                      {isSelected && <Check className="w-3.5 h-3.5 text-amber-400 stroke-3" />}
                     </div>
                     <p className="text-sm font-black text-amber-300">{p.price}</p>
                   </div>
@@ -1207,7 +1207,7 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
             <div className="p-3 rounded-2xl bg-white/4 border border-white/8 space-y-1.5 text-xs text-slate-300">
               {PLANS[selectedSubPlan]?.features.map((feat, idx) => (
                 <div key={idx} className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                   <span>{feat}</span>
                 </div>
               ))}

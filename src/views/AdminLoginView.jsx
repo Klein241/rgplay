@@ -82,7 +82,7 @@ export const AdminLoginView = ({ onLoginSuccess }) => {
           <p className="text-xs sm:text-sm text-slate-400 mt-1 font-medium">
             Console d'Administration & Publication
           </p>
-          <div className="inline-flex items-center gap-1.5 mt-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 text-[11px] font-bold">
+          <div className="inline-flex items-center gap-1.5 mt-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 text-2xs font-bold">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             <span>Accès Administrateur Restreint</span>
           </div>
@@ -131,7 +131,7 @@ export const AdminLoginView = ({ onLoginSuccess }) => {
 
             {error && (
               <p className="flex items-center gap-1.5 text-xs text-rose-400 mt-2.5 font-bold animate-fadeIn">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
+                <AlertCircle className="w-4 h-4 shrink-0" /> {error}
               </p>
             )}
           </div>
@@ -160,7 +160,7 @@ export const AdminLoginView = ({ onLoginSuccess }) => {
           </button>
         </form>
 
-        <p className="text-center text-[11px] text-slate-500 mt-4 font-medium">
+        <p className="text-center text-2xs text-slate-500 mt-4 font-medium">
           Accès sécurisé RG Play • Chiffrement de session AES-256
         </p>
       </div>

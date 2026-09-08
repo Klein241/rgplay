@@ -274,9 +274,9 @@ export const ApiGeneratorRubric = () => {
       </div>
 
       {/* ── BANDEAU POINT D'ENTRÉE API & BASE URL ── */}
-      <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-emerald-950/60 via-slate-900/80 to-purple-950/60 border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl backdrop-blur-xl">
+      <div className="p-4 sm:p-5 rounded-3xl bg-linear-to-r from-emerald-950/60 via-slate-900/80 to-purple-950/60 border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl backdrop-blur-xl">
         <div className="flex items-center gap-3.5 min-w-0">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-300 flex-shrink-0 shadow-lg shadow-emerald-500/10">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-300 shrink-0 shadow-lg shadow-emerald-500/10">
             <Terminal className="w-6 h-6" />
           </div>
           <div className="min-w-0">
@@ -289,7 +289,7 @@ export const ApiGeneratorRubric = () => {
             </code>
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0 self-start sm:self-center">
+        <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
           <button
             type="button"
             onClick={() => handleCopyText('https://rg-play.pages.dev/api', 'base_url')}
@@ -365,14 +365,14 @@ export const ApiGeneratorRubric = () => {
               <button
                 type="button"
                 onClick={() => selectPreset('readonly')}
-                className="text-[11px] px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 transition-colors cursor-pointer"
+                className="text-2xs px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 transition-colors cursor-pointer"
               >
                 Lecture Seule
               </button>
               <button
                 type="button"
                 onClick={() => selectPreset('payments')}
-                className="text-[11px] px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 transition-colors cursor-pointer"
+                className="text-2xs px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 transition-colors cursor-pointer"
               >
                 Paiements Seuls
               </button>
@@ -393,12 +393,12 @@ export const ApiGeneratorRubric = () => {
                       : 'bg-white/4 border-white/8 hover:bg-white/8 text-slate-400 opacity-75 hover:opacity-100'
                   }`}
                 >
-                  <div className={`w-5 h-5 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 border transition-all ${
+                  <div className={`w-5 h-5 rounded-lg flex items-center justify-center shrink-0 mt-0.5 border transition-all ${
                     isChecked
-                      ? 'bg-gradient-to-tr from-emerald-600 to-teal-500 border-emerald-400 text-white shadow-md'
+                      ? 'bg-linear-to-tr from-emerald-600 to-teal-500 border-emerald-400 text-white shadow-md'
                       : 'bg-white/5 border-white/20 text-transparent'
                   }`}>
-                    <Check className="w-3.5 h-3.5 stroke-[3]" />
+                    <Check className="w-3.5 h-3.5 stroke-3" />
                   </div>
 
                   <div className="flex-1 min-w-0">
@@ -407,11 +407,11 @@ export const ApiGeneratorRubric = () => {
                         <ScopeIcon className={`w-3.5 h-3.5 ${isChecked ? 'text-emerald-400' : 'text-slate-400'}`} />
                         {scope.label}
                       </span>
-                      <span className="text-[9px] font-mono px-2 py-0.5 rounded-md bg-white/8 text-slate-300 flex-shrink-0 border border-white/6 font-bold">
+                      <span className="text-[9px] font-mono px-2 py-0.5 rounded-md bg-white/8 text-slate-300 shrink-0 border border-white/6 font-bold">
                         {scope.tag}
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-400 mt-1 leading-snug">
+                    <p className="text-2xs text-slate-400 mt-1 leading-snug">
                       {scope.desc}
                     </p>
                     <code className="text-[10px] text-cyan-300/80 font-mono block mt-1 truncate">
@@ -443,7 +443,7 @@ export const ApiGeneratorRubric = () => {
         <div className="card-lg space-y-5 border border-emerald-500/40 bg-emerald-950/20 animate-fadeIn">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-emerald-500/20 pb-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-500 flex items-center justify-center text-slate-950 shadow-lg flex-shrink-0">
+              <div className="w-10 h-10 rounded-2xl bg-linear-to-tr from-emerald-500 to-teal-500 flex items-center justify-center text-slate-950 shadow-lg shrink-0">
                 <Key className="w-5 h-5" />
               </div>
               <div>
@@ -482,7 +482,7 @@ export const ApiGeneratorRubric = () => {
                 <button
                   type="button"
                   onClick={() => handleCopyText('https://rg-play.pages.dev/api', 'res_base_url')}
-                  className="px-3.5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold flex items-center gap-1 transition-all flex-shrink-0 active:scale-95 cursor-pointer shadow-md"
+                  className="px-3.5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold flex items-center gap-1 transition-all shrink-0 active:scale-95 cursor-pointer shadow-md"
                 >
                   {copiedField === 'res_base_url' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                   <span>{copiedField === 'res_base_url' ? 'Copié !' : 'Copier'}</span>
@@ -507,7 +507,7 @@ export const ApiGeneratorRubric = () => {
                 <button
                   type="button"
                   onClick={() => handleCopyText(generatedKey.fullKey, 'key')}
-                  className="px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1 transition-all flex-shrink-0 active:scale-95 cursor-pointer shadow-md"
+                  className="px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1 transition-all shrink-0 active:scale-95 cursor-pointer shadow-md"
                 >
                   {copiedField === 'key' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                   <span>{copiedField === 'key' ? 'Copié !' : 'Copier'}</span>
@@ -534,7 +534,7 @@ export const ApiGeneratorRubric = () => {
                     onClick={() => setActiveCodeTab(tab.id)}
                     className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                       activeCodeTab === tab.id
-                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md'
+                        ? 'bg-linear-to-r from-purple-600 to-pink-600 text-white shadow-md'
                         : 'bg-white/6 text-slate-400 hover:text-white border border-white/8'
                     }`}
                   >
@@ -566,7 +566,7 @@ export const ApiGeneratorRubric = () => {
                         <span>Copier</span>
                       </button>
                     </div>
-                    <p className="text-[11px] text-slate-400">{sc.doc}</p>
+                    <p className="text-2xs text-slate-400">{sc.doc}</p>
                   </div>
                 ))}
               </div>
@@ -574,7 +574,7 @@ export const ApiGeneratorRubric = () => {
 
             {activeCodeTab === 'manus' && (
               <div className="p-4 rounded-2xl bg-slate-950/90 border border-purple-500/30 space-y-3 font-mono text-xs text-slate-200">
-                <pre className="whitespace-pre-wrap leading-relaxed max-h-72 overflow-y-auto text-slate-300 text-[11px]">
+                <pre className="whitespace-pre-wrap leading-relaxed max-h-72 overflow-y-auto text-slate-300 text-2xs">
 {`Tu es l'agent IA officiel de production de la plateforme RG Play (Read's Great).
 Tu dois préparer et publier le contenu généré (Livre E-Book PDF/EPUB, pochette 3D, et les chapitres audio).
 
@@ -656,7 +656,7 @@ puis envoie les requêtes HTTP POST ci-dessus pour finaliser la publication sur 
             {activeCodeTab === 'mcp' && (
               <div className="space-y-4">
                 {/* Mode 1 : Manus IA (HTTP Transport sans Node local) */}
-                <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-950/40 via-slate-900 to-indigo-950/40 border border-emerald-500/40 space-y-3">
+                <div className="p-4 rounded-2xl bg-linear-to-br from-emerald-950/40 via-slate-900 to-indigo-950/40 border border-emerald-500/40 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-emerald-400 font-black text-xs">
                       <Sparkles className="w-4 h-4" />
@@ -666,7 +666,7 @@ puis envoie les requêtes HTTP POST ci-dessus pour finaliser la publication sur 
                       Recommandé
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                  <p className="text-2xs text-slate-300 leading-relaxed">
                     Aucun processus Node.js à lancer en local ! L'API Cloudflare de RG Play gère nativement le protocole MCP HTTP pour Manus IA.
                   </p>
 
@@ -697,7 +697,7 @@ puis envoie les requêtes HTTP POST ci-dessus pour finaliser la publication sur 
                         <button
                           type="button"
                           onClick={() => handleCopy('https://rg-play.pages.dev/api/mcp', 'mcp_url')}
-                          className="text-slate-400 hover:text-emerald-400 text-xs ml-2 flex-shrink-0"
+                          className="text-slate-400 hover:text-emerald-400 text-xs ml-2 shrink-0"
                         >
                           {copiedScopeId === 'mcp_url' ? '✓ Copié' : 'Copier'}
                         </button>
@@ -717,7 +717,7 @@ puis envoie les requêtes HTTP POST ci-dessus pour finaliser la publication sur 
                           {copiedScopeId === 'mcp_header_val' ? '✓ Copié' : 'Copier la valeur'}
                         </button>
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-2xs">
                         <div>
                           <span className="text-[10px] text-slate-500 font-sans block">Nom de l'en-tête (gauche) :</span>
                           <span className="text-white font-bold">Authorization</span>
@@ -752,7 +752,7 @@ puis envoie les requêtes HTTP POST ci-dessus pour finaliser la publication sur 
                       {copiedScopeId === 'mcp_json' ? '✓ Copié' : 'Copier JSON'}
                     </button>
                   </div>
-                  <pre className="whitespace-pre-wrap leading-relaxed text-emerald-300 text-[11px]">
+                  <pre className="whitespace-pre-wrap leading-relaxed text-emerald-300 text-2xs">
 {JSON.stringify({
   mcpServers: {
     rgplay: {
@@ -770,7 +770,7 @@ puis envoie les requêtes HTTP POST ci-dessus pour finaliser la publication sur 
 
             {activeCodeTab === 'curl' && (
               <div className="p-4 rounded-2xl bg-slate-950/90 border border-white/10 font-mono text-xs text-cyan-300">
-                <pre className="whitespace-pre-wrap leading-relaxed text-[11px]">
+                <pre className="whitespace-pre-wrap leading-relaxed text-2xs">
 {`curl -X GET "https://rg-play.pages.dev/api/audiobooks" \\
   -H "Authorization: Bearer ${generatedKey.fullKey}" \\
   -H "Content-Type: application/json"`}

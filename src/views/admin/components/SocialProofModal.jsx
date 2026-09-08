@@ -23,7 +23,7 @@ export const SocialProofModal = ({
         {/* Header de la modale */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center text-slate-950 shadow-lg flex-shrink-0">
+            <div className="w-10 h-10 rounded-2xl bg-linear-to-tr from-amber-500 to-orange-500 flex items-center justify-center text-slate-950 shadow-lg shrink-0">
               <Flame className="w-5 h-5 fill-slate-950" />
             </div>
             <div>
@@ -45,11 +45,11 @@ export const SocialProofModal = ({
             src={socialModalBook.cover_url}
             alt={socialModalBook.title}
             onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?w=100&q=60'; }}
-            className="w-12 h-12 rounded-xl object-cover border border-white/10 flex-shrink-0"
+            className="w-12 h-12 rounded-xl object-cover border border-white/10 shrink-0"
           />
           <div className="min-w-0 flex-1">
             <p className="text-xs font-bold text-white truncate font-['Outfit']">{socialModalBook.title}</p>
-            <p className="text-[11px] text-slate-400 truncate">Par {socialModalBook.author}</p>
+            <p className="text-2xs text-slate-400 truncate">Par {socialModalBook.author}</p>
           </div>
         </div>
 
@@ -84,7 +84,7 @@ export const SocialProofModal = ({
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
               <span>Nombre d'Écoutes / Lectures Affichées</span>
-              <span className="text-[11px] text-purple-300 font-mono font-black">{Number(socialPlays).toLocaleString()} écoutes</span>
+              <span className="text-2xs text-purple-300 font-mono font-black">{Number(socialPlays).toLocaleString()} écoutes</span>
             </label>
             <input
               type="number"
@@ -99,7 +99,7 @@ export const SocialProofModal = ({
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
               <span>Nombre d'Avis Affichés</span>
-              <span className="text-[11px] text-amber-300 font-mono font-black">{Number(socialReviews).toLocaleString()} avis</span>
+              <span className="text-2xs text-amber-300 font-mono font-black">{Number(socialReviews).toLocaleString()} avis</span>
             </label>
             <input
               type="number"
@@ -114,7 +114,7 @@ export const SocialProofModal = ({
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
               <span>Note Globale Affichée (sur 5.0)</span>
-              <span className="text-[11px] text-amber-300 font-mono font-black">{socialRating} / 5.0</span>
+              <span className="text-2xs text-amber-300 font-mono font-black">{socialRating} / 5.0</span>
             </label>
             <input
               type="number"
@@ -136,28 +136,28 @@ export const SocialProofModal = ({
               <button
                 type="button"
                 onClick={() => { setSocialPlays(12500); setSocialReviews(2400); setSocialRating(4.9); }}
-                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-bold text-slate-300 text-left"
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-2xs font-bold text-slate-300 text-left"
               >
                 🌟 Populaire (12.5k / 2.4k avis)
               </button>
               <button
                 type="button"
                 onClick={() => { setSocialPlays(28000); setSocialReviews(5600); setSocialRating(4.95); }}
-                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-bold text-slate-300 text-left"
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-2xs font-bold text-slate-300 text-left"
               >
                 🔥 Bestseller (28k / 5.6k avis)
               </button>
               <button
                 type="button"
                 onClick={() => { setSocialPlays(65000); setSocialReviews(12800); setSocialRating(4.98); }}
-                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-bold text-slate-300 text-left"
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-2xs font-bold text-slate-300 text-left"
               >
                 🚀 Tendance Virale (65k / 12.8k avis)
               </button>
               <button
                 type="button"
                 onClick={() => { setSocialPlays(140000); setSocialReviews(28000); setSocialRating(5.0); }}
-                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-bold text-slate-300 text-left"
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-2xs font-bold text-slate-300 text-left"
               >
                 👑 Culte (140k / 28k avis)
               </button>
