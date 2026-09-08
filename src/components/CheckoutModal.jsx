@@ -53,7 +53,7 @@ const METHODS = [
 
 export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
   const { playBook } = useAudio();
-  const { points, unlockBookWithPoints } = useXp();
+  const { points, unlockBookWithPoints, awardPointsAndXp } = useXp();
 
   // ── Formulaire ──────────────────────────────────────────────────────────
   const [paymentMethod, setPaymentMethod] = useState('orange_money');
@@ -75,13 +75,21 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
   const isMountedRef = useRef(true);
 
   const isSubscriptionPlan = book?.id?.startsWith?.('pass_');
+  const isPointPack = Boolean(book?.is_point_pack || book?.id?.startsWith?.('pack_'));
+  const packPointsReward = book?.points_reward || (
+    book?.id === 'pack_500' ? 300 :
+    book?.id === 'pack_1000' ? 750 :
+    book?.id === 'pack_2500' ? 2200 :
+    book?.id === 'pack_5000' ? 5000 :
+    book?.id === 'pack_10000' ? 12000 : 0
+  );
   const isAudioXpDisabled = typeof window !== 'undefined' && localStorage.getItem('rg_settings_audio_xp_disabled') === 'true';
   const hasPointsPrice = Number(book?.unlock_points) > 0;
   // Prix vraiment gratuit = price=0 ET pas de coût en points
   const isTrulyFree = (book?.price === 0 || !book?.price) && !hasPointsPrice;
   // Prix en points obligatoire quand price=0 mais unlock_points>0
   const isPriceZeroWithPoints = (book?.price === 0 || !book?.price) && hasPointsPrice;
-  const canUsePoints = !isSubscriptionPlan && hasPointsPrice;
+  const canUsePoints = !isSubscriptionPlan && !isPointPack && hasPointsPrice;
   const pointsCost = Number(book?.unlock_points) || 100;
   const hasEnoughPoints = points >= pointsCost;
   const isPoints = paymentMethod === 'points';
@@ -252,7 +260,16 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
 
         if (status.status === 'completed') {
           clearAllIntervals();
-          apiClient._addToLocalLibrary(book);
+          if (isPointPack) {
+            awardPointsAndXp?.({
+              points: packPointsReward,
+              xp: Math.round((finalPrice || 1000) / 10),
+              description: `Achat ${book.title}`,
+            });
+            window.dispatchEvent(new Event('rg:points-updated'));
+          } else {
+            apiClient._addToLocalLibrary(book);
+          }
           setStep('success');
           confetti({
             particleCount: 150,
@@ -297,7 +314,16 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
         audiobook: book,
       });
       clearAllIntervals();
-      apiClient._addToLocalLibrary(book);
+      if (isPointPack) {
+        awardPointsAndXp?.({
+          points: packPointsReward,
+          xp: Math.round((finalPrice || 1000) / 10),
+          description: `Achat ${book.title}`,
+        });
+        window.dispatchEvent(new Event('rg:points-updated'));
+      } else {
+        apiClient._addToLocalLibrary(book);
+      }
       setStep('success');
       confetti({ particleCount: 150, spread: 90, origin: { y: 0.5 } });
       if (onSuccess) onSuccess(book);
@@ -816,46 +842,59 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
           ══════════════════════════════════════════════════════════════ */}
           {step === 'success' && (
             <div className="text-center space-y-6 py-4">
-              <div className="mx-auto w-24 h-24 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-2xl shadow-emerald-500/30">
-                <CheckCircle2 size={44} className="text-white" />
+              <div className="mx-auto w-24 h-24 rounded-full bg-gradient-to-br from-amber-500 via-orange-500 to-pink-500 flex items-center justify-center shadow-2xl shadow-amber-500/30 animate-pulse">
+                {isPointPack ? <Sparkles size={46} className="text-white" /> : <CheckCircle2 size={44} className="text-white" />}
               </div>
 
               <div>
-                <h2 className="text-2xl font-black text-white mb-2">Paiement Confirmé !</h2>
-                <p className="text-slate-400 text-sm">
-                  {finalPrice?.toLocaleString()} FCFA débités avec succès.
+                <h2 className="text-2xl font-black text-white mb-2">
+                  {isPointPack ? 'Points Crédités avec Succès !' : 'Paiement Confirmé !'}
+                </h2>
+                <p className="text-slate-300 text-sm">
+                  {isPointPack
+                    ? `Félicitations ! Vos +${packPointsReward} points sont disponibles pour débloquer vos livres.`
+                    : `${finalPrice?.toLocaleString()} FCFA débités avec succès.`}
                 </p>
               </div>
 
-              <div className="flex items-center gap-4 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30">
-                <img
-                  src={book.cover_url || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=200&q=80'}
-                  alt={book.title}
-                  className="w-14 h-14 rounded-xl object-cover flex-shrink-0 shadow-lg"
-                  onError={e => { e.target.src = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=200&q=80'; }}
-                />
+              <div className="flex items-center gap-4 p-4 rounded-2xl bg-amber-500/15 border border-amber-400/40">
+                {isPointPack ? (
+                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center text-3xl shadow-lg flex-shrink-0">
+                    ⭐
+                  </div>
+                ) : (
+                  <img
+                    src={book.cover_url || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=200&q=80'}
+                    alt={book.title}
+                    className="w-14 h-14 rounded-xl object-cover flex-shrink-0 shadow-lg"
+                    onError={e => { e.target.src = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=200&q=80'; }}
+                  />
+                )}
                 <div className="text-left min-w-0">
-                  <p className="text-xs text-emerald-400 font-semibold uppercase tracking-wide mb-0.5">✅ Débloqué</p>
+                  <p className="text-xs text-amber-300 font-black uppercase tracking-wide mb-0.5">
+                    {isPointPack ? `✅ +${packPointsReward} Points Reçus` : '✅ Débloqué'}
+                  </p>
                   <p className="font-bold text-white text-sm line-clamp-1">{book.title}</p>
-                  <p className="text-slate-400 text-xs">{book.author}</p>
+                  <p className="text-slate-300 text-xs">
+                    {isPointPack ? `Solde total disponible : ${points + (packPointsReward || 0)} pts` : book.author}
+                  </p>
                 </div>
               </div>
 
               <div className="space-y-3">
                 <button
-                  onClick={handleStartListening}
-                  className="w-full py-4 rounded-2xl font-bold text-white text-base
-                    bg-gradient-to-r from-emerald-600 to-teal-600
-                    hover:from-emerald-500 hover:to-teal-500
-                    shadow-lg shadow-emerald-500/30
-                    transition-all duration-200 active:scale-[0.98]"
+                  onClick={isPointPack ? onClose : handleStartListening}
+                  className="w-full py-4 rounded-2xl font-black text-white text-base
+                    bg-gradient-to-r from-amber-500 via-orange-500 to-pink-500
+                    hover:opacity-95 shadow-xl shadow-amber-500/30
+                    transition-all duration-200 active:scale-[0.98] cursor-pointer"
                 >
-                  🎧 Écouter maintenant
+                  {isPointPack ? '⭐ Découvrir les Livres Audio à Débloquer' : '🎧 Écouter maintenant'}
                 </button>
                 <button
                   onClick={onClose}
                   className="w-full py-3 rounded-xl font-semibold text-slate-400 text-sm
-                    border border-white/10 hover:border-white/20 hover:text-white transition-all duration-200"
+                    border border-white/10 hover:border-white/20 hover:text-white transition-all duration-200 cursor-pointer"
                 >
                   Fermer
                 </button>

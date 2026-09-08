@@ -130,11 +130,11 @@ export function AdBanner({ onOpenRewardModal, placement = 'discover_hero', class
               if (onOpenRewardModal) onOpenRewardModal(defaultPromoAd);
               window.dispatchEvent(new CustomEvent('rg:open-reward-ad', { detail: { ad: defaultPromoAd } }));
             }}
-            className="w-full sm:w-auto px-5 py-3 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 via-orange-500 to-pink-500 text-white shadow-lg shadow-amber-500/25 hover:scale-105 active:scale-95 transition-all whitespace-nowrap shrink-0 cursor-pointer"
+            className="btn-blinking-border w-full sm:w-auto px-6 py-3.5 sm:px-7 sm:py-4 rounded-2xl font-black text-sm sm:text-base flex items-center justify-center gap-2.5 bg-gradient-to-r from-amber-500 via-orange-500 to-pink-500 text-white shadow-2xl hover:scale-105 active:scale-95 transition-all whitespace-nowrap shrink-0 cursor-pointer border-amber-400"
           >
-            <Sparkles className="w-4 h-4" />
-            <span>Gagner +{defaultRewardPts} Points</span>
-            <ArrowRight className="w-4 h-4" />
+            <Sparkles className="w-5 h-5 text-amber-200 animate-spin" style={{ animationDuration: '3s' }} />
+            <span className="tracking-wide">Gagner +{defaultRewardPts} Points 🎁</span>
+            <ArrowRight className="w-4 h-4 text-white" />
           </button>
         </div>
       </div>

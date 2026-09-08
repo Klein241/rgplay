@@ -38,10 +38,24 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
   });
   const [localSearch, setLocalSearch] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState(null);
   const bubbleRef = useRef(null);
 
-  const { playPreview } = useAudio();
-  const { points } = useXp();
+  const { playPreview, playBook } = useAudio();
+  const { points, unlockBookWithPoints } = useXp();
+
+  // Bibliothèque locale de l'utilisateur pour vérifier les audios déjà acquis
+  const [purchasedIds, setPurchasedIds] = useState(() => {
+    try {
+      const lib = JSON.parse(localStorage.getItem('rg_user_library') || '[]');
+      return new Set(lib.map(b => b.id));
+    } catch { return new Set(); }
+  });
+
+  const showToast = (msg, duration = 3500) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), duration);
+  };
 
   const loadData = async () => {
     try {
@@ -52,11 +66,21 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
 
   useEffect(() => {
     loadData();
+    const handleSyncPurchases = () => {
+      try {
+        const lib = JSON.parse(localStorage.getItem('rg_user_library') || '[]');
+        setPurchasedIds(new Set(lib.map(b => b.id)));
+      } catch {}
+    };
     window.addEventListener('rg:book-created', loadData);
     window.addEventListener('rg:book-deleted', loadData);
+    window.addEventListener('rg:book-purchased', handleSyncPurchases);
+    window.addEventListener('storage', handleSyncPurchases);
     return () => {
       window.removeEventListener('rg:book-created', loadData);
       window.removeEventListener('rg:book-deleted', loadData);
+      window.removeEventListener('rg:book-purchased', handleSyncPurchases);
+      window.removeEventListener('storage', handleSyncPurchases);
     };
   }, []);
 
@@ -186,16 +210,63 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
     AUDIO_FORMATS.find(f => f.id === activeFilter) ||
     MAIN_FILTERS[0];
 
-  // Gestion du clic : TOUJOURS forcer le lecteur audio car Découvrir est 100% audio
-  const handleSelectAudio = (book) => {
+  // ── GESTION DU CLIC AUDIO DIRECT EN 1 CLIC ─────────────────────────────────
+  // Débite automatiquement les points alloués et lance la lecture SANS ouvrir la fiche descriptive
+  const handlePlayOrUnlockAudio = async (book) => {
+    if (!book) return;
+
+    // 1. Déjà acheté, dans la bibliothèque ou gratuit
+    const isPurchased = purchasedIds.has(book.id);
+    const isTrulyFree = (book.price === 0 || !book.price) && !(Number(book.unlock_points) > 0);
+
+    if (isPurchased || isTrulyFree || book.is_free_for_members) {
+      playBook(book, 0, 0);
+      return;
+    }
+
+    // 2. Coût en points alloué
+    const cost = Number(book.unlock_points) > 0 ? Number(book.unlock_points) : 100;
+
+    // Si l'utilisateur a suffisamment de points : DÉBIT AUTOMATIQUE EN 1 CLIC
+    if (points >= cost) {
+      try {
+        const res = await unlockBookWithPoints(book, cost);
+        if (res.success) {
+          apiClient._addToLocalLibrary(book);
+          setPurchasedIds(prev => new Set([...prev, book.id]));
+          window.dispatchEvent(new CustomEvent('rg:book-purchased', { detail: { book } }));
+          showToast(`🎉 "${book.title}" débloqué (-${cost} pts) ! Bonne écoute.`);
+          playBook(book, 0, 0);
+          return;
+        }
+      } catch (err) {
+        console.error('Erreur débit points:', err);
+      }
+    }
+
+    // 3. Solde de points insuffisant : alerter et rediriger vers options de recharge / pub
+    showToast(`⚠️ Solde insuffisant (${points}/${cost} pts). Regardez une vidéo pour gagner des points ou achetez un pack !`, 4500);
+    onSelectBook(book, { forceAudio: true });
+  };
+
+  // Pour ouvrir explicitement la fiche descriptive sans lancer automatiquement la lecture
+  const handleOpenDetails = (book) => {
     onSelectBook(book, { forceAudio: true });
   };
 
   return (
     <div className="relative space-y-6 pb-56 sm:pb-64 animate-fadeIn select-none">
 
-      {/* ── EN-TÊTE DÉCOUVRIR AVEC LA BULLE (+) HÉROS (identique à l'Agent SKY) ── */}
-      <div className="flex items-center justify-between pt-1 gap-3">
+      {/* ── TOAST FLOTTANT CONFIRMATION DÉBIT POINTS ── */}
+      {toastMessage && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-purple-900/95 via-fuchsia-900/95 to-amber-900/95 border border-amber-400/60 text-white font-bold text-xs sm:text-sm shadow-2xl backdrop-blur-xl animate-slideDown flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-amber-300 animate-spin" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* ── EN-TÊTE DÉCOUVRIR AVEC LA BULLE (+) HÉROS & BOUTON GAGNER DES POINTS ── */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pt-1 gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <h1 className="text-xl sm:text-2xl font-black tracking-widest text-white uppercase font-heading">
@@ -229,8 +300,22 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
           )}
         </div>
 
-        {/* Actions Droite : Recherche & BULLE (+) GÉANTE HERO (comme Agent SKY) */}
-        <div className="flex items-center gap-2.5 sm:gap-3 flex-shrink-0" ref={bubbleRef}>
+        {/* Actions Droite : BOUTON GAGNER DES POINTS (Bordure Clignotante), Recherche & BULLE (+) */}
+        <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-between sm:justify-end flex-shrink-0" ref={bubbleRef}>
+          {/* Bouton Héroïque Gagner des Points avec Bordure Clignotante */}
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event('rg:open-reward-ad'))}
+            title="Regardez une vidéo partenaire pour gagner des points immédiatement"
+            className="btn-blinking-border flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-2xl text-xs sm:text-sm font-black bg-gradient-to-r from-amber-500/30 via-orange-500/25 to-pink-500/30 border-amber-400 text-amber-300 shadow-xl hover:scale-105 active:scale-95 transition-all cursor-pointer"
+          >
+            <span className="text-base animate-bounce">🎁</span>
+            <span className="text-white font-extrabold tracking-wide">Gagner des points</span>
+            <span className="px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 font-black text-[10px] shadow-sm">
+              +30 pts
+            </span>
+          </button>
+
           {/* Bouton recherche */}
           <button
             type="button"
@@ -380,7 +465,9 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
                 <AudiobookCard
                   key={`filtered-${book.id}`}
                   book={book}
-                  onSelect={handleSelectAudio}
+                  onSelect={handlePlayOrUnlockAudio}
+                  onViewDetails={handleOpenDetails}
+                  isPurchased={purchasedIds.has(book.id)}
                   layout="square"
                 />
               ))}
@@ -403,7 +490,7 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
           {/* 1. HERO ALBUM VEDETTE */}
           {currentFeatured && (
             <div
-              onClick={() => handleSelectAudio(currentFeatured)}
+              onClick={() => handlePlayOrUnlockAudio(currentFeatured)}
               className="relative rounded-3xl overflow-hidden cursor-pointer group shadow-2xl transition-all duration-500 hover:shadow-purple-900/40"
               style={{
                 background: 'linear-gradient(135deg, #2d1354 0%, #16082c 60%, #0c0418 100%)',
@@ -446,18 +533,18 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        playPreview(currentFeatured);
+                        handlePlayOrUnlockAudio(currentFeatured);
                       }}
                       className="btn-gradient px-5 py-2.5 rounded-2xl text-xs font-bold text-white flex items-center gap-2 shadow-lg shadow-purple-600/30 hover:scale-105 transition-all cursor-pointer"
                     >
                       <Play className="w-3.5 h-3.5 fill-white" />
-                      <span>Écouter un extrait</span>
+                      <span>Écouter maintenant</span>
                     </button>
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleSelectAudio(currentFeatured);
+                        handleOpenDetails(currentFeatured);
                       }}
                       className="px-4 py-2.5 rounded-2xl text-xs font-bold text-purple-200 bg-white/10 hover:bg-white/20 border border-white/10 transition-all cursor-pointer"
                     >
@@ -488,7 +575,14 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
               {newBooks.map((book) => (
-                <AudiobookCard key={`new-${book.id}`} book={book} onSelect={handleSelectAudio} layout="square" />
+                <AudiobookCard
+                  key={`new-${book.id}`}
+                  book={book}
+                  onSelect={handlePlayOrUnlockAudio}
+                  onViewDetails={handleOpenDetails}
+                  isPurchased={purchasedIds.has(book.id)}
+                  layout="square"
+                />
               ))}
             </div>
           </section>
@@ -503,7 +597,14 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {recommendations.map((book) => (
-                <AudiobookCard key={`rec-${book.id}`} book={book} onSelect={handleSelectAudio} layout="pill" />
+                <AudiobookCard
+                  key={`rec-${book.id}`}
+                  book={book}
+                  onSelect={handlePlayOrUnlockAudio}
+                  onViewDetails={handleOpenDetails}
+                  isPurchased={purchasedIds.has(book.id)}
+                  layout="pill"
+                />
               ))}
             </div>
           </section>
@@ -521,7 +622,14 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
               {filteredBooks.map((book) => (
-                <AudiobookCard key={`cat-${book.id}`} book={book} onSelect={handleSelectAudio} layout="square" />
+                <AudiobookCard
+                  key={`cat-${book.id}`}
+                  book={book}
+                  onSelect={handlePlayOrUnlockAudio}
+                  onViewDetails={handleOpenDetails}
+                  isPurchased={purchasedIds.has(book.id)}
+                  layout="square"
+                />
               ))}
             </div>
           </section>

@@ -20,9 +20,9 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenInstallModal }) => {
     },
     {
       id: 'store',
-      label: 'BOUTIQUE & PASS',
+      label: 'BOUTIQUE & POINTS',
       icon: ShoppingBag,
-      badge: 'VIP',
+      badge: '⭐ Pts',
     },
     {
       id: 'profile',

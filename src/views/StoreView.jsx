@@ -8,52 +8,122 @@ import { apiClient } from '../services/api';
 import { useXp } from '../context/XpContext';
 import { RewardedAdModal } from '../components/RewardedAdModal';
 
-const PLANS = [
+export const POINT_PACKS = [
   {
-    id: 'pass_month',
-    badge: 'LE PLUS POPULAIRE',
-    title: 'Pass Mensuel Illimité',
-    subtitle: 'Écoute illimitée & Mentor IA SKY',
-    price: '3 500',
-    unit: 'FCFA / mois',
-    rawPrice: 3500,
-    accent: 'from-purple-600 to-indigo-600',
-    badgeStyle: 'bg-purple-500/20 text-purple-200 border-purple-400/40',
-    border: 'border-purple-400/50',
-    glow: 'shadow-[0_0_35px_rgba(168,85,247,0.30)]',
+    id: 'pack_500',
+    badge: '🥉 IDÉAL POUR TESTER',
+    title: 'Pack Découverte',
+    subtitle: 'Débloquez vos 3 à 5 premiers livres audio',
+    price: '500',
+    rawPrice: 500,
+    unit: 'FCFA',
+    points: 250,
+    bonusPoints: 50,
+    totalPoints: 300,
+    accent: 'from-blue-600 via-indigo-600 to-purple-600',
+    badgeStyle: 'bg-blue-500/20 text-blue-200 border-blue-400/40',
+    border: 'border-blue-400/50',
+    glow: 'shadow-[0_0_30px_rgba(59,130,246,0.30)]',
     features: [
-      'Accès illimité à +500 livres audio et résumés',
-      'Qualité Studio Haute Définition (320 kbps)',
+      '300 Points Read\'s Great immédiatement crédités',
+      'Déblocage instantané en 1 clic sans abonnement',
       'Écoute hors-ligne sécurisée sans connexion',
-      'Accès interactif illimité à l\'Agent SKY',
-      'Sans engagement, résiliation en 1 clic',
+      'Valable sur tous les livres audio, masterclasses & ebooks',
     ],
   },
   {
-    id: 'pass_vip',
-    badge: 'MEILLEURE OFFRE (-50%)',
-    title: 'Pass VIP Annuel',
-    subtitle: 'Téléchargements permanents & Masterclasses',
-    price: '19 900',
-    unit: 'FCFA / an',
-    rawPrice: 19900,
-    accent: 'from-amber-500 via-orange-500 to-pink-600',
-    badgeStyle: 'bg-amber-500/20 text-amber-200 border-amber-400/40',
-    border: 'border-amber-400/60',
-    glow: 'shadow-[0_0_40px_rgba(251,191,36,0.30)]',
+    id: 'pack_1000',
+    badge: '🔥 LE PLUS POPULAIRE (-25%)',
+    title: 'Pack Populaire',
+    subtitle: 'Le plein de lectures pour le mois',
+    price: '1 000',
+    rawPrice: 1000,
+    unit: 'FCFA',
+    points: 600,
+    bonusPoints: 150,
+    totalPoints: 750,
+    accent: 'from-purple-600 via-fuchsia-600 to-pink-600',
+    badgeStyle: 'bg-purple-500/25 text-purple-200 border-purple-400/50',
+    border: 'border-purple-400/60',
+    glow: 'shadow-[0_0_35px_rgba(168,85,247,0.35)]',
     features: [
-      'Tous les avantages du Pass Mensuel pendant 12 mois',
-      'Téléchargement MP3 permanent sur tous vos appareils',
-      'Accès en avant-première aux nouveautés',
-      'Support VIP WhatsApp 24/7 dédié',
-      'Masterclasses exclusives et plans d\'action PDF',
+      '750 Points RG (+150 pts bonus offerts)',
+      'Équivalent à 8 à 10 œuvres audio complètes',
+      'Téléchargement hors-ligne illimité inclus',
+      'Accès prioritaire aux nouveautés de la semaine',
+    ],
+  },
+  {
+    id: 'pack_2500',
+    badge: '⚡ ÉCONOMIE -35%',
+    title: 'Pack Avantage',
+    subtitle: 'Pour les auditeurs et passionnés réguliers',
+    price: '2 500',
+    rawPrice: 2500,
+    unit: 'FCFA',
+    points: 1700,
+    bonusPoints: 500,
+    totalPoints: 2200,
+    accent: 'from-emerald-600 via-teal-600 to-cyan-600',
+    badgeStyle: 'bg-emerald-500/20 text-emerald-200 border-emerald-400/40',
+    border: 'border-emerald-400/50',
+    glow: 'shadow-[0_0_35px_rgba(16,185,129,0.30)]',
+    features: [
+      '2 200 Points RG (+500 pts bonus offerts)',
+      'Équivalent à +25 livres audio et masterclasses',
+      'Qualité Studio HD 320 kbps débloquée',
+      'Points à vie sans aucune date d\'expiration',
+    ],
+  },
+  {
+    id: 'pack_5000',
+    badge: '👑 MEILLEURE VALEUR (-50%)',
+    title: 'Pack VIP Royal',
+    subtitle: 'La bibliothèque complète & Assistant SKY',
+    price: '5 000',
+    rawPrice: 5000,
+    unit: 'FCFA',
+    points: 3500,
+    bonusPoints: 1500,
+    totalPoints: 5000,
+    accent: 'from-amber-500 via-orange-500 to-pink-600',
+    badgeStyle: 'bg-amber-500/25 text-amber-200 border-amber-400/60',
+    border: 'border-amber-400/70',
+    glow: 'shadow-[0_0_45px_rgba(251,191,36,0.35)]',
+    features: [
+      '5 000 Points RG (+1 500 pts bonus offerts)',
+      'Débloque plus de 55 livres audio et séries',
+      'Accès illimité aux questions du Mentor IA SKY',
+      'Support VIP WhatsApp Read\'s Great dédié 24/7',
+    ],
+  },
+  {
+    id: 'pack_10000',
+    badge: '💎 PACK MASTER (12 000 PTS)',
+    title: 'Pack Master Pro',
+    subtitle: 'Pour les boulimiques de savoir et formateurs',
+    price: '10 000',
+    rawPrice: 10000,
+    unit: 'FCFA',
+    points: 8000,
+    bonusPoints: 4000,
+    totalPoints: 12000,
+    accent: 'from-fuchsia-600 via-pink-600 to-rose-600',
+    badgeStyle: 'bg-rose-500/25 text-rose-200 border-rose-400/60',
+    border: 'border-rose-400/70',
+    glow: 'shadow-[0_0_45px_rgba(244,63,94,0.35)]',
+    features: [
+      '12 000 Points RG (+4 000 pts bonus géants)',
+      'Déblocage permanent de plus de 130 livres',
+      'Téléchargement MP3 direct sur tous vos appareils',
+      'Statut Membre d\'Honneur Read\'s Great Studio',
     ],
   },
 ];
 
 const TABS = [
-  { id: 'plans', label: 'Pass Premium', icon: Crown },
-  { id: 'earn', label: 'Gagner des Points', icon: Sparkles },
+  { id: 'packs', label: 'Acheter des Points ⭐', icon: Sparkles },
+  { id: 'earn', label: 'Gagner des Points Gratuits 🎁', icon: Gift },
 ];
 
 // Convertit le ratio string en style CSS inline (padding-bottom trick)
@@ -150,8 +220,8 @@ function AdBandCard({ ad, onWatch }) {
 }
 
 export const StoreView = ({ onSelectPlan }) => {
-  const [activeTab, setActiveTab] = useState('plans');
-  const [selected, setSelected] = useState('pass_month');
+  const [activeTab, setActiveTab] = useState('packs');
+  const [selected, setSelected] = useState('pack_1000');
   const [earnAds, setEarnAds] = useState([]);
   const [isLoadingAds, setIsLoadingAds] = useState(false);
   // visibleAdIds : IDs des pubs visibles dans la bande (les vues disparaissent)
@@ -269,54 +339,83 @@ export const StoreView = ({ onSelectPlan }) => {
         })}
       </div>
 
-      {/* ── TAB PASS PREMIUM ── */}
-      {activeTab === 'plans' && (
+      {/* ── TAB PACKS DE POINTS (À PARTIR DE 500 FCFA) ── */}
+      {activeTab === 'packs' && (
         <>
           <div className="text-center py-2 sm:py-4 max-w-xl mx-auto space-y-3 px-4">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-purple-500/15 border border-purple-500/30 text-purple-300 text-xs font-semibold tracking-wide">
-              <Crown className="w-4 h-4 text-amber-400" />
-              <span>Boutique &amp; Pass Premium</span>
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-black tracking-wide shadow-md">
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              <span>Boutique Officielle · Packs de Points RG Play</span>
             </div>
-            <h1 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight leading-tight">
-              Accédez à tout le catalogue{' '}
-              <span className="bg-gradient-to-r from-purple-400 via-fuchsia-400 to-pink-400 bg-clip-text text-transparent">
-                en illimité
+            <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight leading-tight">
+              Achetez des Points pour débloquer{' '}
+              <span className="bg-gradient-to-r from-amber-400 via-orange-400 to-pink-500 bg-clip-text text-transparent">
+                en 1 Clic
               </span>
             </h1>
             <p className="text-xs sm:text-sm text-slate-300 max-w-md mx-auto leading-relaxed">
-              Débloquez l'intégralité des œuvres audio, podcasts et analyses avec paiement instantané Orange Money, MTN MoMo et Carte.
+              À partir de <strong>500 FCFA</strong> seulement. Zéro abonnement récurrent : vos points sont valables à vie et crédités immédiatement par Mobile Money.
             </p>
+
+            {/* Solde actuel de l'utilisateur */}
+            <div className="inline-flex items-center gap-3 px-5 py-2.5 rounded-2xl bg-amber-950/40 border border-amber-400/40 shadow-xl backdrop-blur-md">
+              <span className="text-xs text-amber-300/80 font-bold uppercase tracking-wider">Votre solde :</span>
+              <span className="text-lg sm:text-xl font-black text-amber-300 flex items-center gap-1">
+                <span>⭐</span> {points} <span className="text-xs font-semibold text-amber-400/80">points</span>
+              </span>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 max-w-4xl mx-auto px-4">
-            {PLANS.map((plan) => {
-              const isActive = selected === plan.id;
+          {/* Grille des Packs de Points */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 max-w-6xl mx-auto px-4">
+            {POINT_PACKS.map((pack) => {
+              const isActive = selected === pack.id;
               return (
                 <div
-                  key={plan.id}
-                  onClick={() => setSelected(plan.id)}
-                  className={`relative rounded-3xl p-6 sm:p-7 flex flex-col justify-between cursor-pointer border transition-all duration-300 ${
+                  key={pack.id}
+                  onClick={() => setSelected(pack.id)}
+                  className={`relative rounded-3xl p-6 flex flex-col justify-between cursor-pointer border transition-all duration-300 ${
                     isActive
-                      ? `bg-[#1e0e37] ${plan.border} ${plan.glow} scale-[1.02]`
-                      : 'bg-[#150a27]/80 border-purple-500/20 hover:border-purple-500/40 hover:bg-[#1b0d33]'
+                      ? `bg-[#1e0e37] ${pack.border} ${pack.glow} scale-[1.02]`
+                      : 'bg-[#150a27]/80 border-purple-500/20 hover:border-amber-500/40 hover:bg-[#1b0d33]'
                   }`}
                 >
-                  <div className="flex items-center justify-between gap-2 mb-4">
-                    <span className={`text-[11px] font-bold px-3 py-1 rounded-full border backdrop-blur-md ${plan.badgeStyle}`}>
-                      {plan.badge}
-                    </span>
-                    <Crown className={`w-5 h-5 ${plan.id === 'pass_vip' ? 'text-amber-400' : 'text-purple-400'}`} />
-                  </div>
                   <div>
-                    <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">{plan.title}</h2>
-                    <p className="text-xs text-purple-200/70 mt-1 mb-5">{plan.subtitle}</p>
-                    <div className="flex items-baseline gap-2 pb-5 border-b border-purple-500/20 mb-5">
-                      <span className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">{plan.price}</span>
-                      <span className="text-xs sm:text-sm text-purple-300 font-medium">{plan.unit}</span>
+                    {/* Badge Haut */}
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                      <span className={`text-[10.5px] font-black px-3 py-1 rounded-full border backdrop-blur-md ${pack.badgeStyle}`}>
+                        {pack.badge}
+                      </span>
+                      <span className="text-amber-400 text-lg">⭐</span>
                     </div>
-                    <ul className="space-y-3 mb-6">
-                      {plan.features.map((feat, i) => (
-                        <li key={i} className="flex items-start gap-2.5 text-xs sm:text-sm text-slate-200 leading-snug">
+
+                    {/* Titre & Sous-titre */}
+                    <h2 className="text-xl font-black text-white tracking-tight">{pack.title}</h2>
+                    <p className="text-xs text-purple-200/70 mt-1 mb-4">{pack.subtitle}</p>
+
+                    {/* Bloc Points Géant Lumineux */}
+                    <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-400/30 mb-4 flex items-center justify-between">
+                      <div>
+                        <div className="text-2xl sm:text-3xl font-black text-amber-300 tracking-tight flex items-center gap-1">
+                          <span>{pack.totalPoints}</span>
+                          <span className="text-xs font-extrabold uppercase text-amber-400/90">Points</span>
+                        </div>
+                        <div className="text-[10px] text-emerald-400 font-bold mt-0.5">
+                          {pack.points} pts + {pack.bonusPoints} pts offerts 🎉
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                          {pack.price}
+                        </div>
+                        <div className="text-[10px] text-purple-300 font-bold">{pack.unit}</div>
+                      </div>
+                    </div>
+
+                    {/* Liste des Avantages */}
+                    <ul className="space-y-2.5 mb-6">
+                      {pack.features.map((feat, i) => (
+                        <li key={i} className="flex items-start gap-2.5 text-xs text-slate-200 leading-snug">
                           <div className="w-4 h-4 rounded-full bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center flex-shrink-0 mt-0.5">
                             <Check className="w-2.5 h-2.5 text-emerald-400 stroke-[3]" />
                           </div>
@@ -325,23 +424,28 @@ export const StoreView = ({ onSelectPlan }) => {
                       ))}
                     </ul>
                   </div>
+
+                  {/* Bouton Acheter Direct Mobile Money */}
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       onSelectPlan?.({
-                        id: plan.id,
-                        title: plan.title,
-                        price: plan.rawPrice,
+                        id: pack.id,
+                        title: `${pack.title} (${pack.totalPoints} Pts)`,
+                        price: pack.rawPrice,
+                        is_point_pack: true,
+                        points_reward: pack.totalPoints,
+                        xp_reward: Math.round(pack.rawPrice / 10),
                         cover_url: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=400&q=80',
-                        author: 'RG Play VIP',
-                        description: plan.features.join(' · '),
+                        author: 'Recharge Points RG Play',
+                        description: `${pack.totalPoints} points crédités immédiatement pour débloquer des livres audio en 1 clic.`,
                       });
                     }}
-                    className={`w-full py-3.5 rounded-2xl font-bold text-sm text-white bg-gradient-to-r ${plan.accent} hover:opacity-95 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer`}
+                    className={`w-full py-3.5 rounded-2xl font-black text-xs sm:text-sm text-white bg-gradient-to-r ${pack.accent} hover:opacity-95 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-xl cursor-pointer`}
                   >
                     <Zap className="w-4 h-4 fill-white" />
-                    <span>Souscrire maintenant</span>
+                    <span>Acheter ce Pack ({pack.price} FCFA)</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -352,12 +456,12 @@ export const StoreView = ({ onSelectPlan }) => {
           <div className="max-w-md mx-auto px-4 mt-8 space-y-3 text-center">
             <div className="flex items-center justify-center gap-2 text-xs text-purple-200/70">
               <Shield className="w-4 h-4 text-emerald-400" />
-              <span>Paiement 100% sécurisé · Sans engagement · Accès instantané</span>
+              <span>Paiement 100% sécurisé · Sans abonnement récurrent · Points à vie</span>
             </div>
             <div className="flex items-center justify-center gap-2.5 flex-wrap pt-1">
               <span className="px-3 py-1 rounded-xl bg-white/5 border border-white/10 text-xs font-semibold text-amber-300">🟧 Orange Money</span>
               <span className="px-3 py-1 rounded-xl bg-white/5 border border-white/10 text-xs font-semibold text-yellow-300">🟨 MTN MoMo</span>
-              <span className="px-3 py-1 rounded-xl bg-white/5 border border-white/10 text-xs font-semibold text-cyan-300">💳 Carte Bancaire</span>
+              <span className="px-3 py-1 rounded-xl bg-white/5 border border-white/10 text-xs font-semibold text-cyan-300">💳 Carte / Wave</span>
             </div>
           </div>
         </>

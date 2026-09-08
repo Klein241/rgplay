@@ -190,21 +190,20 @@ export const Header = ({
                 </button>
               )}
 
-            {/* Solde de Points Récompenses — Monétisation & Engagement */}
+            {/* Solde de Points Récompenses — Monétisation & Engagement (Agrandit + Bordure Clignotante) */}
             {!isAdminMode && (
               <button
                 type="button"
                 onClick={() => window.dispatchEvent(new Event('rg:open-reward-ad'))}
-                title="Vos Points Read's Great — Cliquez pour regarder une pub et en gagner plus"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black border transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-md"
-                style={{
-                  background: 'linear-gradient(135deg, rgba(245,158,11,0.20), rgba(217,119,6,0.25))',
-                  borderColor: 'rgba(245,158,11,0.45)',
-                  color: '#fbbf24',
-                }}
+                title="Gagner des points gratuits — Regardez une courte pub partenaire"
+                className="btn-blinking-border flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs font-black transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-xl bg-gradient-to-r from-amber-500/30 via-orange-500/25 to-pink-500/30 text-amber-300 border-amber-400"
               >
-                <span>⭐</span>
-                <span>{points} pts</span>
+                <span className="text-sm animate-bounce">🎁</span>
+                <span className="hidden sm:inline font-black tracking-wide text-white">GAGNER DES POINTS</span>
+                <span className="sm:hidden font-black text-white">POINTS</span>
+                <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-black text-[10.5px] shadow-sm ml-0.5">
+                  {points} pts
+                </span>
               </button>
             )}
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Pause, Headphones, Sparkles, Share2, Star, BookOpen, Heart, Download, CheckCircle2, Loader2 } from 'lucide-react';
+import { Play, Pause, Headphones, Sparkles, Share2, Star, BookOpen, Heart, Download, CheckCircle2, Loader2, Info } from 'lucide-react';
 import { useAudio } from '../context/AudioContext';
 import { shareAudioWithCover } from '../utils/shareUtils';
 import { trackAction } from '../services/tracker';
@@ -12,7 +12,8 @@ export const AudiobookCard = ({
   onSelect,
   isPurchased = false,
   layout = 'square', // 'square' | 'pill' | 'track' | 'grid'
-  onBuyClick
+  onBuyClick,
+  onViewDetails
 }) => {
   const { currentBook, isPlaying, playPreview, playBook } = useAudio();
   const [copied, setCopied] = useState(false);
@@ -181,16 +182,13 @@ export const AudiobookCard = ({
     e.stopPropagation();
     // Les livres PDF/Ebook ouvrent la fiche ou la liseuse, pas le lecteur audio
     if (isPureEbook) {
-      onSelect(book);
+      if (onViewDetails) onViewDetails(book);
+      else onSelect(book);
       return;
     }
-    if (isPurchased || isTrulyFree || book.is_free_for_members) {
-      playBook(book, 0, 0);
-      trackAction('preview_click', book.id);
-    } else {
-      playPreview(book);
-      trackAction('preview_click', book.id);
-    }
+    // Déclenche l'action directe (débit automatique des points et démarrage immédiat de la lecture)
+    onSelect(book);
+    trackAction('preview_click', book.id);
   };
 
   const handleShare = async (e) => {
@@ -275,6 +273,18 @@ export const AudiobookCard = ({
           </div>
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onViewDetails) onViewDetails(book);
+              else onSelect(book);
+            }}
+            title="Consulter la fiche descriptive et le résumé"
+            className="w-7 h-7 rounded-full bg-white/5 hover:bg-purple-600/30 border border-white/10 text-purple-200 hover:text-white flex items-center justify-center transition-all hover:scale-105 cursor-pointer"
+          >
+            <Info className="w-3.5 h-3.5" />
+          </button>
           <button
             type="button"
             onClick={handleToggleFavorite}
@@ -465,13 +475,26 @@ export const AudiobookCard = ({
           </div>
         )}
 
-        {/* Price / Free Badge + Bouton Favoris (❤️) */}
+        {/* Price / Free Badge + Bouton Favoris (❤️) + Bouton Détails (ℹ️) */}
         <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 z-10">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onViewDetails) onViewDetails(book);
+              else onSelect(book);
+            }}
+            title="Consulter la description complète et le résumé"
+            className="w-7 h-7 rounded-full bg-black/60 hover:bg-purple-900/80 backdrop-blur-md border border-white/20 flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-md text-purple-200 hover:text-white cursor-pointer"
+          >
+            <Info className="w-3.5 h-3.5" />
+          </button>
+
           <button
             type="button"
             onClick={handleToggleFavorite}
             title={isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}
-            className="w-7 h-7 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/20 flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-md"
+            className="w-7 h-7 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/20 flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-md cursor-pointer"
           >
             <Heart className={`w-3.5 h-3.5 transition-colors ${isFavorite ? 'text-rose-400 fill-rose-400' : 'text-white/90'}`} />
           </button>

@@ -877,5 +877,25 @@ input, textarea, select {
   to   { width: 100%; }
 }
 
+/* ── Bordure Clignotante & Pulsante (Gagner des points / Offres Chocs) ── */
+@keyframes blinkGlowBorder {
+  0%, 100% {
+    border-color: rgba(251, 191, 36, 1);
+    box-shadow: 0 0 16px rgba(251, 191, 36, 0.75), 0 0 30px rgba(245, 158, 11, 0.4), inset 0 0 8px rgba(251, 191, 36, 0.25);
+    transform: scale(1);
+  }
+  50% {
+    border-color: rgba(244, 63, 142, 1);
+    box-shadow: 0 0 22px rgba(244, 63, 142, 0.85), 0 0 35px rgba(217, 70, 239, 0.5), inset 0 0 10px rgba(244, 63, 142, 0.35);
+    transform: scale(1.025);
+  }
+}
 
+.btn-blinking-border {
+  animation: blinkGlowBorder 1.8s infinite ease-in-out;
+  border-width: 2px !important;
+}
 
+.badge-blinking-border {
+  animation: blinkGlowBorder 1.5s infinite ease-in-out;
+}
