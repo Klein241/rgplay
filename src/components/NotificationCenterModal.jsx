@@ -56,7 +56,7 @@ export const NotificationCenterModal = ({ isOpen, onClose, onNavigateContent }) 
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
                 Centre de Notifications
                 {unreadCount > 0 && (
-                  <span className="px-2 py-0.5 rounded-full text-[11px] font-black bg-purple-600 text-white">
+                  <span className="px-2 py-0.5 rounded-full text-2xs font-black bg-purple-600 text-white">
                     {unreadCount}
                   </span>
                 )}
@@ -96,19 +96,19 @@ export const NotificationCenterModal = ({ isOpen, onClose, onNavigateContent }) 
 
         {/* Statut permission push si non accordée */}
         {permission !== 'granted' && (
-          <div className="p-4 mx-4 mt-4 rounded-2xl bg-gradient-to-r from-purple-900/40 via-fuchsia-900/30 to-pink-900/40 border border-purple-400/40 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-lg shadow-purple-950/50">
+          <div className="p-4 mx-4 mt-4 rounded-2xl bg-linear-to-r from-purple-900/40 via-fuchsia-900/30 to-pink-900/40 border border-purple-400/40 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-lg shadow-purple-950/50">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-purple-600/30 border border-purple-400/40 flex items-center justify-center text-purple-300 shrink-0">
                 <Bell size={20} className="animate-bounce fill-purple-300" />
               </div>
               <div>
                 <p className="text-xs font-bold text-white">Alertes directes sur votre appareil</p>
-                <p className="text-[11px] text-purple-200/80">Ne manquez plus les nouveaux livres audio et promotions.</p>
+                <p className="text-2xs text-purple-200/80">Ne manquez plus les nouveaux livres audio et promotions.</p>
               </div>
             </div>
             <button
               onClick={requestPermission}
-              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-xs font-black tracking-wide whitespace-nowrap shadow-md shadow-purple-600/40 hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+              className="px-4 py-2.5 rounded-xl bg-linear-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-xs font-black tracking-wide whitespace-nowrap shadow-md shadow-purple-600/40 hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5"
             >
               <Bell size={14} className="fill-white" />
               <span>Activer les Notifications</span>
@@ -132,7 +132,7 @@ export const NotificationCenterModal = ({ isOpen, onClose, onNavigateContent }) 
                 className={`pt-2.5 first:pt-0 flex items-start gap-3 p-3 rounded-2xl cursor-pointer transition-all duration-200
                   ${notif.read ? 'hover:bg-white/5 opacity-75' : 'bg-purple-500/10 border border-purple-500/20 hover:bg-purple-500/15'}`}
               >
-                <div className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <div className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0 mt-0.5">
                   {getTypeIcon(notif.type)}
                 </div>
 
@@ -156,7 +156,7 @@ export const NotificationCenterModal = ({ isOpen, onClose, onNavigateContent }) 
                     e.stopPropagation();
                     clearNotification(notif.id);
                   }}
-                  className="text-slate-600 hover:text-slate-400 p-1 rounded-lg transition-colors flex-shrink-0"
+                  className="text-slate-600 hover:text-slate-400 p-1 rounded-lg transition-colors shrink-0"
                   title="Supprimer"
                 >
                   <X size={14} />
@@ -168,7 +168,7 @@ export const NotificationCenterModal = ({ isOpen, onClose, onNavigateContent }) 
 
         {/* Pied de page */}
         <div className="p-3 border-t border-white/10 bg-white/5 text-center">
-          <p className="text-[11px] text-slate-500">
+          <p className="text-2xs text-slate-500">
             RG Play • Notifications et recommandations intelligentes
           </p>
         </div>

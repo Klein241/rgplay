@@ -39,7 +39,7 @@ export const SpeedSelectorModal = ({ isOpen, onClose }) => {
                 }}
                 className={`py-3 px-3 rounded-2xl text-sm font-bold flex flex-col items-center justify-center transition-all ${
                   isSelected
-                    ? 'bg-gradient-to-tr from-purple-600 to-pink-500 text-white shadow-lg shadow-purple-500/40 scale-105'
+                    ? 'bg-linear-to-tr from-purple-600 to-pink-500 text-white shadow-lg shadow-purple-500/40 scale-105'
                     : 'bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10'
                 }`}
               >
@@ -50,7 +50,7 @@ export const SpeedSelectorModal = ({ isOpen, onClose }) => {
           })}
         </div>
 
-        <p className="text-[11px] text-center text-slate-400">
+        <p className="text-2xs text-center text-slate-400">
           La vitesse sélectionnée est conservée pour tous vos livres audio.
         </p>
       </div>

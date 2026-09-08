@@ -176,7 +176,7 @@ export const DropZone = ({ label, accept, type, icon: Icon = UploadCloud, value,
 
         {status === 'uploading' && (
           <div
-            className="absolute top-0 left-0 h-1.5 bg-gradient-to-r from-purple-500 via-fuchsia-500 to-pink-500 transition-all duration-200"
+            className="absolute top-0 left-0 h-1.5 bg-linear-to-r from-purple-500 via-fuchsia-500 to-pink-500 transition-all duration-200"
             style={{ width: `${progress}%`, boxShadow: '0 0 12px rgba(168, 85, 247, 0.80)' }}
           />
         )}
@@ -241,7 +241,7 @@ export const DropZone = ({ label, accept, type, icon: Icon = UploadCloud, value,
                 <p className="text-xs text-slate-400 mt-1 font-medium">ou cliquez pour parcourir votre appareil</p>
               </div>
               <div className="flex flex-wrap justify-center gap-2 mt-1">
-                <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-white/5 border border-white/10 text-slate-300">
+                <span className="text-2xs font-bold px-3 py-1 rounded-full bg-white/5 border border-white/10 text-slate-300">
                   {accept.split(',').join(' • ')}
                 </span>
               </div>
@@ -251,10 +251,10 @@ export const DropZone = ({ label, accept, type, icon: Icon = UploadCloud, value,
           {status === 'compressing' && (
             <div className="text-center w-full space-y-1">
               <p className="text-xs font-black text-cyan-300 uppercase tracking-wider">Compression & Optimisation DSP...</p>
-              <p className="text-[11px] text-slate-400 font-medium">{fileInfo?.name}</p>
+              <p className="text-2xs text-slate-400 font-medium">{fileInfo?.name}</p>
               <div className="mt-3 flex items-center justify-center gap-2">
                 <div className="w-36 h-2 rounded-full bg-white/10 overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-cyan-500 to-purple-500 rounded-full transition-all" style={{ width: `${progress}%` }} />
+                  <div className="h-full bg-linear-to-r from-cyan-500 to-purple-500 rounded-full transition-all" style={{ width: `${progress}%` }} />
                 </div>
                 <span className="text-xs font-bold text-cyan-300 font-mono">{progress}%</span>
               </div>
@@ -264,10 +264,10 @@ export const DropZone = ({ label, accept, type, icon: Icon = UploadCloud, value,
           {status === 'uploading' && (
             <div className="text-center w-full space-y-1">
               <p className="text-xs font-black text-purple-300 uppercase tracking-wider">Envoi Cloud Audio...</p>
-              <p className="text-[11px] text-slate-400 font-medium">{fileInfo?.name}</p>
+              <p className="text-2xs text-slate-400 font-medium">{fileInfo?.name}</p>
               <div className="mt-3 flex items-center justify-center gap-2">
                 <div className="w-36 h-2 rounded-full bg-white/10 overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all" style={{ width: `${progress}%` }} />
+                  <div className="h-full bg-linear-to-r from-purple-500 to-pink-500 rounded-full transition-all" style={{ width: `${progress}%` }} />
                 </div>
                 <span className="text-xs font-bold text-purple-300 font-mono">{progress}%</span>
               </div>
@@ -277,11 +277,11 @@ export const DropZone = ({ label, accept, type, icon: Icon = UploadCloud, value,
           {status === 'done' && (
             <div className="text-center space-y-1">
               <p className="text-xs font-black text-emerald-300 uppercase tracking-wider">✓ Fichier Prêt</p>
-              <p className="text-xs text-slate-200 font-bold truncate max-w-[260px]">{fileInfo?.name || value}</p>
+              <p className="text-xs text-slate-200 font-bold truncate max-w-65">{fileInfo?.name || value}</p>
               {compressionInfo ? (
-                <p className="text-[11px] text-cyan-300 font-semibold mt-1 bg-cyan-500/10 px-3 py-1 rounded-full border border-cyan-500/20 inline-block">{compressionInfo}</p>
+                <p className="text-2xs text-cyan-300 font-semibold mt-1 bg-cyan-500/10 px-3 py-1 rounded-full border border-cyan-500/20 inline-block">{compressionInfo}</p>
               ) : (
-                <p className="text-[11px] text-slate-400">{fileInfo?.originalSize ? formatSize(fileInfo.originalSize) : ''}</p>
+                <p className="text-2xs text-slate-400">{fileInfo?.originalSize ? formatSize(fileInfo.originalSize) : ''}</p>
               )}
               {type !== 'cover' && (
                 <button type="button" onClick={reset} className="text-xs text-purple-300 hover:text-rose-400 font-bold mt-1.5 underline block mx-auto cursor-pointer">
@@ -294,7 +294,7 @@ export const DropZone = ({ label, accept, type, icon: Icon = UploadCloud, value,
           {status === 'error' && (
             <div className="text-center space-y-1">
               <p className="text-xs font-black text-rose-300 uppercase tracking-wider">Échec de l'upload</p>
-              <p className="text-xs text-rose-400 max-w-[240px]">{error}</p>
+              <p className="text-xs text-rose-400 max-w-60">{error}</p>
               <button type="button" onClick={(e) => { e.stopPropagation(); setStatus('idle'); setError(''); }} className="text-xs text-purple-300 hover:text-white font-bold underline mt-1 block mx-auto cursor-pointer">
                 Réessayer
               </button>

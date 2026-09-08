@@ -43,7 +43,7 @@ export const BottomNav = ({ activeTab, setActiveTab, onOpenStore, onOpenAgentSky
             DÉCOUVRIR
           </span>
           {activeTab === 'discover' && (
-            <span className="w-1.5 h-1.5 rounded-full bg-[#d8b4fe] shadow-[0_0_8px_#d8b4fe] -mt-0.5" />
+            <span className="w-1.5 h-1.5 rounded-full bg-rg-violet shadow-[0_0_8px_#d8b4fe] -mt-0.5" />
           )}
         </button>
 
@@ -60,12 +60,12 @@ export const BottomNav = ({ activeTab, setActiveTab, onOpenStore, onOpenAgentSky
             E-BOOKS & PDF
           </span>
           {activeTab === 'library' && (
-            <span className="w-1.5 h-1.5 rounded-full bg-[#d8b4fe] shadow-[0_0_8px_#d8b4fe] -mt-0.5" />
+            <span className="w-1.5 h-1.5 rounded-full bg-rg-violet shadow-[0_0_8px_#d8b4fe] -mt-0.5" />
           )}
         </button>
 
         {/* 3. HERO CENTRAL BUTTON (Agent SKY / Disque en lecture @iSalmanArt) */}
-        <div className="relative -mt-6 px-1 flex-shrink-0">
+        <div className="relative -mt-6 px-1 shrink-0">
           <button
             onClick={handleCenterClick}
             className="group relative w-13 h-13 rounded-full p-0.5 flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95 cursor-pointer"
@@ -84,7 +84,7 @@ export const BottomNav = ({ activeTab, setActiveTab, onOpenStore, onOpenAgentSky
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center text-cyan-300">
-                  <Sparkles className="w-5 h-5 text-[#d8b4fe] animate-pulse" />
+                  <Sparkles className="w-5 h-5 text-rg-violet animate-pulse" />
                 </div>
               )}
             </div>
@@ -108,7 +108,7 @@ export const BottomNav = ({ activeTab, setActiveTab, onOpenStore, onOpenAgentSky
             BOUTIQUE
           </span>
           {activeTab === 'store' && (
-            <span className="w-1.5 h-1.5 rounded-full bg-[#d8b4fe] shadow-[0_0_8px_#d8b4fe] -mt-0.5" />
+            <span className="w-1.5 h-1.5 rounded-full bg-rg-violet shadow-[0_0_8px_#d8b4fe] -mt-0.5" />
           )}
         </button>
 
@@ -124,7 +124,7 @@ export const BottomNav = ({ activeTab, setActiveTab, onOpenStore, onOpenAgentSky
             COMPTE
           </span>
           {activeTab === 'profile' && (
-            <span className="w-1.5 h-1.5 rounded-full bg-[#d8b4fe] shadow-[0_0_8px_#d8b4fe] -mt-0.5" />
+            <span className="w-1.5 h-1.5 rounded-full bg-rg-violet shadow-[0_0_8px_#d8b4fe] -mt-0.5" />
           )}
         </button>
       </div>

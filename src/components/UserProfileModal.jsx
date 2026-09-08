@@ -108,7 +108,7 @@ export const UserProfileModal = ({ isOpen, onClose, onProfileSaved }) => {
         {/* En-tête */}
         <div className="p-5 border-b border-white/10 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-600 to-pink-500 flex items-center justify-center text-white shadow-lg shadow-purple-500/30">
+            <div className="w-10 h-10 rounded-2xl bg-linear-to-tr from-purple-600 to-pink-500 flex items-center justify-center text-white shadow-lg shadow-purple-500/30">
               <User size={20} />
             </div>
             <div>
@@ -165,7 +165,7 @@ export const UserProfileModal = ({ isOpen, onClose, onProfileSaved }) => {
 
               <div>
                 <p className="text-xs font-bold text-white">Choisissez parmi nos avatars</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">ou cliquez sur l'appareil photo pour importer</p>
+                <p className="text-2xs text-slate-400 mt-0.5">ou cliquez sur l'appareil photo pour importer</p>
               </div>
             </div>
 
@@ -258,7 +258,7 @@ export const UserProfileModal = ({ isOpen, onClose, onProfileSaved }) => {
             <button
               type="submit"
               disabled={isSaving || !name.trim()}
-              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-purple-600 via-fuchsia-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-sm font-bold shadow-lg shadow-purple-600/30 flex items-center justify-center gap-2 active:scale-98 transition-all disabled:opacity-50"
+              className="w-full py-3.5 rounded-2xl bg-linear-to-r from-purple-600 via-fuchsia-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-sm font-bold shadow-lg shadow-purple-600/30 flex items-center justify-center gap-2 active:scale-98 transition-all disabled:opacity-50"
             >
               {isSaving ? 'Enregistrement...' : '✨ Enregistrer & Débloquer mon profil'}
             </button>

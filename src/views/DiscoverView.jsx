@@ -259,7 +259,7 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
 
       {/* ── TOAST FLOTTANT CONFIRMATION DÉBIT POINTS ── */}
       {toastMessage && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-purple-900/95 via-fuchsia-900/95 to-amber-900/95 border border-amber-400/60 text-white font-bold text-xs sm:text-sm shadow-2xl backdrop-blur-xl animate-slideDown flex items-center gap-2">
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-2xl bg-linear-to-r from-purple-900/95 via-fuchsia-900/95 to-amber-900/95 border border-amber-400/60 text-white font-bold text-xs sm:text-sm shadow-2xl backdrop-blur-xl animate-slideDown flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-amber-300 animate-spin" />
           <span>{toastMessage}</span>
         </div>
@@ -294,20 +294,20 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
               </button>
             </div>
           ) : (
-            <p className="text-[11px] sm:text-xs text-[#a78bfa] mt-1 font-medium">
+            <p className="text-2xs sm:text-xs text-[#a78bfa] mt-1 font-medium">
               Explorez nos livres audio, podcasts et narrations immersives
             </p>
           )}
         </div>
 
         {/* Actions Droite : BOUTON GAGNER DES POINTS (Bordure Clignotante), Recherche & BULLE (+) */}
-        <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-between sm:justify-end flex-shrink-0" ref={bubbleRef}>
+        <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-between sm:justify-end shrink-0" ref={bubbleRef}>
           {/* Bouton Héroïque Gagner des Points avec Bordure Clignotante */}
           <button
             type="button"
             onClick={() => window.dispatchEvent(new Event('rg:open-reward-ad'))}
             title="Regardez une vidéo partenaire pour gagner des points immédiatement"
-            className="btn-blinking-border flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-2xl text-xs sm:text-sm font-black bg-gradient-to-r from-amber-500/30 via-orange-500/25 to-pink-500/30 border-amber-400 text-amber-300 shadow-xl hover:scale-105 active:scale-95 transition-all cursor-pointer"
+            className="btn-blinking-border flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-2xl text-xs sm:text-sm font-black bg-linear-to-r from-amber-500/30 via-orange-500/25 to-pink-500/30 border-amber-400 text-amber-300 shadow-xl hover:scale-105 active:scale-95 transition-all cursor-pointer"
           >
             <span className="text-base animate-bounce">🎁</span>
             <span className="text-white font-extrabold tracking-wide">Gagner des points</span>
@@ -371,7 +371,7 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
                           }}
                           className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl font-bold text-xs sm:text-sm transition-all cursor-pointer border ${
                             isActive
-                              ? `bg-gradient-to-r ${f.color} text-white border-white/40 shadow-lg scale-[1.02]`
+                              ? `bg-linear-to-r ${f.color} text-white border-white/40 shadow-lg scale-[1.02]`
                               : 'bg-white/5 hover:bg-white/10 text-purple-100 border-white/10'
                           }`}
                         >
@@ -403,7 +403,7 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
                           }}
                           className={`flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-xs transition-all cursor-pointer border ${
                             isActive
-                              ? `bg-gradient-to-r ${f.color} text-white border-white/40 shadow-md scale-[1.02]`
+                              ? `bg-linear-to-r ${f.color} text-white border-white/40 shadow-md scale-[1.02]`
                               : 'bg-white/5 hover:bg-white/10 text-purple-200 border-white/10'
                           }`}
                         >
@@ -498,20 +498,20 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
               }}
             >
               <div className="relative p-5 sm:p-7 flex flex-col sm:flex-row items-center gap-5 sm:gap-7">
-                <div className="relative w-36 h-36 sm:w-44 sm:h-44 rounded-2xl overflow-hidden flex-shrink-0 shadow-2xl border border-purple-400/40 group-hover:scale-105 transition-transform duration-500">
+                <div className="relative w-36 h-36 sm:w-44 sm:h-44 rounded-2xl overflow-hidden shrink-0 shadow-2xl border border-purple-400/40 group-hover:scale-105 transition-transform duration-500">
                   <img
                     src={currentFeatured.cover_url || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80'}
                     alt={currentFeatured.title}
                     className="w-full h-full object-cover"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                  <div className="absolute inset-0 bg-linear-to-t from-black/60 to-transparent" />
                   <div className="absolute bottom-2.5 right-2.5 w-10 h-10 rounded-full bg-white/20 backdrop-blur-md border border-white/40 flex items-center justify-center text-white">
                     <Play className="w-5 h-5 ml-0.5 fill-white" />
                   </div>
                 </div>
 
                 <div className="flex-1 text-center sm:text-left min-w-0">
-                  <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-purple-500/30 to-pink-500/30 text-white border border-purple-400/50 shadow-sm flex items-center gap-1.5 w-fit mx-auto sm:mx-0">
+                  <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-linear-to-r from-purple-500/30 to-pink-500/30 text-white border border-purple-400/50 shadow-sm flex items-center gap-1.5 w-fit mx-auto sm:mx-0">
                     {currentFeatured.is_pinned || currentFeatured.badge === 'À LA UNE'
                       ? '🔥 À LA UNE'
                       : currentFeatured.is_featured || currentFeatured.badge === 'VEDETTE'

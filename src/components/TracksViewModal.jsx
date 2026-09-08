@@ -56,7 +56,7 @@ export const TracksViewModal = ({ isOpen, onClose, onSelectBook }) => {
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                   />
                 </div>
-                <p className="text-[11px] font-bold text-white truncate">
+                <p className="text-2xs font-bold text-white truncate">
                   {ch.title || `Chapitre ${idx + 1}`}
                 </p>
                 <p className="text-[9.5px] text-[#c4b0e8] truncate">
@@ -82,7 +82,7 @@ export const TracksViewModal = ({ isOpen, onClose, onSelectBook }) => {
                   onClick={() => selectChapter(idx)}
                   className={`flex items-center justify-between p-3 rounded-2xl cursor-pointer transition-all ${
                     isCurrent
-                      ? 'bg-gradient-to-r from-[#34185d]/90 to-[#200d3a]/90 border border-purple-400/50 shadow-md'
+                      ? 'bg-linear-to-r from-[#34185d]/90 to-[#200d3a]/90 border border-purple-400/50 shadow-md'
                       : 'hover:bg-[#200d3a]/60 border border-purple-500/10'
                   }`}
                 >
@@ -91,7 +91,7 @@ export const TracksViewModal = ({ isOpen, onClose, onSelectBook }) => {
                     <h4 className="text-xs sm:text-sm font-bold text-white truncate">
                       {ch.title || `Chapitre ${idx + 1}`}
                     </h4>
-                    <p className="text-[11px] text-[#a78bfa] mt-0.5">
+                    <p className="text-2xs text-[#a78bfa] mt-0.5">
                       {currentBook?.author || 'Auteur'} • {Math.round((ch.duration_seconds || 1800) / 60)}:00
                     </p>
 
@@ -108,7 +108,7 @@ export const TracksViewModal = ({ isOpen, onClose, onSelectBook }) => {
                   </div>
 
                   {/* Right Thumbnail */}
-                  <div className="relative w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 border border-purple-500/30 shadow-md">
+                  <div className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0 border border-purple-500/30 shadow-md">
                     <img
                       src={currentBook?.cover_url}
                       alt={ch.title}

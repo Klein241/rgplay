@@ -47,14 +47,14 @@ export const SettingsRubric = ({ systemStatus, books = [], checkStatus, loadBook
                   ? 'Serveur Persistant Local (data/db.json)'
                   : (systemStatus?.bindings?.d1?.connected ? 'Cloudflare D1 SQL Distribué' : 'Connecté')}
               </p>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-2xs text-slate-400">
                 {books.length} livres audio synchronisés • Accès partagé multi-utilisateurs
               </p>
             </div>
             <div className="p-4 rounded-2xl bg-white/4 border border-white/8 space-y-1.5">
               <p className="text-slate-400 font-medium">Stockage Audio & Pochette</p>
               <p className="text-cyan-400 font-bold text-sm">Cloudflare R2 Bucket (rg-play-audio)</p>
-              <p className="text-[11px] text-slate-400">Support streaming HTTP Range partiel</p>
+              <p className="text-2xs text-slate-400">Support streaming HTTP Range partiel</p>
             </div>
           </div>
         </div>

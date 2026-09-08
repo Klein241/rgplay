@@ -86,7 +86,7 @@ export const ReferralCard = ({ profile }) => {
             </div>
             <div>
               <p className="text-sm font-bold text-white">Parrainage &amp; Récompenses</p>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-2xs text-slate-400">
                 {data.referrals.length > 0
                   ? `${data.referrals.length} ami(s) parrainé(s) · ${data.referrals.length * 500} points gagnés`
                   : 'Invitez vos amis : 500 points pour vous, 500 points pour eux !'}
@@ -167,7 +167,7 @@ export const ReferralCard = ({ profile }) => {
                 ].map((item) => (
                   <div key={item.step} className="flex items-start gap-3">
                     <div
-                      className="w-6 h-6 rounded-lg flex items-center justify-center text-xs font-black text-white flex-shrink-0"
+                      className="w-6 h-6 rounded-lg flex items-center justify-center text-xs font-black text-white shrink-0"
                       style={{ background: 'linear-gradient(135deg, #f59e0b, #f97316)' }}
                     >
                       {item.step}

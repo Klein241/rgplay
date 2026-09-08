@@ -357,7 +357,7 @@ export const BookChatModal = ({ book, isOpen, onClose }) => {
       />
 
       {/* ── FOND LIQUID LAVENDER & AMBER GLOW (Agrandie & Spacieuse) ── */}
-      <div className="relative w-full max-w-xl sm:max-w-3xl h-full sm:h-[94vh] sm:max-h-[920px] sm:rounded-[2.5rem] bg-gradient-to-b from-[#2b1f48] via-[#1a1233] to-[#120a22] border border-purple-500/25 flex flex-col overflow-hidden shadow-2xl shadow-purple-950/80">
+      <div className="relative w-full max-w-xl sm:max-w-3xl h-full sm:h-[94vh] sm:max-h-230 sm:rounded-[2.5rem] bg-linear-to-b from-[#2b1f48] via-[#1a1233] to-[#120a22] border border-purple-500/25 flex flex-col overflow-hidden shadow-2xl shadow-purple-950/80">
         
         {/* Ambient warm amber glow bottom & top */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-96 bg-purple-600/15 rounded-full blur-3xl pointer-events-none" />
@@ -432,7 +432,7 @@ export const BookChatModal = ({ book, isOpen, onClose }) => {
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="relative w-11 h-11 rounded-xl overflow-hidden flex-shrink-0 border border-white/15">
+                    <div className="relative w-11 h-11 rounded-xl overflow-hidden shrink-0 border border-white/15">
                       <img src={coverUrl} alt="Cover" className="w-full h-full object-cover" />
                       <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                         <Play className="w-4 h-4 text-white fill-white" />
@@ -454,7 +454,7 @@ export const BookChatModal = ({ book, isOpen, onClose }) => {
                       ? 'border-amber-400 bg-amber-400 text-slate-950 font-bold'
                       : 'border-white/30'
                   }`}>
-                    {selectedAudioId === (ch.id || idx) && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                    {selectedAudioId === (ch.id || idx) && <Check className="w-3.5 h-3.5 stroke-3" />}
                   </div>
                 </div>
               ))}
@@ -463,7 +463,7 @@ export const BookChatModal = ({ book, isOpen, onClose }) => {
             {/* Bottom Action Button */}
             <button
               onClick={() => setViewMode('hero')}
-              className="w-full py-3.5 rounded-full bg-gradient-to-r from-[#818cf8] via-[#f59e0b] to-[#ea580c] hover:opacity-95 text-white font-black text-sm shadow-xl shadow-amber-900/40 transition-all hover:scale-[1.02] active:scale-95 cursor-pointer mt-2"
+              className="w-full py-3.5 rounded-full bg-linear-to-r from-[#818cf8] via-[#f59e0b] to-[#ea580c] hover:opacity-95 text-white font-black text-sm shadow-xl shadow-amber-900/40 transition-all hover:scale-[1.02] active:scale-95 cursor-pointer mt-2"
             >
               Sélectionner pour l'analyse (1)
             </button>
@@ -524,7 +524,7 @@ export const BookChatModal = ({ book, isOpen, onClose }) => {
               className="flex items-center justify-between p-3 rounded-2xl bg-black/40 border border-white/15 backdrop-blur-xl mb-3 cursor-pointer hover:border-purple-400 transition-all"
             >
               <div className="flex items-center gap-3 min-w-0">
-                <div className="relative w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 border border-white/20">
+                <div className="relative w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-white/20">
                   <img src={coverUrl} alt="Cover" className="w-full h-full object-cover" />
                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                     <Play className="w-3.5 h-3.5 text-white fill-white" />
@@ -540,7 +540,7 @@ export const BookChatModal = ({ book, isOpen, onClose }) => {
                   </p>
                 </div>
               </div>
-              <span className="text-[11px] font-bold text-purple-300">Modifier</span>
+              <span className="text-2xs font-bold text-purple-300">Modifier</span>
             </div>
 
             {/* Selected Image Preview if present */}
@@ -548,7 +548,7 @@ export const BookChatModal = ({ book, isOpen, onClose }) => {
               <div className="mb-2 flex items-center gap-2 p-2 rounded-xl bg-purple-950/80 border border-purple-400/40 text-xs text-white">
                 <img src={selectedImage.dataUrl} alt="Aperçu" className="w-9 h-9 object-cover rounded-lg border border-white/20" />
                 <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-bold text-amber-300 truncate">Couverture prête à scanner</p>
+                  <p className="text-2xs font-bold text-amber-300 truncate">Couverture prête à scanner</p>
                   <p className="text-[9px] text-slate-300 truncate">{selectedImage.name}</p>
                 </div>
                 <button
@@ -598,7 +598,7 @@ export const BookChatModal = ({ book, isOpen, onClose }) => {
                 type="button"
                 onClick={() => handleSendMessage()}
                 disabled={(!inputValue.trim() && !selectedImage) || isLoading}
-                className="w-9 h-9 rounded-full bg-gradient-to-tr from-purple-600 to-amber-500 hover:opacity-90 disabled:opacity-40 text-white flex items-center justify-center transition-all flex-shrink-0 cursor-pointer shadow-md"
+                className="w-9 h-9 rounded-full bg-linear-to-tr from-purple-600 to-amber-500 hover:opacity-90 disabled:opacity-40 text-white flex items-center justify-center transition-all shrink-0 cursor-pointer shadow-md"
               >
                 <Send className="w-4 h-4" />
               </button>
@@ -612,7 +612,7 @@ export const BookChatModal = ({ book, isOpen, onClose }) => {
         {viewMode === 'chat' && (
           <div className="flex-1 flex flex-col justify-between z-10 animate-fadeIn h-full">
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-white/10 bg-slate-950/40 backdrop-blur-md flex-shrink-0">
+            <div className="flex items-center justify-between p-4 border-b border-white/10 bg-slate-950/40 backdrop-blur-md shrink-0">
               <button
                 onClick={() => setViewMode('hero')}
                 className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all cursor-pointer"
@@ -642,8 +642,8 @@ export const BookChatModal = ({ book, isOpen, onClose }) => {
                     <div className="flex flex-col items-end space-y-1.5">
                       
                       {/* Attached Audio Capsule */}
-                      <div className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-gradient-to-r from-purple-800/60 via-amber-700/60 to-orange-700/80 border border-amber-400/40 text-white shadow-md max-w-[90%]">
-                        <FileText className="w-4 h-4 text-amber-300 flex-shrink-0" />
+                      <div className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-linear-to-r from-purple-800/60 via-amber-700/60 to-orange-700/80 border border-amber-400/40 text-white shadow-md max-w-[90%]">
+                        <FileText className="w-4 h-4 text-amber-300 shrink-0" />
                         <div className="min-w-0">
                           <p className="text-xs font-bold truncate">
                             {msg.attachedAudio?.title || `${activeBook.title}.mp3`}
@@ -676,7 +676,7 @@ export const BookChatModal = ({ book, isOpen, onClose }) => {
                   {msg.role === 'assistant' && (
                     <div className="flex items-start gap-2.5 max-w-[96%]">
                       {/* Mini 3D Robot Avatar */}
-                      <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 border border-white/20 shadow-md mt-1">
+                      <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 border border-white/20 shadow-md mt-1">
                         <img src="/agent_sky_3d.jpg" alt="Agent SKY" className="w-full h-full object-cover" />
                       </div>
 
@@ -686,20 +686,20 @@ export const BookChatModal = ({ book, isOpen, onClose }) => {
 
                         {/* Quota Ad Prompt Card inside chat */}
                         {msg.isRewardCard && (
-                          <div className="mt-3 p-4 rounded-2xl bg-gradient-to-r from-amber-950/70 via-purple-950/70 to-slate-900/90 border border-amber-400/50 shadow-xl text-center space-y-3">
+                          <div className="mt-3 p-4 rounded-2xl bg-linear-to-r from-amber-950/70 via-purple-950/70 to-slate-900/90 border border-amber-400/50 shadow-xl text-center space-y-3">
                             <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-400/40 text-amber-300 flex items-center justify-center mx-auto shadow-inner">
                               <Gift className="w-6 h-6 animate-bounce text-amber-400" />
                             </div>
                             <div>
                               <h4 className="text-xs font-black text-amber-300 uppercase tracking-wide">Débloquez 2 questions gratuites</h4>
-                              <p className="text-[11px] text-slate-200 mt-1">
+                              <p className="text-2xs text-slate-200 mt-1">
                                 Regardez une courte vidéo sponsorisée (10s) pour continuer gratuitement votre échange avec l'Agent SKY.
                               </p>
                             </div>
                             <button
                               type="button"
                               onClick={() => window.dispatchEvent(new Event('rg:open-reward-ad'))}
-                              className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs shadow-lg shadow-amber-900/40 flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-[1.02] active:scale-95"
+                              className="w-full py-2.5 px-4 rounded-xl bg-linear-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs shadow-lg shadow-amber-900/40 flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-[1.02] active:scale-95"
                             >
                               <Play className="w-4 h-4 fill-slate-950" />
                               <span>Regarder la pub (+2 questions offertes)</span>
@@ -709,8 +709,8 @@ export const BookChatModal = ({ book, isOpen, onClose }) => {
 
                         {/* Matched book interactive capsule */}
                         {msg.matchedBook && (
-                          <div className="mt-3.5 p-3.5 rounded-2xl bg-gradient-to-br from-purple-950/70 via-slate-900/90 to-amber-950/60 border border-amber-400/40 shadow-xl flex flex-col sm:flex-row items-center gap-3.5">
-                            <div className="w-16 h-22 rounded-xl overflow-hidden flex-shrink-0 border border-white/20 shadow-md bg-black/50">
+                          <div className="mt-3.5 p-3.5 rounded-2xl bg-linear-to-br from-purple-950/70 via-slate-900/90 to-amber-950/60 border border-amber-400/40 shadow-xl flex flex-col sm:flex-row items-center gap-3.5">
+                            <div className="w-16 h-22 rounded-xl overflow-hidden shrink-0 border border-white/20 shadow-md bg-black/50">
                               <img
                                 src={msg.matchedBook.cover_url || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=300&q=80'}
                                 alt={msg.matchedBook.title}
@@ -737,7 +737,7 @@ export const BookChatModal = ({ book, isOpen, onClose }) => {
                                     onClick={() => {
                                       window.dispatchEvent(new CustomEvent('rg:trigger-play-book', { detail: msg.matchedBook }));
                                     }}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-[11px] shadow-md transition-all cursor-pointer hover:scale-105 active:scale-95"
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-linear-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-2xs shadow-md transition-all cursor-pointer hover:scale-105 active:scale-95"
                                   >
                                     <Play className="w-3.5 h-3.5 fill-slate-950" />
                                     <span>Écouter l'audio</span>
@@ -749,7 +749,7 @@ export const BookChatModal = ({ book, isOpen, onClose }) => {
                                     onClick={() => {
                                       window.dispatchEvent(new CustomEvent('rg:open-pdf-book', { detail: msg.matchedBook }));
                                     }}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600/60 hover:bg-purple-600 text-white font-bold text-[11px] border border-purple-400/30 transition-all cursor-pointer hover:scale-105 active:scale-95"
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600/60 hover:bg-purple-600 text-white font-bold text-2xs border border-purple-400/30 transition-all cursor-pointer hover:scale-105 active:scale-95"
                                   >
                                     <BookOpen className="w-3.5 h-3.5 text-purple-200" />
                                     <span>Lire le PDF</span>
@@ -819,7 +819,7 @@ export const BookChatModal = ({ book, isOpen, onClose }) => {
               {/* Loading indicator */}
               {isLoading && (
                 <div className="flex items-center gap-2.5 p-3 rounded-2xl bg-white/10 backdrop-blur-xl border border-white/15 text-xs text-amber-200">
-                  <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0 border border-white/20">
+                  <div className="w-7 h-7 rounded-full overflow-hidden shrink-0 border border-white/20">
                     <img src="/agent_sky_3d.jpg" alt="Agent SKY" className="w-full h-full object-cover animate-spin" />
                   </div>
                   <span>Agent SKY réfléchit et analyse...</span>
@@ -830,7 +830,7 @@ export const BookChatModal = ({ book, isOpen, onClose }) => {
             </div>
 
             {/* Bottom Input Area with Toolbar */}
-            <div className="p-3 bg-slate-950/80 border-t border-white/10 backdrop-blur-xl flex-shrink-0 space-y-2">
+            <div className="p-3 bg-slate-950/80 border-t border-white/10 backdrop-blur-xl shrink-0 space-y-2">
               
               {/* Suggested quick prompt floating above input */}
               <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
@@ -839,7 +839,7 @@ export const BookChatModal = ({ book, isOpen, onClose }) => {
                     key={idx}
                     onClick={() => handleSendMessage(qp)}
                     disabled={isLoading}
-                    className="flex-shrink-0 text-[10.5px] px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 text-slate-200 border border-white/10 whitespace-nowrap transition-all"
+                    className="shrink-0 text-[10.5px] px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 text-slate-200 border border-white/10 whitespace-nowrap transition-all"
                   >
                     {qp}
                   </button>
@@ -847,7 +847,7 @@ export const BookChatModal = ({ book, isOpen, onClose }) => {
               </div>
 
               {/* Quota & Points Sky Status Badge */}
-              <div className="flex items-center justify-between text-[11px] px-1 pt-0.5">
+              <div className="flex items-center justify-between text-2xs px-1 pt-0.5">
                 <div className="flex items-center gap-1.5 font-bold">
                   {hasFreeLeft ? (
                     <span className="text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 rounded-full flex items-center gap-1">
@@ -864,7 +864,7 @@ export const BookChatModal = ({ book, isOpen, onClose }) => {
                   <button
                     type="button"
                     onClick={() => window.dispatchEvent(new Event('rg:open-reward-ad'))}
-                    className="text-amber-300 font-bold hover:underline flex items-center gap-1 cursor-pointer text-[11px]"
+                    className="text-amber-300 font-bold hover:underline flex items-center gap-1 cursor-pointer text-2xs"
                   >
                     <span>🎁 +2 Questions (Pub)</span>
                   </button>
@@ -876,7 +876,7 @@ export const BookChatModal = ({ book, isOpen, onClose }) => {
                 <div className="flex items-center gap-2 p-2 rounded-xl bg-purple-950/80 border border-purple-400/40 text-xs text-white">
                   <img src={selectedImage.dataUrl} alt="Aperçu" className="w-10 h-10 object-cover rounded-lg border border-white/20" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-[11px] font-bold text-amber-300 truncate">Couverture prête à envoyer</p>
+                    <p className="text-2xs font-bold text-amber-300 truncate">Couverture prête à envoyer</p>
                     <p className="text-[9px] text-slate-300 truncate">{selectedImage.name}</p>
                   </div>
                   <button
@@ -909,7 +909,7 @@ export const BookChatModal = ({ book, isOpen, onClose }) => {
                   type="button"
                   onClick={() => handleSendMessage()}
                   disabled={(!inputValue.trim() && !selectedImage) || isLoading}
-                  className="w-11 h-11 rounded-full bg-gradient-to-tr from-purple-600 via-amber-500 to-orange-500 hover:opacity-90 disabled:opacity-40 text-white flex items-center justify-center shadow-lg shadow-amber-900/40 transition-all cursor-pointer flex-shrink-0"
+                  className="w-11 h-11 rounded-full bg-linear-to-tr from-purple-600 via-amber-500 to-orange-500 hover:opacity-90 disabled:opacity-40 text-white flex items-center justify-center shadow-lg shadow-amber-900/40 transition-all cursor-pointer shrink-0"
                 >
                   <Send className="w-4 h-4" />
                 </button>

@@ -109,12 +109,12 @@ export function AdBanner({ onOpenRewardModal, placement = 'discover_hero', class
     })();
 
     return (
-      <div className={`relative overflow-hidden rounded-3xl p-5 sm:p-6 border border-purple-500/30 bg-gradient-to-r from-purple-950/80 via-[#1e0d36] to-pink-950/60 shadow-xl shadow-purple-950/40 ${className}`}>
+      <div className={`relative overflow-hidden rounded-3xl p-5 sm:p-6 border border-purple-500/30 bg-linear-to-r from-purple-950/80 via-[#1e0d36] to-pink-950/60 shadow-xl shadow-purple-950/40 ${className}`}>
         <div className="absolute -top-12 -right-12 w-36 h-36 bg-purple-500/20 rounded-full blur-2xl pointer-events-none" />
         <div className="absolute -bottom-12 -left-12 w-36 h-36 bg-pink-500/20 rounded-full blur-2xl pointer-events-none" />
         <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-pink-500 flex items-center justify-center text-2xl shadow-lg shadow-amber-500/30 shrink-0">🎁</div>
+            <div className="w-12 h-12 rounded-2xl bg-linear-to-tr from-amber-500 to-pink-500 flex items-center justify-center text-2xl shadow-lg shadow-amber-500/30 shrink-0">🎁</div>
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">Offre Gratuite Read's Great</span>
@@ -130,7 +130,7 @@ export function AdBanner({ onOpenRewardModal, placement = 'discover_hero', class
               if (onOpenRewardModal) onOpenRewardModal(defaultPromoAd);
               window.dispatchEvent(new CustomEvent('rg:open-reward-ad', { detail: { ad: defaultPromoAd } }));
             }}
-            className="btn-blinking-border w-full sm:w-auto px-6 py-3.5 sm:px-7 sm:py-4 rounded-2xl font-black text-sm sm:text-base flex items-center justify-center gap-2.5 bg-gradient-to-r from-amber-500 via-orange-500 to-pink-500 text-white shadow-2xl hover:scale-105 active:scale-95 transition-all whitespace-nowrap shrink-0 cursor-pointer border-amber-400"
+            className="btn-blinking-border w-full sm:w-auto px-6 py-3.5 sm:px-7 sm:py-4 rounded-2xl font-black text-sm sm:text-base flex items-center justify-center gap-2.5 bg-linear-to-r from-amber-500 via-orange-500 to-pink-500 text-white shadow-2xl hover:scale-105 active:scale-95 transition-all whitespace-nowrap shrink-0 cursor-pointer border-amber-400"
           >
             <Sparkles className="w-5 h-5 text-amber-200 animate-spin" style={{ animationDuration: '3s' }} />
             <span className="tracking-wide">Gagner +{defaultRewardPts} Points 🎁</span>
@@ -144,7 +144,7 @@ export function AdBanner({ onOpenRewardModal, placement = 'discover_hero', class
   // ── Toutes les pubs ont été vues ──────────────────────────────────────
   if (visibleAds.length === 0) {
     return (
-      <div className={`relative overflow-hidden rounded-3xl p-4 sm:p-5 border border-emerald-500/20 bg-gradient-to-r from-emerald-950/60 via-[#0e1a14] to-teal-950/50 shadow-lg ${className}`}>
+      <div className={`relative overflow-hidden rounded-3xl p-4 sm:p-5 border border-emerald-500/20 bg-linear-to-r from-emerald-950/60 via-[#0e1a14] to-teal-950/50 shadow-lg ${className}`}>
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
             <CheckCircle className="w-5 h-5 text-emerald-400" />
@@ -189,7 +189,7 @@ export function AdBanner({ onOpenRewardModal, placement = 'discover_hero', class
             <div
               key={ad.id}
               onClick={() => handleCardClick(ad)}
-              className="relative flex-shrink-0 snap-start w-52 sm:w-60 cursor-pointer rounded-2xl border border-white/10 bg-gradient-to-br from-purple-950/80 via-[#1b0c2a] to-pink-950/60 hover:border-purple-500/40 hover:scale-[1.02] transition-all duration-200 overflow-hidden shadow-lg group"
+              className="relative shrink-0 snap-start w-52 sm:w-60 cursor-pointer rounded-2xl border border-white/10 bg-linear-to-br from-purple-950/80 via-[#1b0c2a] to-pink-950/60 hover:border-purple-500/40 hover:scale-[1.02] transition-all duration-200 overflow-hidden shadow-lg group"
             >
               {/* Badge reward */}
               {rewardPts > 0 && (
@@ -223,7 +223,7 @@ export function AdBanner({ onOpenRewardModal, placement = 'discover_hero', class
                 )}
                 <div className="flex items-center gap-1.5 mt-2">
                   <div className="flex-1 h-1 rounded-full bg-white/10 overflow-hidden">
-                    <div className="h-full w-0 group-hover:w-full bg-gradient-to-r from-amber-400 to-pink-500 rounded-full transition-all duration-300" />
+                    <div className="h-full w-0 group-hover:w-full bg-linear-to-r from-amber-400 to-pink-500 rounded-full transition-all duration-300" />
                   </div>
                   <span className="text-[9px] text-purple-300 font-semibold">Voir</span>
                 </div>

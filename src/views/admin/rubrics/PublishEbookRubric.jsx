@@ -223,7 +223,7 @@ export const PublishEbookRubric = ({
                   onClick={() => setEbookSubTab('list')}
                   className={`px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition-all cursor-pointer ${
                     ebookSubTab === 'list'
-                      ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/30 scale-[1.02]'
+                      ? 'bg-linear-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/30 scale-[1.02]'
                       : 'text-slate-400 hover:text-white hover:bg-white/5'
                   }`}
                 >
@@ -236,7 +236,7 @@ export const PublishEbookRubric = ({
                   onClick={() => { resetEbookForm(); setEbookSubTab('publish'); }}
                   className={`px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition-all cursor-pointer ${
                     ebookSubTab === 'publish'
-                      ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-slate-950 font-black shadow-lg shadow-emerald-500/30 scale-[1.02]'
+                      ? 'bg-linear-to-r from-emerald-500 to-teal-600 text-slate-950 font-black shadow-lg shadow-emerald-500/30 scale-[1.02]'
                       : 'text-slate-400 hover:text-white hover:bg-white/5'
                   }`}
                 >
@@ -299,7 +299,7 @@ export const PublishEbookRubric = ({
 
                 {/* ── BARRE D'ACTIONS GROUPÉES / MODIFICATION DE MASSE (E-BOOKS) ── */}
                 {selectedEbookIds.length > 0 && (
-                  <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-950/95 via-indigo-950/90 to-slate-900/95 border border-purple-500/50 shadow-2xl space-y-3 animate-fadeIn">
+                  <div className="p-4 rounded-2xl bg-linear-to-r from-purple-950/95 via-indigo-950/90 to-slate-900/95 border border-purple-500/50 shadow-2xl space-y-3 animate-fadeIn">
                     <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
                       <div className="flex items-center gap-3 w-full sm:w-auto">
                         <div className="w-10 h-10 rounded-xl bg-purple-500/25 text-purple-300 border border-purple-400/40 flex items-center justify-center font-black text-sm shrink-0 shadow-inner">
@@ -403,7 +403,7 @@ export const PublishEbookRubric = ({
                       <div className="space-y-2">
                         <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
                           <span>Prix d'achat (FCFA)</span>
-                          <span className="text-[11px] text-amber-400">0 = Gratuit sans achat</span>
+                          <span className="text-2xs text-amber-400">0 = Gratuit sans achat</span>
                         </label>
                         <div className="relative">
                           <input
@@ -423,7 +423,7 @@ export const PublishEbookRubric = ({
                               key={val}
                               type="button"
                               onClick={() => setBulkPrice(val)}
-                              className={`text-[11px] px-2.5 py-1 rounded-lg border font-bold transition-all ${
+                              className={`text-2xs px-2.5 py-1 rounded-lg border font-bold transition-all ${
                                 bulkPrice === val
                                   ? 'bg-amber-500 text-black border-amber-400 font-black'
                                   : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'
@@ -439,7 +439,7 @@ export const PublishEbookRubric = ({
                       <div className="space-y-2">
                         <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
                           <span>Sky Points pour débloquer</span>
-                          <span className="text-[11px] text-purple-400">0 = Pas de points requis</span>
+                          <span className="text-2xs text-purple-400">0 = Pas de points requis</span>
                         </label>
                         <div className="relative">
                           <input
@@ -459,7 +459,7 @@ export const PublishEbookRubric = ({
                               key={val}
                               type="button"
                               onClick={() => setBulkPoints(val)}
-                              className={`text-[11px] px-2.5 py-1 rounded-lg border font-bold transition-all ${
+                              className={`text-2xs px-2.5 py-1 rounded-lg border font-bold transition-all ${
                                 bulkPoints === val
                                   ? 'bg-purple-600 text-white border-purple-400 font-black'
                                   : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'
@@ -549,7 +549,7 @@ export const PublishEbookRubric = ({
                               <p className={`text-xs font-bold ${bulkType === opt.id ? 'text-white' : 'text-slate-300'}`}>
                                 {opt.label}
                               </p>
-                              <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                              <p className="text-2xs text-slate-400 truncate mt-0.5">
                                 {opt.desc}
                               </p>
                             </div>
@@ -574,7 +574,7 @@ export const PublishEbookRubric = ({
                           type="button"
                           onClick={handleApplyBulkType}
                           disabled={isBulkUpdating}
-                          className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-black flex items-center gap-2 shadow-xl shadow-cyan-600/40 transition-all cursor-pointer disabled:opacity-50"
+                          className="px-5 py-2.5 rounded-xl bg-linear-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-black flex items-center gap-2 shadow-xl shadow-cyan-600/40 transition-all cursor-pointer disabled:opacity-50"
                         >
                           {isBulkUpdating ? (
                             <>
@@ -602,7 +602,7 @@ export const PublishEbookRubric = ({
                       return (
                         <div
                           key={book.id}
-                          className={`group relative rounded-3xl p-5 bg-gradient-to-b from-white/[0.07] to-white/[0.02] hover:from-white/[0.12] hover:to-white/[0.04] border transition-all duration-300 shadow-xl flex flex-col justify-between gap-4 ${
+                          className={`group relative rounded-3xl p-5 bg-linear-to-b from-white/[0.07] to-white/2 hover:from-white/12 hover:to-white/4 border transition-all duration-300 shadow-xl flex flex-col justify-between gap-4 ${
                             isSelected
                               ? 'border-rose-500/80 bg-rose-950/20 shadow-[0_0_20px_rgba(244,63,94,0.3)]'
                               : 'border-white/10 hover:border-purple-500/40'
@@ -622,7 +622,7 @@ export const PublishEbookRubric = ({
                             }`}
                             title={isSelected ? 'Désélectionner' : 'Sélectionner pour suppression groupée'}
                           >
-                            <Check className={`w-4 h-4 stroke-[3] ${isSelected ? 'opacity-100' : 'opacity-0 hover:opacity-50'}`} />
+                            <Check className={`w-4 h-4 stroke-3 ${isSelected ? 'opacity-100' : 'opacity-0 hover:opacity-50'}`} />
                           </button>
                           <div>
                             <div className="flex items-start gap-4">
@@ -687,7 +687,7 @@ export const PublishEbookRubric = ({
                                   alert('Aucun fichier PDF/EPUB lié à cet ouvrage.');
                                 }
                               }}
-                              className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-purple-600/30 transition-all cursor-pointer active:scale-95"
+                              className="flex-1 py-2 px-3 rounded-xl bg-linear-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-purple-600/30 transition-all cursor-pointer active:scale-95"
                             >
                               <BookOpen className="w-3.5 h-3.5" />
                               <span>Ouvrir Liseuse</span>
@@ -879,7 +879,7 @@ export const PublishEbookRubric = ({
                           <span>✓ Fichier prêt pour la liseuse</span>
                           <span className="uppercase text-purple-400 font-mono">{ebookFileData.format || 'PDF'}</span>
                         </div>
-                        <p className="text-[11px] text-slate-300">Taille : {ebookFileData.size_mb}</p>
+                        <p className="text-2xs text-slate-300">Taille : {ebookFileData.size_mb}</p>
                       </div>
                     )}
                   </div>
@@ -939,7 +939,7 @@ export const PublishEbookRubric = ({
                     type="button"
                     onClick={handleDeepSeekEbookEnrich}
                     disabled={isEbookAiGenerating}
-                    className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs flex items-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
+                    className="px-4 py-2.5 rounded-xl bg-linear-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs flex items-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
                   >
                     {isEbookAiGenerating ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -1066,10 +1066,10 @@ export const PublishEbookRubric = ({
                 </div>
 
                 {/* ── ASSOCIATION COMPAGNON AUDIO RG PLAY & DEEPSEEK IA (OPTIONNEL) ── */}
-                <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-purple-950/40 via-indigo-950/25 to-black/40 border border-purple-500/30 space-y-4">
+                <div className="p-4 sm:p-5 rounded-3xl bg-linear-to-br from-purple-950/40 via-indigo-950/25 to-black/40 border border-purple-500/30 space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-purple-300 flex-shrink-0">
+                      <div className="w-9 h-9 rounded-xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-purple-300 shrink-0">
                         <Headphones className="w-4.5 h-4.5" />
                       </div>
                       <div>
@@ -1079,7 +1079,7 @@ export const PublishEbookRubric = ({
                             Optionnel
                           </span>
                         </h4>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
+                        <p className="text-2xs text-slate-400 mt-0.5">
                           Par défaut, cet e-book est 100% autonome. Vous pouvez lui relier un livre audio existant ou laisser DeepSeek IA trouver le match.
                         </p>
                       </div>
@@ -1089,7 +1089,7 @@ export const PublishEbookRubric = ({
                       type="button"
                       onClick={handleDeepSeekMatchAudio}
                       disabled={isMatchingAudio}
-                      className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs flex items-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer disabled:opacity-50 self-start sm:self-auto"
+                      className="px-3.5 py-2 rounded-xl bg-linear-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs flex items-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer disabled:opacity-50 self-start sm:self-auto"
                     >
                       {isMatchingAudio ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1115,7 +1115,7 @@ export const PublishEbookRubric = ({
                               ? `Correspondance trouvée : « ${ebookMatchResult.companion?.title} » (${Math.round((ebookMatchResult.confidence || 0.9) * 100)}% de certitude)`
                               : 'Aucune version audio identique trouvée — Recommandations IA du même genre :'}
                           </p>
-                          <p className="text-[11px] opacity-80 mt-0.5">{ebookMatchResult.reason}</p>
+                          <p className="text-2xs opacity-80 mt-0.5">{ebookMatchResult.reason}</p>
                         </div>
                       </div>
 
@@ -1133,7 +1133,7 @@ export const PublishEbookRubric = ({
                                   : 'bg-black/30 border-white/10 hover:border-amber-400/50 text-slate-300'
                               }`}
                             >
-                              <div className="font-bold truncate text-[11px]">🎧 {rec.title}</div>
+                              <div className="font-bold truncate text-2xs">🎧 {rec.title}</div>
                               <div className="text-[10px] text-slate-400 truncate">{rec.author} • {rec.reason}</div>
                             </button>
                           ))}
@@ -1218,7 +1218,7 @@ export const PublishEbookRubric = ({
                       className="rg-input w-full px-4 py-3 rounded-2xl text-sm"
                       placeholder="100"
                     />
-                    <p className="text-[11px] text-purple-300/80">
+                    <p className="text-2xs text-purple-300/80">
                       Les membres peuvent débloquer cet ouvrage sans payer en utilisant leurs points accumulés en lisant.
                     </p>
                   </div>
@@ -1235,7 +1235,7 @@ export const PublishEbookRubric = ({
                       className="rg-input w-full px-4 py-3 rounded-2xl text-sm"
                       placeholder="0 (Gratuit) ou 2000"
                     />
-                    <p className="text-[11px] text-emerald-300/80">
+                    <p className="text-2xs text-emerald-300/80">
                       Mettez 0 pour un livre 100% gratuit, ou un montant en FCFA pour achat Mobile Money.
                     </p>
                   </div>
@@ -1310,7 +1310,7 @@ export const PublishEbookRubric = ({
                     </div>
 
                     {/* Carte Preview Live */}
-                    <div className="max-w-md mx-auto p-4 rounded-3xl bg-gradient-to-br from-[#1c0d38] to-[#120724] border border-purple-500/30 shadow-2xl space-y-4">
+                    <div className="max-w-md mx-auto p-4 rounded-3xl bg-linear-to-br from-[#1c0d38] to-[#120724] border border-purple-500/30 shadow-2xl space-y-4">
                       <div className="flex gap-4">
                         <div className="relative w-24 h-32 rounded-2xl overflow-hidden border border-white/10 shrink-0 shadow-lg">
                           <img
@@ -1341,7 +1341,7 @@ export const PublishEbookRubric = ({
 
                       <button
                         type="button"
-                        className="w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md"
+                        className="w-full py-2.5 rounded-xl bg-linear-to-r from-purple-600 to-pink-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md"
                       >
                         <BookOpen className="w-3.5 h-3.5" />
                         <span>Lire le Livre 📖</span>
@@ -1362,7 +1362,7 @@ export const PublishEbookRubric = ({
                         type="button"
                         onClick={handlePublishEbook}
                         disabled={isEbookSubmitting}
-                        className="px-8 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-black text-sm flex items-center gap-2 cursor-pointer shadow-xl shadow-emerald-950/50 active:scale-95 disabled:opacity-50"
+                        className="px-8 py-3.5 rounded-2xl bg-linear-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-black text-sm flex items-center gap-2 cursor-pointer shadow-xl shadow-emerald-950/50 active:scale-95 disabled:opacity-50"
                       >
                         {isEbookSubmitting ? (
                           <>

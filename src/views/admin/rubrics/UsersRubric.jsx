@@ -135,7 +135,7 @@ export const UsersRubric = () => {
     <div className="space-y-6 animate-fadeIn font-['Outfit']">
       
       {/* ── EN-TÊTE DE LA RUBRIQUE ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-3xl bg-gradient-to-r from-purple-950/40 via-indigo-950/30 to-slate-900/60 border border-purple-500/20 backdrop-blur-xl shadow-2xl">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-3xl bg-linear-to-r from-purple-950/40 via-indigo-950/30 to-slate-900/60 border border-purple-500/20 backdrop-blur-xl shadow-2xl">
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-xs font-black text-purple-400 uppercase tracking-widest">
             <Users className="w-4 h-4 text-purple-400" />
@@ -163,7 +163,7 @@ export const UsersRubric = () => {
       {/* ── CARTES DE STATISTIQUES ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div className="p-4 rounded-2xl bg-slate-900/80 border border-white/10 shadow-lg">
-          <span className="text-[11px] font-bold text-slate-400 block mb-1">Total Utilisateurs</span>
+          <span className="text-2xs font-bold text-slate-400 block mb-1">Total Utilisateurs</span>
           <div className="flex items-center justify-between">
             <span className="text-2xl font-black text-white">{stats.total}</span>
             <div className="w-8 h-8 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-400">
@@ -173,7 +173,7 @@ export const UsersRubric = () => {
         </div>
 
         <div className="p-4 rounded-2xl bg-slate-900/80 border border-amber-500/20 shadow-lg">
-          <span className="text-[11px] font-bold text-slate-400 block mb-1">Total Sky Points en Circulation</span>
+          <span className="text-2xs font-bold text-slate-400 block mb-1">Total Sky Points en Circulation</span>
           <div className="flex items-center justify-between">
             <span className="text-2xl font-black text-amber-300 font-mono">
               {stats.totalPoints.toLocaleString()} ⭐
@@ -185,7 +185,7 @@ export const UsersRubric = () => {
         </div>
 
         <div className="p-4 rounded-2xl bg-slate-900/80 border border-white/10 shadow-lg">
-          <span className="text-[11px] font-bold text-slate-400 block mb-1">Moyenne par Auditeur</span>
+          <span className="text-2xs font-bold text-slate-400 block mb-1">Moyenne par Auditeur</span>
           <div className="flex items-center justify-between">
             <span className="text-2xl font-black text-emerald-400 font-mono">
               {stats.avgPoints} pts
@@ -197,7 +197,7 @@ export const UsersRubric = () => {
         </div>
 
         <div className="p-4 rounded-2xl bg-slate-900/80 border border-white/10 shadow-lg">
-          <span className="text-[11px] font-bold text-slate-400 block mb-1">Temps d'Écoute Cumulé</span>
+          <span className="text-2xs font-bold text-slate-400 block mb-1">Temps d'Écoute Cumulé</span>
           <div className="flex items-center justify-between">
             <span className="text-2xl font-black text-cyan-400 font-mono">
               {stats.totalHours}h
@@ -241,7 +241,7 @@ export const UsersRubric = () => {
               onClick={() => setFilter(tab.id)}
               className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
                 filter === tab.id
-                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md'
+                  ? 'bg-linear-to-r from-purple-600 to-indigo-600 text-white shadow-md'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
@@ -270,7 +270,7 @@ export const UsersRubric = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-white/10 bg-white/4 text-slate-400 text-[11px] font-black uppercase tracking-wider">
+                <tr className="border-b border-white/10 bg-white/4 text-slate-400 text-2xs font-black uppercase tracking-wider">
                   <th className="py-3.5 px-4">Utilisateur</th>
                   <th className="py-3.5 px-4">Contact</th>
                   <th className="py-3.5 px-4">Niveau & Rang</th>
@@ -296,7 +296,7 @@ export const UsersRubric = () => {
                       {/* Utilisateur : Avatar + Nom + ID */}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white font-black text-xs shadow-md flex-shrink-0">
+                          <div className="w-10 h-10 rounded-2xl bg-linear-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white font-black text-xs shadow-md shrink-0">
                             {u.avatar_url ? (
                               <img
                                 src={u.avatar_url}
@@ -338,11 +338,11 @@ export const UsersRubric = () => {
 
                       {/* Contact */}
                       <td className="py-3 px-4 text-slate-300">
-                        <div className="space-y-0.5 text-[11px]">
+                        <div className="space-y-0.5 text-2xs">
                           {u.email && (
                             <div className="flex items-center gap-1.5 text-slate-300">
                               <Mail className="w-3 h-3 text-slate-500" />
-                              <span className="truncate max-w-[160px]">{u.email}</span>
+                              <span className="truncate max-w-40">{u.email}</span>
                             </div>
                           )}
                           {u.phone && (
@@ -360,7 +360,7 @@ export const UsersRubric = () => {
                       {/* Niveau */}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-1.5">
-                          <span className="px-2 py-0.5 rounded-lg bg-indigo-500/20 text-indigo-300 font-black text-[11px] border border-indigo-500/30">
+                          <span className="px-2 py-0.5 rounded-lg bg-indigo-500/20 text-indigo-300 font-black text-2xs border border-indigo-500/30">
                             Niv. {level}
                           </span>
                           <span className="text-[10px] text-slate-400">
@@ -378,7 +378,7 @@ export const UsersRubric = () => {
                       </td>
 
                       {/* Activité */}
-                      <td className="py-3 px-4 text-slate-400 text-[11px]">
+                      <td className="py-3 px-4 text-slate-400 text-2xs">
                         <div>{u.listening_minutes || 0} min d'écoute</div>
                         <div className="text-[10px] text-slate-500">
                           {u.created_at ? new Date(u.created_at).toLocaleDateString('fr-FR') : 'Actif'}
@@ -390,7 +390,7 @@ export const UsersRubric = () => {
                         <button
                           type="button"
                           onClick={() => handleOpenCreditModal(u)}
-                          className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black text-xs inline-flex items-center gap-1.5 shadow-md shadow-amber-950/40 transition-all cursor-pointer hover:scale-105 active:scale-95"
+                          className="px-3 py-1.5 rounded-xl bg-linear-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black text-xs inline-flex items-center gap-1.5 shadow-md shadow-amber-950/40 transition-all cursor-pointer hover:scale-105 active:scale-95"
                         >
                           <Coins className="w-3.5 h-3.5" />
                           <span>+ Créditer Sky Points</span>
@@ -408,7 +408,7 @@ export const UsersRubric = () => {
       {/* ── MODALE : CRÉDITER DES SKY POINTS À UN UTILISATEUR ── */}
       {creditModalUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-          <div className="w-full max-w-md rounded-3xl bg-gradient-to-b from-slate-900 to-[#0c0822] border border-amber-500/40 p-6 space-y-5 shadow-2xl relative">
+          <div className="w-full max-w-md rounded-3xl bg-linear-to-b from-slate-900 to-[#0c0822] border border-amber-500/40 p-6 space-y-5 shadow-2xl relative">
             
             {/* Bouton Fermer */}
             <button
@@ -421,7 +421,7 @@ export const UsersRubric = () => {
 
             {/* En-tête Modal */}
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-600 flex items-center justify-center text-black shadow-lg shadow-amber-500/30">
+              <div className="w-12 h-12 rounded-2xl bg-linear-to-tr from-amber-500 to-amber-600 flex items-center justify-center text-black shadow-lg shadow-amber-500/30">
                 <Coins className="w-6 h-6" />
               </div>
               <div>
@@ -454,7 +454,7 @@ export const UsersRubric = () => {
               
               {/* Sélecteur de montants rapides */}
               <div>
-                <label className="text-[11px] font-bold text-slate-300 block mb-2">
+                <label className="text-2xs font-bold text-slate-300 block mb-2">
                   Montant à créditer (Sky Points / XP) *
                 </label>
                 <div className="grid grid-cols-4 gap-2 mb-2">
@@ -492,7 +492,7 @@ export const UsersRubric = () => {
 
               {/* Motif / Raison */}
               <div>
-                <label className="text-[11px] font-bold text-slate-300 block mb-1.5">
+                <label className="text-2xs font-bold text-slate-300 block mb-1.5">
                   Motif ou Note de transaction
                 </label>
                 <input
@@ -507,14 +507,14 @@ export const UsersRubric = () => {
               {/* Messages d'état */}
               {creditSuccessMsg && (
                 <div className="p-3 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center gap-2 animate-fadeIn">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                   <span>{creditSuccessMsg}</span>
                 </div>
               )}
 
               {creditErrorMsg && (
                 <div className="p-3 rounded-xl bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-bold flex items-center gap-2 animate-fadeIn">
-                  <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
                   <span>{creditErrorMsg}</span>
                 </div>
               )}
@@ -532,7 +532,7 @@ export const UsersRubric = () => {
                 <button
                   type="submit"
                   disabled={isSubmittingCredit || !creditAmount || creditAmount <= 0}
-                  className="flex-1 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-50 text-black font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 transition-all cursor-pointer"
+                  className="flex-1 py-3 rounded-xl bg-linear-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-50 text-black font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 transition-all cursor-pointer"
                 >
                   {isSubmittingCredit ? (
                     <>

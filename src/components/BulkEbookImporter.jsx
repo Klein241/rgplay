@@ -731,7 +731,7 @@ export const BulkEbookImporter = () => {
                       }`}
                     >
                       <p className="text-sm font-bold">{mode.icon} {mode.label}</p>
-                      <p className="text-[11px] mt-0.5 opacity-80">{mode.desc}</p>
+                      <p className="text-2xs mt-0.5 opacity-80">{mode.desc}</p>
                     </button>
                   ))}
                 </div>
@@ -754,7 +754,7 @@ export const BulkEbookImporter = () => {
                         ))}
                       </select>
                     </div>
-                    <div className="col-span-full text-[11px] text-purple-300">
+                    <div className="col-span-full text-2xs text-purple-300">
                       💡 Avec {totalFiles} livres et {globalConfig.progressiveBatchSize}/jour : parution étalée sur{' '}
                       <strong>{Math.ceil(totalFiles / (parseInt(globalConfig.progressiveBatchSize, 10) || 1))} jours</strong> à partir du {globalConfig.progressiveStartDate}.
                     </div>
@@ -877,7 +877,7 @@ export const BulkEbookImporter = () => {
             </div>
 
             {/* Information Compression & Qualité PDF */}
-            <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-500/10 border border-purple-500/20 text-[11px] text-purple-200">
+            <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-500/10 border border-purple-500/20 text-2xs text-purple-200">
               <Zap className="w-4 h-4 text-amber-400 shrink-0" />
               <span>
                 <strong>Compression & Qualité :</strong> Les couvertures sont automatiquement compressées en <strong>WebP HD (~50 Ko)</strong> pour un affichage instantané. Les fichiers <strong>PDF & EPUB</strong> sont préservés à 100% de leur qualité originale et distribués en streaming ultra-rapide via Cloudflare R2 CDN.
@@ -935,7 +935,7 @@ export const BulkEbookImporter = () => {
                         type="button"
                         onClick={() => updateFile(realIdx, { excluded: !entry.excluded })}
                         disabled={entry.status === 'done' || entry.status === 'scheduled' || isRunning}
-                        className={`w-5 h-5 rounded-md border flex items-center justify-center flex-shrink-0 transition-all cursor-pointer ${
+                        className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 transition-all cursor-pointer ${
                           entry.excluded
                             ? 'bg-slate-600 border-slate-500'
                             : 'bg-white/5 border-white/20 hover:bg-white/10'
@@ -946,7 +946,7 @@ export const BulkEbookImporter = () => {
                       </button>
 
                       {/* Icône Livre Moderne (au lieu de l'emoji) */}
-                      <div className="flex-shrink-0 w-9 h-10 rounded-xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center shadow-inner">
+                      <div className="shrink-0 w-9 h-10 rounded-xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center shadow-inner">
                         {entry.format === 'epub' ? (
                           <BookOpen className="w-4 h-4 text-emerald-400" />
                         ) : (
@@ -969,7 +969,7 @@ export const BulkEbookImporter = () => {
                           onChange={e => updateFile(realIdx, { author: e.target.value })}
                           disabled={entry.status === 'done' || entry.status === 'scheduled' || isRunning}
                           placeholder="Auteur (optionnel)"
-                          className="bg-transparent text-[11px] text-slate-400 focus:outline-none focus:text-slate-200 w-full truncate block"
+                          className="bg-transparent text-2xs text-slate-400 focus:outline-none focus:text-slate-200 w-full truncate block"
                         />
 
                         {entry.duplicateInfo && entry.status === 'duplicate' && (
@@ -987,7 +987,7 @@ export const BulkEbookImporter = () => {
                         {(entry.status === 'uploading' || entry.status === 'cover') && (
                           <div className="h-1.5 bg-white/8 rounded-full overflow-hidden w-full max-w-xs mt-1">
                             <div
-                              className="h-full rounded-full bg-gradient-to-r from-sky-500 to-purple-500 transition-all duration-300"
+                              className="h-full rounded-full bg-linear-to-r from-sky-500 to-purple-500 transition-all duration-300"
                               style={{ width: `${entry.progress}%` }}
                             />
                           </div>
@@ -1007,7 +1007,7 @@ export const BulkEbookImporter = () => {
                               value={(entry.scheduledAt || computeScheduledAt(realIdx) || '').slice(0, 16)}
                               onChange={e => updateFile(realIdx, { scheduledAt: e.target.value })}
                               disabled={isRunning}
-                              className="text-[11px] text-teal-300 bg-transparent focus:outline-none"
+                              className="text-2xs text-teal-300 bg-transparent focus:outline-none"
                             />
                           </div>
                         )}

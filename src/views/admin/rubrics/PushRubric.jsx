@@ -56,7 +56,7 @@ export const PushRubric = () => {
           <button
             type="button"
             onClick={requestPermission}
-            className="rg-btn-primary px-4 py-2 rounded-xl text-xs flex-shrink-0 cursor-pointer"
+            className="rg-btn-primary px-4 py-2 rounded-xl text-xs shrink-0 cursor-pointer"
           >
             Activer
           </button>
@@ -86,16 +86,16 @@ export const PushRubric = () => {
 
         {/* Prévisualisation Smartphone */}
         <div className="p-4 rounded-2xl bg-white/4 border border-white/10 space-y-2">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+          <span className="text-2xs font-bold text-slate-400 uppercase tracking-wider block">
             Aperçu sur Smartphone
           </span>
           <div className="p-3 rounded-xl bg-slate-900 border border-white/10 flex items-start gap-3 shadow-lg max-w-sm">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-600 to-pink-500 flex items-center justify-center text-white flex-shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-linear-to-tr from-purple-600 to-pink-500 flex items-center justify-center text-white shrink-0">
               <Headphones className="w-4 h-4" />
             </div>
             <div className="min-w-0">
               <p className="text-xs font-bold text-white truncate">{pushTitle}</p>
-              <p className="text-[11px] text-slate-300 line-clamp-2 mt-0.5">{pushMessage}</p>
+              <p className="text-2xs text-slate-300 line-clamp-2 mt-0.5">{pushMessage}</p>
             </div>
           </div>
         </div>

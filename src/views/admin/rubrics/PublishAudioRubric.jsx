@@ -299,7 +299,7 @@ export const PublishAudioRubric = ({
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                           <div className="sm:col-span-2">
-                            <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                            <label className="text-2xs font-semibold text-slate-300 block mb-1">
                               URL Publique du PDF (Cloudflare R2, Supabase ou URL CDN) *
                             </label>
                             <input
@@ -311,7 +311,7 @@ export const PublishAudioRubric = ({
                             />
                           </div>
                           <div>
-                            <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                            <label className="text-2xs font-semibold text-slate-300 block mb-1">
                               Nombre de Pages Estimé
                             </label>
                             <input
@@ -328,9 +328,9 @@ export const PublishAudioRubric = ({
                   )}
 
                   {/* Assistant IA DeepSeek */}
-                  <div className="sm:col-span-2 p-4 rounded-2xl bg-gradient-to-r from-purple-950/70 via-indigo-950/50 to-slate-900/80 border border-purple-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg shadow-purple-950/40">
+                  <div className="sm:col-span-2 p-4 rounded-2xl bg-linear-to-r from-purple-950/70 via-indigo-950/50 to-slate-900/80 border border-purple-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg shadow-purple-950/40">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center text-white shadow-md flex-shrink-0">
+                      <div className="w-10 h-10 rounded-xl bg-linear-to-tr from-purple-600 to-indigo-500 flex items-center justify-center text-white shadow-md shrink-0">
                         <Sparkles className="w-5 h-5 animate-pulse" />
                       </div>
                       <div>
@@ -340,7 +340,7 @@ export const PublishAudioRubric = ({
                             DeepSeek-V3
                           </span>
                         </div>
-                        <p className="text-[11px] text-slate-400">
+                        <p className="text-2xs text-slate-400">
                           Générez instantanément l'accroche, le synopsis, la catégorie et les mots-clés en 1 clic.
                         </p>
                       </div>
@@ -350,7 +350,7 @@ export const PublishAudioRubric = ({
                       type="button"
                       onClick={handleDeepSeekEnrich}
                       disabled={isAiGenerating || !title.trim()}
-                      className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-40 text-white font-bold text-xs flex items-center gap-2 shadow-md transition-all self-stretch sm:self-auto justify-center cursor-pointer"
+                      className="px-4 py-2.5 rounded-xl bg-linear-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-40 text-white font-bold text-xs flex items-center gap-2 shadow-md transition-all self-stretch sm:self-auto justify-center cursor-pointer"
                     >
                       {isAiGenerating ? (
                         <>
@@ -368,7 +368,7 @@ export const PublishAudioRubric = ({
 
                   {aiSuccessMessage && (
                     <div className="sm:col-span-2 p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-bold flex items-center gap-2 animate-fadeIn">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                       <span>{aiSuccessMessage}</span>
                     </div>
                   )}
@@ -400,10 +400,10 @@ export const PublishAudioRubric = ({
                   </div>
 
                   {/* ── ASSOCIATION E-BOOK READ'S GREAT & DEEPSEEK IA (OPTIONNEL) ── */}
-                  <div className="sm:col-span-2 p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-indigo-950/40 via-purple-950/30 to-black/40 border border-indigo-500/30 space-y-4">
+                  <div className="sm:col-span-2 p-4 sm:p-5 rounded-3xl bg-linear-to-br from-indigo-950/40 via-purple-950/30 to-black/40 border border-indigo-500/30 space-y-4">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-300 flex-shrink-0">
+                        <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-300 shrink-0">
                           <BookOpen className="w-4.5 h-4.5" />
                         </div>
                         <div>
@@ -413,7 +413,7 @@ export const PublishAudioRubric = ({
                               Optionnel
                             </span>
                           </h4>
-                          <p className="text-[11px] text-slate-400 mt-0.5">
+                          <p className="text-2xs text-slate-400 mt-0.5">
                             Par défaut, ce livre audio est autonome. Vous pouvez lui relier un e-book de la bibliothèque Read's Great ou laisser DeepSeek IA trouver la correspondance.
                           </p>
                         </div>
@@ -423,7 +423,7 @@ export const PublishAudioRubric = ({
                         type="button"
                         onClick={handleDeepSeekMatchEbook}
                         disabled={isMatchingEbook}
-                        className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-black text-xs flex items-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer disabled:opacity-50 self-start sm:self-auto"
+                        className="px-3.5 py-2 rounded-xl bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-black text-xs flex items-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer disabled:opacity-50 self-start sm:self-auto"
                       >
                         {isMatchingEbook ? (
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -449,7 +449,7 @@ export const PublishAudioRubric = ({
                                 ? `E-Book correspondant trouvé : « ${audioMatchResult.companion?.title} » (${Math.round((audioMatchResult.confidence || 0.9) * 100)}% de certitude)`
                                 : 'Aucun e-book identique trouvé — Recommandations IA du même genre :'}
                             </p>
-                            <p className="text-[11px] opacity-80 mt-0.5">{audioMatchResult.reason}</p>
+                            <p className="text-2xs opacity-80 mt-0.5">{audioMatchResult.reason}</p>
                           </div>
                         </div>
 
@@ -467,7 +467,7 @@ export const PublishAudioRubric = ({
                                     : 'bg-black/30 border-white/10 hover:border-amber-400/50 text-slate-300'
                                 }`}
                               >
-                                <div className="font-bold truncate text-[11px]">📖 {rec.title}</div>
+                                <div className="font-bold truncate text-2xs">📖 {rec.title}</div>
                                 <div className="text-[10px] text-slate-400 truncate">{rec.author} • {rec.reason}</div>
                               </button>
                             ))}
@@ -579,7 +579,7 @@ export const PublishAudioRubric = ({
                               setChapterTtsAudioUrl(null);
                               setChapterTtsText(chap.title ? `Voici la narration complète pour ${chap.title}. ` : '');
                             }}
-                            className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-purple-600/40 to-pink-600/40 hover:from-purple-600/70 hover:to-pink-600/70 border border-purple-500/40 text-purple-200 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shadow-sm"
+                            className="px-3 py-1.5 rounded-xl bg-linear-to-r from-purple-600/40 to-pink-600/40 hover:from-purple-600/70 hover:to-pink-600/70 border border-purple-500/40 text-purple-200 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shadow-sm"
                             title="Générer l'audio de ce chapitre via l'IA vocale"
                           >
                             <Wand2 className="w-3.5 h-3.5 text-pink-300" />
@@ -637,7 +637,7 @@ export const PublishAudioRubric = ({
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                          <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                          <label className="text-2xs font-semibold text-slate-300 block mb-1">
                             Titre du {activeTypeConfig.itemSingular.toLowerCase()}
                           </label>
                           <input
@@ -649,7 +649,7 @@ export const PublishAudioRubric = ({
                         </div>
                         <div>
                           <div className="flex items-center justify-between mb-1">
-                            <label className="text-[11px] font-semibold text-slate-300">Durée (secondes)</label>
+                            <label className="text-2xs font-semibold text-slate-300">Durée (secondes)</label>
                             {Number(chap.duration_seconds) > 0 && (
                               <span className="text-[10px] text-emerald-400 font-bold">
                                 ≈ {formatDuration(chap.duration_seconds)}
@@ -729,7 +729,7 @@ export const PublishAudioRubric = ({
                         onChange={(e) => setScheduledAt(e.target.value)}
                         className="w-full bg-[#130724] border border-purple-500/40 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
                       />
-                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                      <p className="text-2xs text-slate-400 leading-relaxed">
                         💡 Le contenu sera automatiquement visible par les auditeurs dès que cette date et heure seront atteintes.
                       </p>
                     </div>
@@ -774,7 +774,7 @@ export const PublishAudioRubric = ({
 
                 {/* Carte récapitulative & statut BD */}
                 <div className="p-4 rounded-2xl bg-white/5 border border-white/10 text-left flex items-center gap-4">
-                  <img src={publishedBook.cover_url} alt={publishedBook.title} className="w-20 h-20 rounded-xl object-cover border border-white/15 flex-shrink-0" />
+                  <img src={publishedBook.cover_url} alt={publishedBook.title} className="w-20 h-20 rounded-xl object-cover border border-white/15 shrink-0" />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">

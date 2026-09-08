@@ -353,7 +353,7 @@ export function PdfReaderModal({ book, isOpen, onClose }) {
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 z-[100] h-[100dvh] w-full flex flex-col transition-colors duration-300 select-text overflow-hidden"
+      className="fixed inset-0 z-100 h-dvh w-full flex flex-col transition-colors duration-300 select-text overflow-hidden"
       style={{
         backgroundColor: theme.bg,
         color: theme.text,
@@ -361,7 +361,7 @@ export function PdfReaderModal({ book, isOpen, onClose }) {
     >
       {/* ── BARRE SUPÉRIEURE DU LECTEUR ───────────────────────────────────────── */}
       <header
-        className="px-2.5 sm:px-4 py-2 sm:py-2.5 border-b flex items-center justify-between gap-2 flex-shrink-0 z-10 shadow-sm"
+        className="px-2.5 sm:px-4 py-2 sm:py-2.5 border-b flex items-center justify-between gap-2 shrink-0 z-10 shadow-sm"
         style={{
           backgroundColor: theme.cardBg,
           borderColor: theme.border,
@@ -371,7 +371,7 @@ export function PdfReaderModal({ book, isOpen, onClose }) {
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <button
             onClick={onClose}
-            className="flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-purple-600/30 hover:bg-purple-600 text-white font-bold text-xs sm:text-sm border border-purple-400/40 transition-all cursor-pointer shadow-sm active:scale-95 flex-shrink-0"
+            className="flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-purple-600/30 hover:bg-purple-600 text-white font-bold text-xs sm:text-sm border border-purple-400/40 transition-all cursor-pointer shadow-sm active:scale-95 shrink-0"
             title="Quitter la liseuse"
           >
             <ArrowLeft className="w-4 h-4 text-white" />
@@ -380,7 +380,7 @@ export function PdfReaderModal({ book, isOpen, onClose }) {
           <div className="min-w-0">
             <h2 className="font-bold text-xs sm:text-sm md:text-base truncate leading-tight flex items-center gap-1.5">
               <span className="truncate">{book.title}</span>
-              <span className="hidden md:inline text-[9px] uppercase font-bold px-2 py-0.5 rounded-full border border-purple-500/30 text-purple-300 bg-purple-500/10 flex-shrink-0">
+              <span className="hidden md:inline text-[9px] uppercase font-bold px-2 py-0.5 rounded-full border border-purple-500/30 text-purple-300 bg-purple-500/10 shrink-0">
                 E-Book PDF
               </span>
             </h2>
@@ -389,7 +389,7 @@ export function PdfReaderModal({ book, isOpen, onClose }) {
         </div>
 
         {/* Contrôles & Modes */}
-        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           {/* Bascule PDF / Texte si applicable */}
           {Boolean(pdfSourceUrl) && (
             <div className="flex items-center p-0.5 rounded-xl bg-black/30 border border-white/10">
@@ -398,7 +398,7 @@ export function PdfReaderModal({ book, isOpen, onClose }) {
                 onClick={() => setViewMode('pdf')}
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   viewMode === 'pdf'
-                    ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-sm'
+                    ? 'bg-linear-to-r from-purple-600 to-pink-600 text-white shadow-sm'
                     : 'text-purple-300 opacity-70 hover:opacity-100'
                 }`}
                 title="Afficher les pages du document PDF"
@@ -411,7 +411,7 @@ export function PdfReaderModal({ book, isOpen, onClose }) {
                 onClick={() => setViewMode('text')}
                 className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   viewMode === 'text'
-                    ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-sm'
+                    ? 'bg-linear-to-r from-purple-600 to-pink-600 text-white shadow-sm'
                     : 'text-purple-300 opacity-70 hover:opacity-100'
                 }`}
                 title="Afficher le texte reformaté"
@@ -432,7 +432,7 @@ export function PdfReaderModal({ book, isOpen, onClose }) {
                   playBook(book);
                 }
               }}
-              className="px-2.5 py-1 sm:py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-gradient-to-r from-pink-600 to-purple-600 text-white shadow-sm hover:scale-105 active:scale-95 transition-all cursor-pointer"
+              className="px-2.5 py-1 sm:py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-linear-to-r from-pink-600 to-purple-600 text-white shadow-sm hover:scale-105 active:scale-95 transition-all cursor-pointer"
               title="Écouter le livre audio lié"
             >
               <Headphones className="w-3.5 h-3.5" />
@@ -576,7 +576,7 @@ export function PdfReaderModal({ book, isOpen, onClose }) {
                     </button>
                     <button
                       onClick={() => window.open(pdfSourceUrl, '_blank')}
-                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs font-bold flex items-center gap-1.5 shadow-md transition-all"
+                      className="px-4 py-2 rounded-xl bg-linear-to-r from-purple-600 to-pink-600 text-white text-xs font-bold flex items-center gap-1.5 shadow-md transition-all"
                     >
                       <ExternalLink className="w-3.5 h-3.5" />
                       <span>Ouvrir dans le lecteur natif</span>
@@ -639,13 +639,13 @@ export function PdfReaderModal({ book, isOpen, onClose }) {
             {Boolean(pdfSourceUrl) && (
               <div className="mb-6 p-3 rounded-2xl bg-purple-600/20 border border-purple-500/40 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 text-xs text-purple-200">
-                  <FileText className="w-4 h-4 text-purple-300 flex-shrink-0" />
+                  <FileText className="w-4 h-4 text-purple-300 shrink-0" />
                   <span>Document original haute fidélité disponible avec mise en page complète.</span>
                 </div>
                 <button
                   type="button"
                   onClick={() => setViewMode('pdf')}
-                  className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex-shrink-0 cursor-pointer shadow-sm transition-all"
+                  className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shrink-0 cursor-pointer shadow-sm transition-all"
                 >
                   Afficher le PDF
                 </button>
@@ -698,7 +698,7 @@ export function PdfReaderModal({ book, isOpen, onClose }) {
 
       {/* ── BARRE INFÉRIEURE DE NAVIGATION ET PROGRESSION ───────────────────────── */}
       <footer
-        className="px-3 sm:px-4 py-2 sm:py-2.5 border-t flex items-center justify-between gap-2 sm:gap-4 flex-shrink-0 z-10"
+        className="px-3 sm:px-4 py-2 sm:py-2.5 border-t flex items-center justify-between gap-2 sm:gap-4 shrink-0 z-10"
         style={{
           backgroundColor: theme.cardBg,
           borderColor: theme.border,
@@ -729,7 +729,7 @@ export function PdfReaderModal({ book, isOpen, onClose }) {
             onChange={(e) => setCurrentPage(parseInt(e.target.value, 10))}
             className="w-full accent-purple-500 cursor-pointer h-1.5 rounded-lg bg-black/40"
           />
-          <span className="text-[11px] sm:text-xs font-mono font-bold whitespace-nowrap opacity-90 px-1.5 py-0.5 rounded bg-black/20">
+          <span className="text-2xs sm:text-xs font-mono font-bold whitespace-nowrap opacity-90 px-1.5 py-0.5 rounded bg-black/20">
             {currentPage} / {totalPages}
           </span>
         </div>
@@ -750,7 +750,7 @@ export function PdfReaderModal({ book, isOpen, onClose }) {
               });
             }
           }}
-          className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:scale-105 active:scale-95 transition-all shadow-md shadow-purple-600/20 cursor-pointer"
+          className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 bg-linear-to-r from-purple-600 to-pink-600 text-white hover:scale-105 active:scale-95 transition-all shadow-md shadow-purple-600/20 cursor-pointer"
         >
           <span>
             {viewMode === 'pdf'

@@ -235,7 +235,7 @@ export const AudiobookCard = ({
             : 'card-salman-pill hover:scale-[1.02]'
         }`}
       >
-        <div className="relative w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 border border-purple-500/30">
+        <div className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0 border border-purple-500/30">
           <img
             src={coverSrc}
             alt={book.title}
@@ -272,7 +272,7 @@ export const AudiobookCard = ({
             <span className="text-cyan-300">{downloadsCount} téléch.</span>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 flex-shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             type="button"
             onClick={(e) => {
@@ -333,7 +333,7 @@ export const AudiobookCard = ({
         onTouchStart={handlePrewarm}
         className={`group relative flex items-center justify-between p-3 rounded-2xl cursor-pointer transition-all duration-300 ${
           isCurrentPlaying
-            ? 'bg-gradient-to-r from-[#34185d]/90 via-[#261044]/90 to-[#1b0a32]/90 border border-purple-400/50 shadow-lg shadow-purple-950/50'
+            ? 'bg-linear-to-r from-[#34185d]/90 via-[#261044]/90 to-[#1b0a32]/90 border border-purple-400/50 shadow-lg shadow-purple-950/50'
             : 'hover:bg-[#22103f]/60 border border-transparent hover:border-purple-500/20'
         }`}
       >
@@ -341,7 +341,7 @@ export const AudiobookCard = ({
           <h4 className="text-xs sm:text-sm font-bold text-white truncate group-hover:text-purple-200 transition-colors">
             {book.title}
           </h4>
-          <div className="flex items-center gap-2 mt-1 text-[11px] text-[#a78bfa] flex-wrap">
+          <div className="flex items-center gap-2 mt-1 text-2xs text-[#a78bfa] flex-wrap">
             <span>{book.author}</span>
             <span>•</span>
             <button
@@ -377,7 +377,7 @@ export const AudiobookCard = ({
           )}
         </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={handleToggleFavorite}
@@ -406,7 +406,7 @@ export const AudiobookCard = ({
             )}
           </button>
 
-          <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-xl overflow-hidden flex-shrink-0 border border-purple-500/30 shadow-md">
+          <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-xl overflow-hidden shrink-0 border border-purple-500/30 shadow-md">
             <img
               src={coverSrc}
               alt={book.title}
@@ -450,7 +450,7 @@ export const AudiobookCard = ({
 
         {/* Hover / Play Overlay — Masqué ou mode lecture pour livres PDF & ebook */}
         {!isPureEbook ? (
-          <div className={`absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent transition-opacity duration-300 flex items-center justify-center p-3 ${
+          <div className={`absolute inset-0 bg-linear-to-t from-black/80 via-black/30 to-transparent transition-opacity duration-300 flex items-center justify-center p-3 ${
             isCurrentPlaying ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
           }`}>
             <button
@@ -467,7 +467,7 @@ export const AudiobookCard = ({
             </button>
           </div>
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center p-3">
+          <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center p-3">
             <span className="px-3.5 py-2 rounded-full bg-pink-600/90 backdrop-blur-md border border-pink-400/50 text-white text-xs font-bold flex items-center gap-1.5 shadow-xl group-hover:scale-105 transition-transform">
               <BookOpen className="w-4 h-4 text-white" />
               <span>Lire le livre</span>
@@ -528,15 +528,15 @@ export const AudiobookCard = ({
         {/* Format & Tags Badge (VEDETTE, À LA UNE, NOUVEAU, etc.) */}
         <div className="absolute top-2.5 left-2.5 z-10 flex flex-col gap-1 items-start">
           {book.is_featured || book.badge === 'VEDETTE' ? (
-            <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-slate-950 font-['Outfit'] shadow-md border border-amber-300/60 flex items-center gap-1 backdrop-blur-md">
+            <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-linear-to-r from-amber-500 via-orange-500 to-amber-600 text-slate-950 font-['Outfit'] shadow-md border border-amber-300/60 flex items-center gap-1 backdrop-blur-md">
               ⭐ VEDETTE
             </span>
           ) : book.is_pinned || book.badge === 'À LA UNE' ? (
-            <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-gradient-to-r from-pink-600 via-rose-500 to-fuchsia-600 text-white font-['Outfit'] shadow-md border border-pink-300/50 flex items-center gap-1 backdrop-blur-md">
+            <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-linear-to-r from-pink-600 via-rose-500 to-fuchsia-600 text-white font-['Outfit'] shadow-md border border-pink-300/50 flex items-center gap-1 backdrop-blur-md">
               🔥 À LA UNE
             </span>
           ) : book.is_new || book.badge === 'NOUVEAU' ? (
-            <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-gradient-to-r from-purple-600 via-fuchsia-600 to-cyan-500 text-white font-['Outfit'] shadow-md border border-cyan-300/50 flex items-center gap-1 backdrop-blur-md">
+            <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-linear-to-r from-purple-600 via-fuchsia-600 to-cyan-500 text-white font-['Outfit'] shadow-md border border-cyan-300/50 flex items-center gap-1 backdrop-blur-md">
               ✨ NOUVEAU
             </span>
           ) : isPureEbook ? (
@@ -600,7 +600,7 @@ export const AudiobookCard = ({
         <h4 className="text-xs sm:text-sm font-bold text-white truncate group-hover:text-purple-200 transition-colors">
           {book.title}
         </h4>
-        <p className="text-[11px] text-[#c4b0e8] font-medium truncate mt-0.5">
+        <p className="text-2xs text-[#c4b0e8] font-medium truncate mt-0.5">
           {book.author || 'Read’s Great'}
         </p>
 

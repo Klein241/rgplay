@@ -221,7 +221,7 @@ export function RewardedAdModal({ isOpen, onClose, initialAdId = null, initialAd
   const progress = ((AD_DURATION - countdown) / AD_DURATION) * 100;
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-120 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
       {/* Conteneur modale optimisé taille réelle */}
       <div className="bg-[#100820] border border-purple-500/30 rounded-3xl max-w-lg w-full max-h-[94vh] flex flex-col overflow-hidden shadow-2xl shadow-purple-950/80 text-white relative">
 
@@ -231,7 +231,7 @@ export function RewardedAdModal({ isOpen, onClose, initialAdId = null, initialAd
         )}
 
         {/* Barre d'en-tête de la modale */}
-        <div className="px-4 sm:px-5 py-3 sm:py-3.5 border-b border-purple-500/20 flex items-center justify-between flex-shrink-0">
+        <div className="px-4 sm:px-5 py-3 sm:py-3.5 border-b border-purple-500/20 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2 min-w-0">
             <span className="p-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0">
               <Gift className="w-4 h-4" />
@@ -272,7 +272,7 @@ export function RewardedAdModal({ isOpen, onClose, initialAdId = null, initialAd
                     className="w-full max-h-[56vh] object-contain rounded-xl"
                   />
                 ) : isAudio ? (
-                  <div className="w-full h-full min-h-[220px] p-6 bg-gradient-to-br from-emerald-950/80 via-[#101b2b] to-purple-950/80 flex flex-col items-center justify-center gap-2.5 rounded-xl">
+                  <div className="w-full h-full min-h-55 p-6 bg-linear-to-br from-emerald-950/80 via-[#101b2b] to-purple-950/80 flex flex-col items-center justify-center gap-2.5 rounded-xl">
                     <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-300">
                       <Headphones className="w-7 h-7" />
                     </div>
@@ -293,7 +293,7 @@ export function RewardedAdModal({ isOpen, onClose, initialAdId = null, initialAd
                     <button
                       type="button"
                       onClick={() => setIsLightboxOpen(true)}
-                      className="absolute top-2 right-2 px-2.5 py-1 rounded-xl bg-black/75 hover:bg-black text-white/90 border border-white/20 text-[11px] font-bold flex items-center gap-1.5 shadow-lg backdrop-blur-md cursor-pointer transition-all active:scale-95"
+                      className="absolute top-2 right-2 px-2.5 py-1 rounded-xl bg-black/75 hover:bg-black text-white/90 border border-white/20 text-2xs font-bold flex items-center gap-1.5 shadow-lg backdrop-blur-md cursor-pointer transition-all active:scale-95"
                       title="Agrandir en plein écran"
                     >
                       <Maximize2 className="w-3.5 h-3.5" />
@@ -301,7 +301,7 @@ export function RewardedAdModal({ isOpen, onClose, initialAdId = null, initialAd
                     </button>
                   </div>
                 ) : (
-                  <div className={`w-full min-h-[220px] bg-gradient-to-br ${currentAd.gradient || "from-purple-600 to-pink-700"} flex flex-col items-center justify-center text-center gap-2 p-6 rounded-xl`}>
+                  <div className={`w-full min-h-55 bg-linear-to-br ${currentAd.gradient || "from-purple-600 to-pink-700"} flex flex-col items-center justify-center text-center gap-2 p-6 rounded-xl`}>
                     <div className="text-5xl mb-1">{currentAd.icon || "📢"}</div>
                     <h4 className="font-extrabold text-base text-white leading-snug">{currentAd.title}</h4>
                     {currentAd.tagline && <p className="text-xs text-white/80 mt-1">{currentAd.tagline}</p>}
@@ -329,7 +329,7 @@ export function RewardedAdModal({ isOpen, onClose, initialAdId = null, initialAd
                   <button
                     type="button"
                     onClick={handleCtaClick}
-                    className="w-full py-3 rounded-2xl font-extrabold text-sm flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 via-orange-500 to-pink-500 text-white shadow-lg hover:scale-[1.02] transition-all cursor-pointer"
+                    className="w-full py-3 rounded-2xl font-extrabold text-sm flex items-center justify-center gap-2 bg-linear-to-r from-amber-500 via-orange-500 to-pink-500 text-white shadow-lg hover:scale-[1.02] transition-all cursor-pointer"
                   >
                     <ExternalLink className="w-4 h-4" />
                     <span>{currentAd.ctaText || 'Visiter le partenaire'} → +{rewardPts} pts</span>
@@ -352,7 +352,7 @@ export function RewardedAdModal({ isOpen, onClose, initialAdId = null, initialAd
                       triggerReward("view");
                       setPhase("done");
                     }}
-                    className="w-full py-2.5 rounded-2xl font-bold text-xs flex items-center justify-center gap-1.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg hover:scale-[1.02] active:scale-95 transition-all cursor-pointer"
+                    className="w-full py-2.5 rounded-2xl font-bold text-xs flex items-center justify-center gap-1.5 bg-linear-to-r from-purple-600 to-pink-600 text-white shadow-lg hover:scale-[1.02] active:scale-95 transition-all cursor-pointer"
                   >
                     <Sparkles className="w-4 h-4" />
                     <span>J'ai vu cette annonce (+{rewardPts} pts)</span>
@@ -386,7 +386,7 @@ export function RewardedAdModal({ isOpen, onClose, initialAdId = null, initialAd
                     </button>
                   </>
                 ) : isAudio ? (
-                  <div className="w-full h-full min-h-[220px] p-6 bg-gradient-to-br from-emerald-950/90 via-[#0e1726] to-purple-950/90 flex flex-col items-center justify-center text-center gap-3 rounded-xl">
+                  <div className="w-full h-full min-h-55 p-6 bg-linear-to-br from-emerald-950/90 via-[#0e1726] to-purple-950/90 flex flex-col items-center justify-center text-center gap-3 rounded-xl">
                     <div className="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-400/40 flex items-center justify-center text-emerald-300 animate-pulse">
                       <Music className="w-8 h-8 animate-spin" style={{ animationDuration: '6s' }} />
                     </div>
@@ -406,7 +406,7 @@ export function RewardedAdModal({ isOpen, onClose, initialAdId = null, initialAd
                     <button
                       type="button"
                       onClick={() => setIsLightboxOpen(true)}
-                      className="absolute top-2.5 right-2.5 px-2.5 py-1 rounded-xl bg-black/75 hover:bg-black text-white/90 border border-white/20 text-[11px] font-bold flex items-center gap-1.5 shadow-lg backdrop-blur-md cursor-pointer transition-all active:scale-95"
+                      className="absolute top-2.5 right-2.5 px-2.5 py-1 rounded-xl bg-black/75 hover:bg-black text-white/90 border border-white/20 text-2xs font-bold flex items-center gap-1.5 shadow-lg backdrop-blur-md cursor-pointer transition-all active:scale-95"
                       title="Agrandir en plein écran"
                     >
                       <Maximize2 className="w-3.5 h-3.5" />
@@ -414,7 +414,7 @@ export function RewardedAdModal({ isOpen, onClose, initialAdId = null, initialAd
                     </button>
                   </div>
                 ) : (
-                  <div className={`w-full min-h-[220px] bg-gradient-to-br ${currentAd.gradient || "from-purple-600 to-pink-700"} flex flex-col items-center justify-center text-center gap-3 p-6 rounded-xl`}>
+                  <div className={`w-full min-h-55 bg-linear-to-br ${currentAd.gradient || "from-purple-600 to-pink-700"} flex flex-col items-center justify-center text-center gap-3 p-6 rounded-xl`}>
                     <div className="text-5xl">{currentAd.icon || "📢"}</div>
                     <h4 className="font-bold text-sm text-white">{currentAd.title}</h4>
                   </div>
@@ -431,7 +431,7 @@ export function RewardedAdModal({ isOpen, onClose, initialAdId = null, initialAd
               <div className="space-y-1.5">
                 <div className="h-2 rounded-full bg-white/10 overflow-hidden">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-amber-500 via-orange-400 to-pink-500 transition-all duration-1000"
+                    className="h-full rounded-full bg-linear-to-r from-amber-500 via-orange-400 to-pink-500 transition-all duration-1000"
                     style={{ width: `${progress}%` }}
                   />
                 </div>
@@ -448,7 +448,7 @@ export function RewardedAdModal({ isOpen, onClose, initialAdId = null, initialAd
                   className={`w-full py-2.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
                     ctaClicked
                       ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300'
-                      : 'bg-gradient-to-r from-amber-500 via-orange-500 to-pink-500 text-white shadow-lg hover:scale-[1.02]'
+                      : 'bg-linear-to-r from-amber-500 via-orange-500 to-pink-500 text-white shadow-lg hover:scale-[1.02]'
                   }`}
                 >
                   {ctaClicked ? (
@@ -480,7 +480,7 @@ export function RewardedAdModal({ isOpen, onClose, initialAdId = null, initialAd
                 <button
                   type="button"
                   onClick={handleCtaClick}
-                  className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-amber-500 to-pink-500 flex items-center justify-center gap-1.5 transition-all hover:scale-[1.02] cursor-pointer"
+                  className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-white bg-linear-to-r from-amber-500 to-pink-500 flex items-center justify-center gap-1.5 transition-all hover:scale-[1.02] cursor-pointer"
                 >
                   <span>{currentAd.ctaText || "Visiter le partenaire sponsor"}</span>
                   <ExternalLink className="w-3.5 h-3.5" />
@@ -497,7 +497,7 @@ export function RewardedAdModal({ isOpen, onClose, initialAdId = null, initialAd
               <div className="w-full space-y-2">
                 <button
                   onClick={() => { onClose(); window.dispatchEvent(new CustomEvent("rg:navigate-tab", { detail: "library" })); }}
-                  className="w-full py-3 rounded-2xl font-bold text-sm bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg hover:scale-[1.02] transition-transform cursor-pointer"
+                  className="w-full py-3 rounded-2xl font-bold text-sm bg-linear-to-r from-purple-600 to-pink-600 text-white shadow-lg hover:scale-[1.02] transition-transform cursor-pointer"
                 >
                   Utiliser mes points pour débloquer un livre →
                 </button>
@@ -510,7 +510,7 @@ export function RewardedAdModal({ isOpen, onClose, initialAdId = null, initialAd
         </div>
 
         {phase !== "done" && (
-          <div className="px-4 py-2.5 border-t border-white/5 flex items-center justify-center gap-2 text-[10px] text-slate-400 flex-shrink-0">
+          <div className="px-4 py-2.5 border-t border-white/5 flex items-center justify-center gap-2 text-[10px] text-slate-400 shrink-0">
             <ShieldCheck className="w-3 h-3 text-emerald-400" />
             <span>Offre vérifiée par Read's Great • Attribution instantanée</span>
           </div>
@@ -520,7 +520,7 @@ export function RewardedAdModal({ isOpen, onClose, initialAdId = null, initialAd
       {/* ── LIGHTBOX PLEIN ÉCRAN POUR AFFICHE PUBLICITAIRE (TAILLE RÉELLE 100%) ── */}
       {isLightboxOpen && isImage && (
         <div
-          className="fixed inset-0 z-[150] bg-black/95 backdrop-blur-md flex flex-col items-center justify-between p-3 sm:p-5 animate-in fade-in duration-200"
+          className="fixed inset-0 z-150 bg-black/95 backdrop-blur-md flex flex-col items-center justify-between p-3 sm:p-5 animate-in fade-in duration-200"
           onClick={() => setIsLightboxOpen(false)}
         >
           {/* Barre supérieure Lightbox */}
@@ -558,7 +558,7 @@ export function RewardedAdModal({ isOpen, onClose, initialAdId = null, initialAd
                   handleCtaClick();
                   setIsLightboxOpen(false);
                 }}
-                className="flex-1 py-3 px-4 rounded-2xl font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 via-orange-500 to-pink-500 text-white shadow-xl hover:scale-105 transition-all cursor-pointer"
+                className="flex-1 py-3 px-4 rounded-2xl font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 bg-linear-to-r from-amber-500 via-orange-500 to-pink-500 text-white shadow-xl hover:scale-105 transition-all cursor-pointer"
               >
                 <ExternalLink className="w-4 h-4" />
                 <span>{currentAd.ctaText || 'Visiter le partenaire'} → +{rewardPts} pts</span>

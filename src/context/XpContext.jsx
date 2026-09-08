@@ -344,9 +344,9 @@ export const XpProvider = ({ children }) => {
 
       {/* Toast Notification Flottante de Récompense Read's Great */}
       {activeRewardNotification && (
-        <div className="fixed top-20 right-4 z-[9999] pointer-events-none animate-in fade-in slide-in-from-top-4 duration-300">
+        <div className="fixed top-20 right-4 z-9999 pointer-events-none animate-in fade-in slide-in-from-top-4 duration-300">
           <div className="bg-[#1c0e33]/95 border border-purple-500/40 backdrop-blur-xl rounded-2xl p-4 shadow-2xl shadow-purple-950/80 max-w-sm flex items-center gap-3.5 text-white">
-            <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-purple-600 to-pink-500 flex items-center justify-center text-xl shrink-0 shadow-lg shadow-purple-600/30">
+            <div className="w-11 h-11 rounded-xl bg-linear-to-tr from-purple-600 to-pink-500 flex items-center justify-center text-xl shrink-0 shadow-lg shadow-purple-600/30">
               ✨
             </div>
             <div className="flex-1 min-w-0">

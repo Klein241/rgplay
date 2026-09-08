@@ -186,7 +186,7 @@ export const GamificationRubric = () => {
       </div>
 
       {/* Carte Explicative */}
-      <div className="p-5 rounded-3xl bg-gradient-to-r from-purple-950/60 via-[#1b0d33] to-indigo-950/60 border border-purple-500/30 space-y-2 shadow-xl">
+      <div className="p-5 rounded-3xl bg-linear-to-r from-purple-950/60 via-[#1b0d33] to-indigo-950/60 border border-purple-500/30 space-y-2 shadow-xl">
         <div className="flex items-center gap-2.5 text-purple-200 font-bold text-sm">
           <ShieldCheck className="w-5 h-5 text-amber-400 shrink-0" />
           <span>Monétisation Publicitaire & Économie de Points RG Play</span>
@@ -242,7 +242,7 @@ export const GamificationRubric = () => {
       {/* Cartes Éditables : Économie de Points */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* 1. Coût Déblocage */}
-        <div className="p-4 rounded-3xl bg-gradient-to-br from-amber-950/40 to-[#1b0d33] border border-amber-500/30 space-y-2 shadow-xl">
+        <div className="p-4 rounded-3xl bg-linear-to-br from-amber-950/40 to-[#1b0d33] border border-amber-500/30 space-y-2 shadow-xl">
           <span className="text-[10px] uppercase font-extrabold text-amber-400 tracking-wider block">Coût Déblocage Livre</span>
           <div className="flex items-center gap-2">
             <input
@@ -255,11 +255,11 @@ export const GamificationRubric = () => {
             />
             <span className="text-xs font-bold text-amber-300">Points ⭐</span>
           </div>
-          <p className="text-[11px] text-slate-400">Points requis pour débloquer 1 livre sans payer.</p>
+          <p className="text-2xs text-slate-400">Points requis pour débloquer 1 livre sans payer.</p>
         </div>
 
         {/* 2. Récompense Lecture */}
-        <div className="p-4 rounded-3xl bg-gradient-to-br from-purple-950/40 to-[#1b0d33] border border-purple-500/30 space-y-2 shadow-xl">
+        <div className="p-4 rounded-3xl bg-linear-to-br from-purple-950/40 to-[#1b0d33] border border-purple-500/30 space-y-2 shadow-xl">
           <span className="text-[10px] uppercase font-extrabold text-purple-400 tracking-wider block">Récompense Lecture (E-Book)</span>
           <div className="flex items-center gap-2">
             <span className="text-xs text-purple-300 font-bold">+</span>
@@ -273,11 +273,11 @@ export const GamificationRubric = () => {
             />
             <span className="text-xs font-bold text-purple-300">XP / 3 min</span>
           </div>
-          <p className="text-[11px] text-slate-400">+5 Points attribués toutes les 3 min de lecture dans la liseuse.</p>
+          <p className="text-2xs text-slate-400">+5 Points attribués toutes les 3 min de lecture dans la liseuse.</p>
         </div>
 
         {/* 3. Pubs Sponsorisées (Règle par défaut) */}
-        <div className="p-4 rounded-3xl bg-gradient-to-br from-cyan-950/40 to-[#1b0d33] border border-cyan-500/30 space-y-2 shadow-xl">
+        <div className="p-4 rounded-3xl bg-linear-to-br from-cyan-950/40 to-[#1b0d33] border border-cyan-500/30 space-y-2 shadow-xl">
           <span className="text-[10px] uppercase font-extrabold text-cyan-400 tracking-wider block">Pubs Sponsorisées (Défaut)</span>
           <div className="flex items-center gap-2">
             <span className="text-xs text-cyan-300 font-bold">+</span>
@@ -291,11 +291,11 @@ export const GamificationRubric = () => {
             />
             <span className="text-xs font-bold text-cyan-300">Pts / Pub</span>
           </div>
-          <p className="text-[11px] text-slate-400">Points attribués par visionnage (chaque pub peut avoir son propre montant ci-dessous).</p>
+          <p className="text-2xs text-slate-400">Points attribués par visionnage (chaque pub peut avoir son propre montant ci-dessous).</p>
         </div>
 
         {/* 4. Bonus Quotidien */}
-        <div className="p-4 rounded-3xl bg-gradient-to-br from-emerald-950/40 to-[#1b0d33] border border-emerald-500/30 space-y-2 shadow-xl">
+        <div className="p-4 rounded-3xl bg-linear-to-br from-emerald-950/40 to-[#1b0d33] border border-emerald-500/30 space-y-2 shadow-xl">
           <span className="text-[10px] uppercase font-extrabold text-emerald-400 tracking-wider block">Bonus Quotidien (Streak)</span>
           <div className="flex items-center gap-2">
             <span className="text-xs text-emerald-300 font-bold">+</span>
@@ -309,7 +309,7 @@ export const GamificationRubric = () => {
             />
             <span className="text-xs font-bold text-emerald-300">XP / jour</span>
           </div>
-          <p className="text-[11px] text-slate-400">Multiplicateur appliqué selon la série de jours consécutifs.</p>
+          <p className="text-2xs text-slate-400">Multiplicateur appliqué selon la série de jours consécutifs.</p>
         </div>
       </div>
 
@@ -334,7 +334,7 @@ export const GamificationRubric = () => {
             <h4 className="text-sm font-black text-white flex items-center gap-2">
               <span>➕ Créer une nouvelle publicité</span>
             </h4>
-            <span className="text-[11px] text-slate-400">Stockage direct permanent Cloudflare R2</span>
+            <span className="text-2xs text-slate-400">Stockage direct permanent Cloudflare R2</span>
           </div>
 
           {/* Titre et Sous-titre */}
@@ -445,7 +445,7 @@ export const GamificationRubric = () => {
 
             {/* Saisie alternative d'URL directe */}
             <div className="pt-1">
-              <label className="text-[11px] font-semibold text-slate-400 block mb-1">
+              <label className="text-2xs font-semibold text-slate-400 block mb-1">
                 Ou saisir/coller une URL directe ({newAd.mediaType})
               </label>
               <input
@@ -530,7 +530,7 @@ export const GamificationRubric = () => {
                   <Layers className="w-4 h-4 text-purple-400" />
                   <span>Emplacements d'affichage dans l'application ({newAd.placements?.length || 0} sélectionnés)</span>
                 </label>
-                <p className="text-[11px] text-slate-400">Cochez les zones précises où cette annonce doit être visible.</p>
+                <p className="text-2xs text-slate-400">Cochez les zones précises où cette annonce doit être visible.</p>
               </div>
 
               <div className="flex items-center gap-2">
@@ -587,7 +587,7 @@ export const GamificationRubric = () => {
           {/* Aperçu Live du Média */}
           {newAd.mediaUrl && (
             <div className="p-4 rounded-2xl bg-black/40 border border-white/10 space-y-2">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+              <span className="text-2xs font-bold text-slate-400 uppercase tracking-wider block">
                 Prévisualisation ({newAd.mediaType.toUpperCase()})
               </span>
               {newAd.mediaType === 'image' && (
@@ -617,7 +617,7 @@ export const GamificationRubric = () => {
             type="button"
             onClick={handleAddAd}
             disabled={!newAd.title.trim()}
-            className="flex items-center justify-center gap-2 w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 text-white text-xs sm:text-sm font-bold shadow-xl shadow-purple-950/50 hover:scale-[1.02] active:scale-98 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center justify-center gap-2 w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-linear-to-r from-pink-600 via-purple-600 to-indigo-600 text-white text-xs sm:text-sm font-bold shadow-xl shadow-purple-950/50 hover:scale-[1.02] active:scale-98 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Plus className="w-4 h-4" />
             <span>Enregistrer & Diffuser cette Publicité</span>

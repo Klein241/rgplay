@@ -85,7 +85,7 @@ export const MiniPlayer = () => {
         <div className="flex items-center gap-3 p-3 sm:p-3.5 mt-1">
 
           {/* Jaquette */}
-          <div className="relative flex-shrink-0">
+          <div className="relative shrink-0">
             <div
               className="rounded-xl overflow-hidden"
               style={{
@@ -132,7 +132,7 @@ export const MiniPlayer = () => {
               </p>
               {isPreviewMode && (
                 <span
-                  className="flex-shrink-0 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full"
+                  className="shrink-0 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full"
                   style={{
                     background: 'rgba(251, 191, 36, 0.15)',
                     color: '#fbbf24',
@@ -149,7 +149,7 @@ export const MiniPlayer = () => {
           </div>
 
           {/* Horodatage */}
-          <div className="hidden sm:block text-right pr-1 flex-shrink-0">
+          <div className="hidden sm:block text-right pr-1 shrink-0">
             <span className="text-xs font-mono" style={{ color: 'rgba(139, 135, 168, 0.8)' }}>
               {formatTime(currentTime)}
             </span>
@@ -159,7 +159,7 @@ export const MiniPlayer = () => {
           </div>
 
           {/* Contrôles */}
-          <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
             {/* -15s */}
             <button
               onClick={() => skipBackward(15)}

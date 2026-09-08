@@ -40,7 +40,7 @@ export const PushPermissionBanner = () => {
         <button
           onClick={handleActivate}
           disabled={isActivating}
-          className="group relative flex items-center gap-3.5 px-6 py-3.5 sm:py-4 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-purple-600 via-fuchsia-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-black text-xs sm:text-sm shadow-[0_0_35px_rgba(168,85,247,0.7)] border-2 border-purple-300/60 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+          className="group relative flex items-center gap-3.5 px-6 py-3.5 sm:py-4 rounded-2xl sm:rounded-3xl bg-linear-to-r from-purple-600 via-fuchsia-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-black text-xs sm:text-sm shadow-[0_0_35px_rgba(168,85,247,0.7)] border-2 border-purple-300/60 hover:scale-105 active:scale-95 transition-all cursor-pointer"
           title="Activer les notifications push"
         >
           <span className="w-3 h-3 rounded-full bg-cyan-300 animate-ping" />
@@ -60,7 +60,7 @@ export const PushPermissionBanner = () => {
   // ── Mode Déplié : Bannière Large avec Grand Bouton d'Action Imposant ──
   return (
     <div className="fixed bottom-28 sm:bottom-32 md:bottom-24 right-4 left-4 sm:left-auto sm:max-w-lg z-45 animate-slideUp">
-      <div className="rounded-3xl p-5 sm:p-6 border-2 border-purple-400/70 shadow-[0_12px_45px_rgba(0,0,0,0.85),0_0_40px_rgba(168,85,247,0.45)] bg-gradient-to-br from-[#1c0d36]/98 via-[#130726]/98 to-[#0b0318]/98 backdrop-blur-2xl relative overflow-hidden">
+      <div className="rounded-3xl p-5 sm:p-6 border-2 border-purple-400/70 shadow-[0_12px_45px_rgba(0,0,0,0.85),0_0_40px_rgba(168,85,247,0.45)] bg-linear-to-br from-[#1c0d36]/98 via-[#130726]/98 to-[#0b0318]/98 backdrop-blur-2xl relative overflow-hidden">
         {/* Halo lumineux */}
         <div className="absolute -top-12 -right-12 w-36 h-36 bg-purple-500/30 rounded-full blur-2xl pointer-events-none" />
         <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-pink-500/25 rounded-full blur-xl pointer-events-none" />
@@ -68,7 +68,7 @@ export const PushPermissionBanner = () => {
         <div className="relative z-10 space-y-4">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-tr from-purple-600 via-fuchsia-600 to-pink-500 flex items-center justify-center text-white flex-shrink-0 shadow-lg shadow-purple-500/40 animate-pulse border border-white/25">
+              <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-linear-to-tr from-purple-600 via-fuchsia-600 to-pink-500 flex items-center justify-center text-white shrink-0 shadow-lg shadow-purple-500/40 animate-pulse border border-white/25">
                 <Bell size={26} className="fill-white" />
               </div>
               <div>
@@ -88,7 +88,7 @@ export const PushPermissionBanner = () => {
 
             <button
               onClick={handleMinimize}
-              className="text-slate-400 hover:text-white p-1.5 rounded-xl hover:bg-white/10 transition-colors flex-shrink-0"
+              className="text-slate-400 hover:text-white p-1.5 rounded-xl hover:bg-white/10 transition-colors shrink-0"
               title="Réduire"
             >
               <X size={18} />
@@ -100,7 +100,7 @@ export const PushPermissionBanner = () => {
             <button
               onClick={handleActivate}
               disabled={isActivating}
-              className="flex-1 py-4 px-6 rounded-2xl bg-gradient-to-r from-purple-600 via-fuchsia-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-sm sm:text-base font-black shadow-2xl shadow-purple-600/50 flex items-center justify-center gap-3 transition-all duration-200 active:scale-95 disabled:opacity-50 cursor-pointer border-2 border-purple-300/50 hover:scale-[1.02]"
+              className="flex-1 py-4 px-6 rounded-2xl bg-linear-to-r from-purple-600 via-fuchsia-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-sm sm:text-base font-black shadow-2xl shadow-purple-600/50 flex items-center justify-center gap-3 transition-all duration-200 active:scale-95 disabled:opacity-50 cursor-pointer border-2 border-purple-300/50 hover:scale-[1.02]"
             >
               {isActivating ? (
                 <>

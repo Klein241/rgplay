@@ -90,7 +90,7 @@ export const FullScreenPlayer = () => {
         className="absolute inset-0 opacity-20 bg-cover bg-center filter blur-3xl scale-125 -z-10 pointer-events-none"
         style={{ backgroundImage: `url(${currentCover})` }}
       />
-      <div className="absolute inset-0 bg-gradient-to-b from-[#140826]/90 via-[#0e0618]/95 to-[#08030f] -z-10" />
+      <div className="absolute inset-0 bg-linear-to-b from-[#140826]/90 via-depth-0/95 to-[#08030f] -z-10" />
 
       {/* ── EN-TÊTE SUPÉRIEUR (@iSalmanArt Screen 3) ── */}
       <header className="px-5 sm:px-8 py-4 flex items-center justify-between z-10">
@@ -200,7 +200,7 @@ export const FullScreenPlayer = () => {
                 alt={currentBook.title}
                 className={`w-full h-full object-cover filter brightness-90 ${isPlaying ? 'animate-[spin_20s_linear_infinite]' : ''}`}
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-purple-950/40 to-transparent" />
+              <div className="absolute inset-0 bg-linear-to-t from-black/75 via-purple-950/40 to-transparent" />
 
               {/* Bouton Play/Pause Central en verre dépoli (@iSalmanArt signature) */}
               <button
@@ -295,7 +295,7 @@ export const FullScreenPlayer = () => {
               onClick={handlePrevChapter}
               className="flex items-center gap-2 p-2 rounded-xl bg-[#210f3a]/60 hover:bg-[#2d164f] border border-purple-500/20 text-left transition-all cursor-pointer group"
             >
-              <ChevronLeft className="w-5 h-5 text-[#c4b0e8] group-hover:text-white flex-shrink-0" />
+              <ChevronLeft className="w-5 h-5 text-[#c4b0e8] group-hover:text-white shrink-0" />
               <div className="min-w-0">
                 <p className="text-[10px] text-[#a78bfa] uppercase font-bold truncate">Précédent</p>
                 <p className="text-xs font-bold text-white truncate">{prevChapterTitle}</p>
@@ -311,7 +311,7 @@ export const FullScreenPlayer = () => {
                 <p className="text-[10px] text-[#a78bfa] uppercase font-bold truncate">Suivant</p>
                 <p className="text-xs font-bold text-white truncate">{nextChapterTitle}</p>
               </div>
-              <ChevronRight className="w-5 h-5 text-[#c4b0e8] group-hover:text-white flex-shrink-0" />
+              <ChevronRight className="w-5 h-5 text-[#c4b0e8] group-hover:text-white shrink-0" />
             </button>
           </div>
 
@@ -343,7 +343,7 @@ export const FullScreenPlayer = () => {
               <h3 className="text-xs font-black tracking-wider text-[#e9d5ff] uppercase font-heading">
                 PLAYLIST RÉCENTE
               </h3>
-              <span className="text-[11px] text-[#a78bfa] font-bold">
+              <span className="text-2xs text-[#a78bfa] font-bold">
                 {recentPlaylist.length} titres
               </span>
             </div>
@@ -353,7 +353,7 @@ export const FullScreenPlayer = () => {
                 <div
                   key={b.id}
                   onClick={() => playBook(b, 0, 0)}
-                  className="flex-shrink-0 w-24 sm:w-28 text-center cursor-pointer group"
+                  className="shrink-0 w-24 sm:w-28 text-center cursor-pointer group"
                 >
                   <div className="relative aspect-square rounded-2xl overflow-hidden mb-1.5 border border-purple-500/30 group-hover:border-purple-400 shadow-md">
                     <img
@@ -362,7 +362,7 @@ export const FullScreenPlayer = () => {
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                     />
                   </div>
-                  <p className="text-[11px] font-bold text-white truncate group-hover:text-purple-200">
+                  <p className="text-2xs font-bold text-white truncate group-hover:text-purple-200">
                     {b.title}
                   </p>
                   <p className="text-[9.5px] text-[#c4b0e8] truncate">
@@ -406,7 +406,7 @@ export const FullScreenPlayer = () => {
                   onClick={() => selectChapter(idx)}
                   className={`flex items-center justify-between p-3.5 rounded-2xl cursor-pointer transition-all ${
                     isCurrent
-                      ? 'bg-gradient-to-r from-[#3b176d] via-[#2a1052] to-[#1c0a38] border border-purple-400/60 shadow-lg shadow-purple-950/60 scale-[1.01]'
+                      ? 'bg-linear-to-r from-[#3b176d] via-[#2a1052] to-[#1c0a38] border border-purple-400/60 shadow-lg shadow-purple-950/60 scale-[1.01]'
                       : 'bg-white/4 hover:bg-white/8 border border-white/5'
                   }`}
                 >
@@ -434,7 +434,7 @@ export const FullScreenPlayer = () => {
                         <span className="w-1 rounded-full bg-purple-300 eq-bar-3" />
                       </div>
                     )}
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 border ${
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 border ${
                       isCurrent ? 'bg-purple-600 text-white border-purple-400' : 'bg-white/10 text-slate-300 border-white/10'
                     }`}>
                       {isCurrent && isPlaying ? <Pause className="w-3.5 h-3.5 text-cyan-300" /> : <Play className="w-3.5 h-3.5 ml-0.5" />}

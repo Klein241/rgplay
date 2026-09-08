@@ -410,7 +410,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                 <img
                   src={book.cover_url || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=200&q=80'}
                   alt={book.title}
-                  className="w-16 h-16 rounded-xl object-cover flex-shrink-0 shadow-lg"
+                  className="w-16 h-16 rounded-xl object-cover shrink-0 shadow-lg"
                   onError={e => { e.target.src = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=200&q=80'; }}
                 />
                 <div className="min-w-0">
@@ -459,7 +459,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                     Votre numéro de téléphone
                   </label>
                   <div className="flex items-center gap-2">
-                    <div className="flex-shrink-0 flex items-center gap-1.5 px-3 py-3.5 rounded-xl bg-white/5 border border-white/10 text-slate-300">
+                    <div className="shrink-0 flex items-center gap-1.5 px-3 py-3.5 rounded-xl bg-white/5 border border-white/10 text-slate-300">
                       <Phone size={15} className="text-slate-400" />
                       <span className="text-sm font-bold whitespace-nowrap">+237</span>
                     </div>
@@ -521,7 +521,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                   </p>
                   {!hasEnoughPoints && (
                     <div className="pt-2 border-t border-amber-500/20 flex flex-col sm:flex-row items-center justify-between gap-2">
-                      <span className="text-[11px] text-amber-400 font-medium">
+                      <span className="text-2xs text-amber-400 font-medium">
                         Il vous manque {pointsCost - points} points pour débloquer ce livre gratuitement.
                       </span>
                       <button
@@ -549,7 +549,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
               {initError && (
                 <div className="p-3.5 rounded-2xl bg-red-500/10 border border-red-500/30 space-y-2.5">
                   <div className="flex items-start gap-2.5">
-                    <AlertCircle size={16} className="text-red-400 flex-shrink-0 mt-0.5" />
+                    <AlertCircle size={16} className="text-red-400 shrink-0 mt-0.5" />
                     <p className="text-red-300 text-sm leading-snug">{initError}</p>
                   </div>
 
@@ -587,7 +587,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
               {/* Info sécurité Mobile Money */}
               {!isCard && !isPoints && (
                 <div className="flex items-center gap-2.5 text-xs text-slate-500">
-                  <ShieldCheck size={14} className="text-emerald-500 flex-shrink-0" />
+                  <ShieldCheck size={14} className="text-emerald-500 shrink-0" />
                   <span>Vous recevrez un message sur votre téléphone. <strong className="text-slate-400">Votre PIN n'est jamais saisi ici.</strong></span>
                 </div>
               )}
@@ -598,8 +598,8 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                 disabled={step === 'initiating' || (isPoints && !hasEnoughPoints)}
                 className={`w-full py-4 rounded-2xl font-bold text-base flex items-center justify-center gap-2.5 shadow-lg transition-all duration-200 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed ${
                   isPoints
-                    ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 text-slate-950 shadow-amber-500/30 hover:opacity-95 cursor-pointer'
-                    : 'bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white shadow-purple-500/30 hover:from-purple-500 hover:to-fuchsia-500'
+                    ? 'bg-linear-to-r from-amber-500 via-amber-400 to-yellow-400 text-slate-950 shadow-amber-500/30 hover:opacity-95 cursor-pointer'
+                    : 'bg-linear-to-r from-purple-600 to-fuchsia-600 text-white shadow-purple-500/30 hover:from-purple-500 hover:to-fuchsia-500'
                 }`}
               >
                 {step === 'initiating' ? (
@@ -632,7 +632,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
               <div className="relative mx-auto w-28 h-28">
                 <div className="absolute inset-0 rounded-full bg-purple-500/20 animate-ping" style={{ animationDuration: '1.5s' }} />
                 <div className="absolute inset-3 rounded-full bg-purple-500/30 animate-ping" style={{ animationDuration: '1.8s', animationDelay: '0.3s' }} />
-                <div className="absolute inset-6 rounded-full bg-gradient-to-br from-purple-600 to-fuchsia-600 flex items-center justify-center shadow-xl">
+                <div className="absolute inset-6 rounded-full bg-linear-to-br from-purple-600 to-fuchsia-600 flex items-center justify-center shadow-xl">
                   <Smartphone size={28} className="text-white" />
                 </div>
               </div>
@@ -653,7 +653,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                   { num: '3', text: `Le montant de ${finalPrice?.toLocaleString()} FCFA sera débité et l'audio débloqué` },
                 ].map(s => (
                   <div key={s.num} className="flex items-start gap-3">
-                    <span className="w-6 h-6 rounded-full bg-purple-600 text-white text-xs font-bold flex-shrink-0 flex items-center justify-center mt-0.5">
+                    <span className="w-6 h-6 rounded-full bg-purple-600 text-white text-xs font-bold shrink-0 flex items-center justify-center mt-0.5">
                       {s.num}
                     </span>
                     <p className="text-slate-300 text-sm">{s.text}</p>
@@ -669,7 +669,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                 </div>
                 <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-purple-500 to-fuchsia-500 rounded-full transition-all"
+                    className="h-full bg-linear-to-r from-purple-500 to-fuchsia-500 rounded-full transition-all"
                     style={{ width: `${(remainingSec / PAYMENT_TIMEOUT_S) * 100}%` }}
                   />
                 </div>
@@ -686,7 +686,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                   onClick={handleManualUnlock}
                   disabled={isConfirming}
                   className="w-full py-3.5 px-4 rounded-2xl font-bold text-white text-sm
-                    bg-gradient-to-r from-emerald-600 to-teal-600
+                    bg-linear-to-r from-emerald-600 to-teal-600
                     hover:from-emerald-500 hover:to-teal-500
                     shadow-lg shadow-emerald-500/30
                     flex items-center justify-center gap-2
@@ -731,7 +731,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
               {/* Animation carte */}
               <div className="relative mx-auto w-28 h-28">
                 <div className="absolute inset-0 rounded-full bg-blue-500/20 animate-ping" style={{ animationDuration: '1.5s' }} />
-                <div className="absolute inset-6 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-xl">
+                <div className="absolute inset-6 rounded-full bg-linear-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-xl">
                   <CreditCard size={28} className="text-white" />
                 </div>
               </div>
@@ -752,7 +752,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                   { num: '3', text: 'Revenez sur cet onglet et cliquez sur "J\'ai payé"' },
                 ].map(s => (
                   <div key={s.num} className="flex items-start gap-3">
-                    <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex-shrink-0 flex items-center justify-center mt-0.5">
+                    <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold shrink-0 flex items-center justify-center mt-0.5">
                       {s.num}
                     </span>
                     <p className="text-slate-300 text-sm">{s.text}</p>
@@ -768,7 +768,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                 </div>
                 <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all"
+                    className="h-full bg-linear-to-r from-blue-500 to-indigo-500 rounded-full transition-all"
                     style={{ width: `${(remainingSec / PAYMENT_TIMEOUT_S) * 100}%` }}
                   />
                 </div>
@@ -788,7 +788,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-full py-4 rounded-2xl font-bold text-white text-base
-                      bg-gradient-to-r from-blue-600 to-indigo-600
+                      bg-linear-to-r from-blue-600 to-indigo-600
                       hover:from-blue-500 hover:to-indigo-500
                       shadow-lg shadow-blue-500/30
                       flex items-center justify-center gap-2.5
@@ -811,7 +811,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                   onClick={handleCardConfirm}
                   disabled={isConfirming}
                   className="w-full py-3.5 rounded-2xl font-bold text-white text-sm
-                    bg-gradient-to-r from-emerald-600 to-teal-600
+                    bg-linear-to-r from-emerald-600 to-teal-600
                     hover:from-emerald-500 hover:to-teal-500
                     shadow-lg shadow-emerald-500/30
                     flex items-center justify-center gap-2.5
@@ -842,7 +842,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
           ══════════════════════════════════════════════════════════════ */}
           {step === 'success' && (
             <div className="text-center space-y-6 py-4">
-              <div className="mx-auto w-24 h-24 rounded-full bg-gradient-to-br from-amber-500 via-orange-500 to-pink-500 flex items-center justify-center shadow-2xl shadow-amber-500/30 animate-pulse">
+              <div className="mx-auto w-24 h-24 rounded-full bg-linear-to-br from-amber-500 via-orange-500 to-pink-500 flex items-center justify-center shadow-2xl shadow-amber-500/30 animate-pulse">
                 {isPointPack ? <Sparkles size={46} className="text-white" /> : <CheckCircle2 size={44} className="text-white" />}
               </div>
 
@@ -859,14 +859,14 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
 
               <div className="flex items-center gap-4 p-4 rounded-2xl bg-amber-500/15 border border-amber-400/40">
                 {isPointPack ? (
-                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center text-3xl shadow-lg flex-shrink-0">
+                  <div className="w-14 h-14 rounded-xl bg-linear-to-br from-amber-400 to-orange-600 flex items-center justify-center text-3xl shadow-lg shrink-0">
                     ⭐
                   </div>
                 ) : (
                   <img
                     src={book.cover_url || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=200&q=80'}
                     alt={book.title}
-                    className="w-14 h-14 rounded-xl object-cover flex-shrink-0 shadow-lg"
+                    className="w-14 h-14 rounded-xl object-cover shrink-0 shadow-lg"
                     onError={e => { e.target.src = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=200&q=80'; }}
                   />
                 )}
@@ -885,7 +885,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                 <button
                   onClick={isPointPack ? onClose : handleStartListening}
                   className="w-full py-4 rounded-2xl font-black text-white text-base
-                    bg-gradient-to-r from-amber-500 via-orange-500 to-pink-500
+                    bg-linear-to-r from-amber-500 via-orange-500 to-pink-500
                     hover:opacity-95 shadow-xl shadow-amber-500/30
                     transition-all duration-200 active:scale-[0.98] cursor-pointer"
                 >
@@ -907,7 +907,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
           ══════════════════════════════════════════════════════════════ */}
           {step === 'failed' && (
             <div className="text-center space-y-6 py-4">
-              <div className="mx-auto w-24 h-24 rounded-full bg-gradient-to-br from-red-600 to-rose-700 flex items-center justify-center shadow-2xl shadow-red-500/30">
+              <div className="mx-auto w-24 h-24 rounded-full bg-linear-to-br from-red-600 to-rose-700 flex items-center justify-center shadow-2xl shadow-red-500/30">
                 <XCircle size={44} className="text-white" />
               </div>
 
@@ -933,7 +933,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                   onClick={handleManualUnlock}
                   disabled={isConfirming}
                   className="w-full py-3.5 px-4 rounded-2xl font-bold text-white text-sm
-                    bg-gradient-to-r from-emerald-600 to-teal-600
+                    bg-linear-to-r from-emerald-600 to-teal-600
                     hover:from-emerald-500 hover:to-teal-500
                     shadow-lg shadow-emerald-500/30
                     flex items-center justify-center gap-2
@@ -946,7 +946,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                 <button
                   onClick={handleRetry}
                   className="w-full py-3.5 rounded-2xl font-bold text-white text-base
-                    bg-gradient-to-r from-purple-600 to-fuchsia-600
+                    bg-linear-to-r from-purple-600 to-fuchsia-600
                     hover:from-purple-500 hover:to-fuchsia-500
                     flex items-center justify-center gap-2
                     transition-all duration-200"
@@ -969,7 +969,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
           ══════════════════════════════════════════════════════════════ */}
           {step === 'timeout' && (
             <div className="text-center space-y-6 py-4">
-              <div className="mx-auto w-24 h-24 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-2xl shadow-amber-500/30">
+              <div className="mx-auto w-24 h-24 rounded-full bg-linear-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-2xl shadow-amber-500/30">
                 <Clock size={44} className="text-white" />
               </div>
 
@@ -986,7 +986,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                   onClick={handleManualUnlock}
                   disabled={isConfirming}
                   className="w-full py-3.5 px-4 rounded-2xl font-bold text-white text-sm
-                    bg-gradient-to-r from-emerald-600 to-teal-600
+                    bg-linear-to-r from-emerald-600 to-teal-600
                     hover:from-emerald-500 hover:to-teal-500
                     shadow-lg shadow-emerald-500/30
                     flex items-center justify-center gap-2
@@ -999,7 +999,7 @@ export const CheckoutModal = ({ book, isOpen, onClose, onSuccess }) => {
                 <button
                   onClick={handleRetry}
                   className="w-full py-3.5 rounded-2xl font-bold text-white text-base
-                    bg-gradient-to-r from-purple-600 to-fuchsia-600
+                    bg-linear-to-r from-purple-600 to-fuchsia-600
                     hover:from-purple-500 hover:to-fuchsia-500
                     flex items-center justify-center gap-2
                     transition-all duration-200"

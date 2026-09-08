@@ -51,12 +51,12 @@ export const Header = ({
             if (isAdminMode) window.history.pushState({}, '', '/');
             setActiveTab('discover');
           }}
-          className="flex items-center gap-3 cursor-pointer group flex-shrink-0"
+          className="flex items-center gap-3 cursor-pointer group shrink-0"
         >
           <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shadow-lg transition-transform group-hover:scale-105 ${
             isAdminMode
-              ? 'bg-gradient-to-br from-emerald-600 to-teal-700 shadow-emerald-500/30'
-              : 'bg-gradient-to-br from-purple-600 via-fuchsia-600 to-pink-600 shadow-purple-500/30'
+              ? 'bg-linear-to-br from-emerald-600 to-teal-700 shadow-emerald-500/30'
+              : 'bg-linear-to-br from-purple-600 via-fuchsia-600 to-pink-600 shadow-purple-500/30'
           }`}>
             {isAdminMode
               ? <ShieldCheck className="w-5 h-5 text-white" />
@@ -65,7 +65,7 @@ export const Header = ({
           </div>
           <div className="hidden sm:block">
             <div className="flex items-center gap-2">
-              <span className="font-black text-lg tracking-tight bg-gradient-to-r from-white to-purple-200 bg-clip-text text-transparent font-['Outfit']">
+              <span className="font-black text-lg tracking-tight bg-linear-to-r from-white to-purple-200 bg-clip-text text-transparent font-['Outfit']">
                 RG Play
               </span>
               <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${
@@ -76,7 +76,7 @@ export const Header = ({
                 {isAdminMode ? 'Studio' : 'Audiobooks'}
               </span>
             </div>
-            <p className="text-[11px] font-medium" style={{ color: 'var(--color-text-tertiary)' }}>
+            <p className="text-2xs font-medium" style={{ color: 'var(--color-text-tertiary)' }}>
               Bibliothèque & Écoute Illimitée
             </p>
           </div>
@@ -110,7 +110,7 @@ export const Header = ({
         {/* ── Actions Droite ── */}
         {isAdminMode ? (
           /* Mode Admin — pas de profil utilisateur, pas de solde */
-          <div className="flex items-center gap-2.5 flex-shrink-0">
+          <div className="flex items-center gap-2.5 shrink-0">
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-xs font-bold text-emerald-300 hidden sm:block">Admin connecté</span>
@@ -136,7 +136,7 @@ export const Header = ({
           </div>
         ) : (
           /* Mode Public — profil utilisateur, solde, push, install */
-          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
 
             {/* Installer l'App (masqué si déjà installée en PWA) */}
             {typeof window !== 'undefined' && !(window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone || localStorage.getItem('rg_pwa_installed') === 'true') && (
@@ -168,7 +168,7 @@ export const Header = ({
                     if (granted && onOpenNotifications) onOpenNotifications();
                   }}
                   title="Activer les notifications push pour ne manquer aucun livre audio"
-                  className="flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full text-xs font-black bg-gradient-to-r from-purple-600 via-fuchsia-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white shadow-[0_0_20px_rgba(168,85,247,0.45)] border border-purple-300/40 hover:scale-105 active:scale-95 transition-all cursor-pointer animate-pulse shrink-0"
+                  className="flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full text-xs font-black bg-linear-to-r from-purple-600 via-fuchsia-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white shadow-[0_0_20px_rgba(168,85,247,0.45)] border border-purple-300/40 hover:scale-105 active:scale-95 transition-all cursor-pointer animate-pulse shrink-0"
                 >
                   <Bell className="w-4 h-4 fill-white animate-bounce shrink-0" />
                   <span className="hidden sm:inline font-black tracking-wide">Activer Alertes</span>
@@ -196,12 +196,12 @@ export const Header = ({
                 type="button"
                 onClick={() => window.dispatchEvent(new Event('rg:open-reward-ad'))}
                 title="Gagner des points gratuits — Regardez une courte pub partenaire"
-                className="btn-blinking-border flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs font-black transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-xl bg-gradient-to-r from-amber-500/30 via-orange-500/25 to-pink-500/30 text-amber-300 border-amber-400"
+                className="btn-blinking-border flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs font-black transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-xl bg-linear-to-r from-amber-500/30 via-orange-500/25 to-pink-500/30 text-amber-300 border-amber-400"
               >
                 <span className="text-sm animate-bounce">🎁</span>
                 <span className="hidden sm:inline font-black tracking-wide text-white">GAGNER DES POINTS</span>
                 <span className="sm:hidden font-black text-white">POINTS</span>
-                <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-black text-[10.5px] shadow-sm ml-0.5">
+                <span className="px-2 py-0.5 rounded-full bg-linear-to-r from-amber-400 to-amber-500 text-slate-950 font-black text-[10.5px] shadow-sm ml-0.5">
                   {points} pts
                 </span>
               </button>

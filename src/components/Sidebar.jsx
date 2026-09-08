@@ -32,7 +32,7 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenInstallModal }) => {
   ];
 
   return (
-    <aside className="hidden md:flex flex-col w-60 lg:w-64 h-[calc(100vh-65px)] sticky top-[65px] glass-panel border-r border-white/6 shrink-0 justify-between overflow-y-auto no-scrollbar">
+    <aside className="hidden md:flex flex-col w-60 lg:w-64 h-[calc(100vh-65px)] sticky top-16.25 glass-panel border-r border-white/6 shrink-0 justify-between overflow-y-auto no-scrollbar">
 
       {/* Navigation */}
       <div className="p-4 space-y-6">
@@ -48,13 +48,13 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenInstallModal }) => {
                 onClick={() => setActiveTab(item.id)}
                 className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-sm font-medium transition-all group ${
                   isActive
-                    ? 'bg-gradient-to-r from-purple-600/95 to-fuchsia-600/95 text-white shadow-lg shadow-purple-500/20 font-bold'
-                    : 'text-[color:var(--color-text-secondary)] hover:bg-white/5 hover:text-[color:var(--color-text-primary)]'
+                    ? 'bg-linear-to-r from-purple-600/95 to-fuchsia-600/95 text-white shadow-lg shadow-purple-500/20 font-bold'
+                    : 'text-text-secondary hover:bg-white/5 hover:text-text-primary'
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <Icon className={`w-4.5 h-4.5 flex-shrink-0 ${
-                    isActive ? 'text-white' : 'text-[color:var(--color-text-tertiary)] group-hover:text-purple-300'
+                  <Icon className={`w-4.5 h-4.5 shrink-0 ${
+                    isActive ? 'text-white' : 'text-text-tertiary group-hover:text-purple-300'
                   }`} />
                   <span className="text-left leading-snug">{item.label}</span>
                 </div>
@@ -74,7 +74,7 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenInstallModal }) => {
               border: '1px solid rgba(157,78,221,0.20)',
             }}>
             <div className="flex items-start gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-purple-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+              <div className="w-8 h-8 rounded-xl bg-purple-500/20 flex items-center justify-center shrink-0 mt-0.5">
                 <Smartphone className="w-4 h-4 text-purple-300" />
               </div>
               <div>
@@ -116,19 +116,19 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenInstallModal }) => {
                 src={(!currentBook.cover_url || currentBook.cover_url.includes('r2.cloudflarestorage.com')) ? 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80' : currentBook.cover_url}
                 alt={currentBook.title}
                 onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80'; }}
-                className="w-10 h-10 rounded-xl object-cover shadow-md group-hover:scale-105 transition-transform flex-shrink-0"
+                className="w-10 h-10 rounded-xl object-cover shadow-md group-hover:scale-105 transition-transform shrink-0"
               />
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-bold truncate" style={{ color: 'var(--color-text-primary)' }}>
                   {currentBook.title}
                 </p>
-                <p className="text-[11px] truncate" style={{ color: 'var(--color-text-tertiary)' }}>
+                <p className="text-2xs truncate" style={{ color: 'var(--color-text-tertiary)' }}>
                   {currentBook.author}
                 </p>
               </div>
               <button
                 onClick={(e) => { e.stopPropagation(); togglePlay(); }}
-                className="w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center hover:scale-110 transition-transform shadow-lg shadow-purple-500/35 flex-shrink-0"
+                className="w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center hover:scale-110 transition-transform shadow-lg shadow-purple-500/35 shrink-0"
               >
                 {isPlaying
                   ? <Pause className="w-3.5 h-3.5 fill-white" />
@@ -148,7 +148,7 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenInstallModal }) => {
               window.history.pushState({}, '', '/login/admin');
               setActiveTab('admin');
             }}
-            className="flex items-center gap-1.5 text-[11px] transition-colors"
+            className="flex items-center gap-1.5 text-2xs transition-colors"
             style={{ color: 'var(--color-text-disabled)' }}
             onMouseEnter={e => e.currentTarget.style.color = '#c77dff'}
             onMouseLeave={e => e.currentTarget.style.color = 'var(--color-text-disabled)'}

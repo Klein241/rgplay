@@ -52,7 +52,7 @@ export const SleepTimerModal = ({ isOpen, onClose }) => {
                 }}
                 className={`w-full p-3 rounded-2xl flex items-center justify-between transition-all ${
                   isSelected
-                    ? 'bg-gradient-to-r from-purple-600/80 to-pink-500/80 text-white font-bold border border-purple-400/40 shadow-lg shadow-purple-500/30'
+                    ? 'bg-linear-to-r from-purple-600/80 to-pink-500/80 text-white font-bold border border-purple-400/40 shadow-lg shadow-purple-500/30'
                     : 'bg-white/5 hover:bg-white/10 text-slate-200 border border-white/5'
                 }`}
               >
@@ -60,7 +60,7 @@ export const SleepTimerModal = ({ isOpen, onClose }) => {
                   <Clock className={`w-4 h-4 ${isSelected ? 'text-white' : 'text-slate-400'}`} />
                   <div className="text-left">
                     <p className="text-sm font-semibold">{opt.label}</p>
-                    <p className="text-[11px] opacity-75">{opt.desc}</p>
+                    <p className="text-2xs opacity-75">{opt.desc}</p>
                   </div>
                 </div>
                 {isSelected && <Check className="w-4 h-4 text-white" />}

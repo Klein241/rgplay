@@ -116,7 +116,7 @@ export const WelcomeOfferBanner = ({ onOpenCheckout, featuredBook }) => {
           <div className="flex items-start justify-between gap-3 mb-3">
             <div className="flex items-center gap-2.5">
               <div
-                className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg"
+                className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-lg"
                 style={{ background: urgency ? 'rgba(239,68,68,0.25)' : 'rgba(168,85,247,0.25)' }}
               >
                 {urgency ? (
@@ -139,14 +139,14 @@ export const WelcomeOfferBanner = ({ onOpenCheckout, featuredBook }) => {
                     -40%
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-300 mt-0.5">
+                <p className="text-2xs text-slate-300 mt-0.5">
                   Profitez de -40% sur votre premier achat
                 </p>
               </div>
             </div>
             <button
               onClick={dismiss}
-              className="w-7 h-7 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all flex-shrink-0"
+              className="w-7 h-7 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all shrink-0"
             >
               <X className="w-3.5 h-3.5 text-slate-400" />
             </button>
@@ -155,7 +155,7 @@ export const WelcomeOfferBanner = ({ onOpenCheckout, featuredBook }) => {
           {/* Compte à rebours */}
           <div className="flex items-center gap-2 mb-4">
             <Clock className={`w-4 h-4 ${urgency ? 'text-red-400' : 'text-purple-300'}`} />
-            <span className="text-[11px] text-slate-300">
+            <span className="text-2xs text-slate-300">
               Expire dans{' '}
               <span
                 className={`font-black text-sm tabular-nums ${urgency ? 'text-red-300' : 'text-purple-200'}`}

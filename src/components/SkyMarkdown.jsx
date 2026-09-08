@@ -74,7 +74,7 @@ const formatInline = (text) => {
                     detail: { bookId: cleanId, bookTitle: titleMatch[1] }
                   }));
                 }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 my-1 mx-1 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 text-white font-black text-xs shadow-md shadow-emerald-950/40 hover:scale-105 active:scale-95 transition-all cursor-pointer border border-emerald-400/40"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 my-1 mx-1 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:brightness-110 text-white font-black text-xs shadow-md shadow-emerald-950/40 hover:scale-105 active:scale-95 transition-all cursor-pointer border border-emerald-400/40"
               >
                 <span>🎧 {titleMatch[1]}</span>
                 <span className="text-[10px] text-emerald-200 font-bold">▶ Écouter</span>
@@ -93,7 +93,7 @@ const formatInline = (text) => {
                     detail: { bookId: cleanId, bookTitle: titleMatch[1] }
                   }));
                 }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 my-1 mx-1 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:brightness-110 text-white font-black text-xs shadow-md shadow-amber-950/40 hover:scale-105 active:scale-95 transition-all cursor-pointer border border-amber-400/40"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 my-1 mx-1 rounded-xl bg-linear-to-r from-amber-600 to-orange-600 hover:brightness-110 text-white font-black text-xs shadow-md shadow-amber-950/40 hover:scale-105 active:scale-95 transition-all cursor-pointer border border-amber-400/40"
               >
                 <span>📖 {titleMatch[1]}</span>
                 <span className="text-[10px] text-amber-200 font-bold">📄 Lire</span>
@@ -112,7 +112,7 @@ const formatInline = (text) => {
                     detail: { bookId: cleanId, bookTitle: titleMatch[1] }
                   }));
                 }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 my-1 mx-1 rounded-xl bg-gradient-to-r from-purple-600 via-fuchsia-600 to-pink-600 hover:brightness-110 text-white font-black text-xs shadow-md shadow-purple-900/40 hover:scale-105 active:scale-95 transition-all cursor-pointer border border-purple-400/40"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 my-1 mx-1 rounded-xl bg-linear-to-r from-purple-600 via-fuchsia-600 to-pink-600 hover:brightness-110 text-white font-black text-xs shadow-md shadow-purple-900/40 hover:scale-105 active:scale-95 transition-all cursor-pointer border border-purple-400/40"
               >
                 <span>ℹ️ {titleMatch[1]}</span>
                 <span className="text-[10px] text-amber-300 font-bold">→ Fiche</span>
@@ -291,9 +291,9 @@ export const SkyMarkdown = ({ content = '' }) => {
             return (
               <h2
                 key={idx}
-                className="text-base sm:text-lg font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-sky-200 to-indigo-200 pt-2 pb-1 border-b border-cyan-500/20 flex items-center gap-2"
+                className="text-base sm:text-lg font-black text-transparent bg-clip-text bg-linear-to-r from-cyan-300 via-sky-200 to-indigo-200 pt-2 pb-1 border-b border-cyan-500/20 flex items-center gap-2"
               >
-                <Sparkles className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+                <Sparkles className="w-4 h-4 text-cyan-400 shrink-0" />
                 <span>{formatInline(block.text)}</span>
               </h2>
             );
@@ -313,7 +313,7 @@ export const SkyMarkdown = ({ content = '' }) => {
             return (
               <h4
                 key={idx}
-                className="text-xs sm:text-sm font-bold text-indigo-200 pt-1 text-slate-100"
+                className="text-xs sm:text-sm font-bold text-indigo-200 pt-1"
               >
                 {formatInline(block.text)}
               </h4>
@@ -323,9 +323,9 @@ export const SkyMarkdown = ({ content = '' }) => {
             return (
               <div
                 key={idx}
-                className="my-2 p-3 sm:p-3.5 rounded-2xl bg-cyan-950/30 border-l-4 border-cyan-400/80 border-y border-r border-cyan-500/20 text-cyan-100 flex items-start gap-2.5 shadow-inner"
+                className="my-2 p-3 sm:p-3.5 rounded-2xl bg-cyan-950/30 border border-cyan-500/20 border-l-4 border-l-cyan-400/80 text-cyan-100 flex items-start gap-2.5 shadow-inner"
               >
-                <Quote className="w-4 h-4 text-cyan-400 flex-shrink-0 mt-0.5 opacity-80" />
+                <Quote className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5 opacity-80" />
                 <div className="text-xs sm:text-sm italic leading-relaxed">
                   {formatInline(block.text)}
                 </div>
@@ -336,9 +336,9 @@ export const SkyMarkdown = ({ content = '' }) => {
             return (
               <div
                 key={idx}
-                className="my-2 p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-slate-900/90 to-cyan-950/40 border border-cyan-500/30 shadow-md flex items-start gap-3"
+                className="my-2 p-3 sm:p-3.5 rounded-2xl bg-linear-to-r from-slate-900/90 to-cyan-950/40 border border-cyan-500/30 shadow-md flex items-start gap-3"
               >
-                <span className="text-lg flex-shrink-0 leading-none select-none">
+                <span className="text-lg shrink-0 leading-none select-none">
                   {block.icon}
                 </span>
                 <div className="text-xs sm:text-sm text-slate-100 font-medium leading-relaxed">
@@ -352,7 +352,7 @@ export const SkyMarkdown = ({ content = '' }) => {
               <ul key={idx} className="space-y-2 my-2 pl-1">
                 {block.items.map((item, itemIdx) => (
                   <li key={itemIdx} className="flex items-start gap-2.5 text-xs sm:text-sm text-slate-200">
-                    <span className="w-2 h-2 rounded-full bg-cyan-400 mt-1.5 flex-shrink-0 shadow-[0_0_8px_rgba(34,211,238,0.7)]" />
+                    <span className="w-2 h-2 rounded-full bg-cyan-400 mt-1.5 shrink-0 shadow-[0_0_8px_rgba(34,211,238,0.7)]" />
                     <span className="flex-1 leading-relaxed">{formatInline(item)}</span>
                   </li>
                 ))}
@@ -364,7 +364,7 @@ export const SkyMarkdown = ({ content = '' }) => {
               <ol key={idx} className="space-y-2.5 my-2 pl-1">
                 {block.items.map((item, itemIdx) => (
                   <li key={itemIdx} className="flex items-start gap-3 text-xs sm:text-sm text-slate-200">
-                    <span className="w-5 h-5 rounded-lg bg-gradient-to-br from-cyan-500/25 to-indigo-500/25 text-cyan-300 border border-cyan-500/40 font-bold text-[11px] flex items-center justify-center flex-shrink-0 mt-0.5 shadow-sm">
+                    <span className="w-5 h-5 rounded-lg bg-linear-to-br from-cyan-500/25 to-indigo-500/25 text-cyan-300 border border-cyan-500/40 font-bold text-2xs flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
                       {item.num}
                     </span>
                     <span className="flex-1 leading-relaxed">{formatInline(item.text)}</span>

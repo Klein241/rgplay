@@ -282,11 +282,11 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
             onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = DEFAULT_COVER; }}
             className="w-full h-full object-cover filter blur-xl scale-110 opacity-25"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#161128] via-[#161128]/75 to-transparent" />
+          <div className="absolute inset-0 bg-linear-to-t from-[#161128] via-[#161128]/75 to-transparent" />
 
           {/* Header : Cover + Titre */}
           <div className="absolute bottom-4 left-5 right-5 flex items-end gap-4">
-            <div className="relative w-24 h-24 sm:w-32 sm:h-32 rounded-2xl overflow-hidden shadow-2xl border-2 border-white/20 flex-shrink-0">
+            <div className="relative w-24 h-24 sm:w-32 sm:h-32 rounded-2xl overflow-hidden shadow-2xl border-2 border-white/20 shrink-0">
               <img
                 src={coverSrc}
                 alt={book.title}
@@ -363,7 +363,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
                 )}
               </div>
               <div className="flex items-center gap-2 text-xs text-purple-300 pt-1 border-t border-white/6">
-                <Sparkles className="w-3.5 h-3.5 flex-shrink-0" />
+                <Sparkles className="w-3.5 h-3.5 shrink-0" />
                 <span>Format Audio HD Stéréo • Téléchargeable pour écoute hors-ligne</span>
               </div>
             </div>
@@ -394,7 +394,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
                     }`}
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <span className={`w-6 h-6 rounded-lg font-bold flex items-center justify-center text-[10px] flex-shrink-0 ${
+                      <span className={`w-6 h-6 rounded-lg font-bold flex items-center justify-center text-[10px] shrink-0 ${
                         isFreePreviewChap && !isPurchased && book.price > 0
                           ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                           : 'bg-purple-500/20 text-purple-300'
@@ -403,7 +403,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
                       </span>
                       <span className="font-semibold text-slate-200 truncate">{chap.title}</span>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                    <div className="flex items-center gap-2 shrink-0 ml-2">
                       {isFreePreviewChap && !isPurchased && book.price > 0 && (
                         <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 text-[9px] font-extrabold border border-emerald-500/30 whitespace-nowrap">
                           Extrait Gratuit 🎁
@@ -412,7 +412,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
                       {!canPlay && (
                         <Lock className="w-3.5 h-3.5 text-slate-500" />
                       )}
-                      <span className="text-slate-400 text-[11px] font-mono">
+                      <span className="text-slate-400 text-2xs font-mono">
                         {Math.floor((chap.duration_seconds || 1800) / 60)} min
                       </span>
                     </div>
@@ -441,7 +441,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
                   <button
                     type="button"
                     onClick={() => setReviewsHidden(h => !h)}
-                    className="flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-xl border transition-all"
+                    className="flex items-center gap-1.5 text-2xs font-bold px-3 py-1.5 rounded-xl border transition-all"
                     style={reviewsHidden
                       ? { background: 'rgba(239,68,68,0.12)', borderColor: 'rgba(239,68,68,0.3)', color: '#fca5a5' }
                       : { background: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.10)', color: '#94a3b8' }
@@ -481,7 +481,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
                           <Star className="w-2.5 h-2.5 fill-amber-400/50 text-amber-400/50 shrink-0" />
                           <div className="flex-1 h-1.5 rounded-full bg-white/8 overflow-hidden">
                             <div
-                              className="h-full rounded-full bg-gradient-to-r from-amber-500 to-orange-400 transition-all duration-700"
+                              className="h-full rounded-full bg-linear-to-r from-amber-500 to-orange-400 transition-all duration-700"
                               style={{ width: `${pct}%` }}
                             />
                           </div>
@@ -549,7 +549,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
                 <div className="py-8 text-center text-xs text-slate-400 border border-dashed border-white/10 rounded-2xl space-y-2">
                   <Star className="w-6 h-6 mx-auto text-amber-400/50" />
                   <p className="font-semibold text-slate-300">Aucun avis rédigé pour le moment</p>
-                  <p className="text-[11px] text-slate-500">Soyez le premier auditeur à partager votre expérience ci-dessus !</p>
+                  <p className="text-2xs text-slate-500">Soyez le premier auditeur à partager votre expérience ci-dessus !</p>
                 </div>
               )}
 
@@ -560,7 +560,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
                     <div key={rev.id} className="p-3.5 rounded-2xl bg-white/4 border border-white/6 space-y-2">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0">
+                          <div className="w-7 h-7 rounded-full bg-linear-to-r from-purple-500 to-pink-500 flex items-center justify-center text-[10px] font-bold text-white shrink-0">
                             {(rev.author_name || 'U')[0].toUpperCase()}
                           </div>
                           <span className="text-xs font-bold text-white">{rev.author_name}</span>
@@ -648,7 +648,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
               {/* Bouton Agent SKY */}
               <button
                 onClick={() => setIsChatOpen(true)}
-                className="sm:w-auto px-4 py-3 rounded-2xl bg-gradient-to-r from-cyan-500/20 to-indigo-500/20 hover:from-cyan-500/35 hover:to-indigo-500/35 text-cyan-200 border border-cyan-500/40 font-bold text-xs flex items-center justify-center gap-2 transition-all hover:scale-[1.02] shadow-md shadow-cyan-950/40 cursor-pointer"
+                className="sm:w-auto px-4 py-3 rounded-2xl bg-linear-to-r from-cyan-500/20 to-indigo-500/20 hover:from-cyan-500/35 hover:to-indigo-500/35 text-cyan-200 border border-cyan-500/40 font-bold text-xs flex items-center justify-center gap-2 transition-all hover:scale-[1.02] shadow-md shadow-cyan-950/40 cursor-pointer"
                 title="Discuter avec l'Agent SKY (Mentor & Tuteur IA)"
               >
                 <Sparkles className="w-4 h-4 text-cyan-400 animate-pulse" />
@@ -673,17 +673,17 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
                     >
                       {isDownloading ? (
                         <>
-                          <span className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                          <span className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin shrink-0" />
                           <span>{downloadProgress > 0 ? `${downloadProgress}%` : 'Préparation...'}</span>
                         </>
                       ) : isDownloaded ? (
                         <>
-                          <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                           <span>Hors-ligne ✓</span>
                         </>
                       ) : (
                         <>
-                          <Download className="w-4 h-4 text-indigo-400 flex-shrink-0" />
+                          <Download className="w-4 h-4 text-indigo-400 shrink-0" />
                           <span>Mode Hors-ligne</span>
                         </>
                       )}
@@ -705,7 +705,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
                   {isDownloading && downloadProgress > 0 && (
                     <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
                       <div
-                        className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-300"
+                        className="h-full bg-linear-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-300"
                         style={{ width: `${downloadProgress}%` }}
                       />
                     </div>
@@ -717,7 +717,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
               {!isEbookItem && (book.companion_ebook_id || book.companion_ebook || (book.pdf_url && book.pdf_url.length > 0)) && (
                 <button
                   onClick={() => setIsPdfReaderOpen(true)}
-                  className="sm:w-auto px-4 py-3 rounded-2xl bg-gradient-to-r from-purple-600/20 to-pink-600/20 hover:from-purple-600/35 hover:to-pink-600/35 text-purple-200 border border-purple-500/40 font-bold text-xs flex items-center justify-center gap-2 transition-all hover:scale-[1.02] shadow-md shadow-purple-950/40 cursor-pointer"
+                  className="sm:w-auto px-4 py-3 rounded-2xl bg-linear-to-r from-purple-600/20 to-pink-600/20 hover:from-purple-600/35 hover:to-pink-600/35 text-purple-200 border border-purple-500/40 font-bold text-xs flex items-center justify-center gap-2 transition-all hover:scale-[1.02] shadow-md shadow-purple-950/40 cursor-pointer"
                   title="Ouvrir la version livre numérique E-Book & PDF Read's Great"
                 >
                   <BookOpen className="w-4 h-4 text-purple-400" />

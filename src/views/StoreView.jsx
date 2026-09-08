@@ -141,7 +141,7 @@ function getAspectStyle(ratio) {
 function getMaxWidthStyle(ratio) {
   const map = {
     '16:9': 'max-w-xs sm:max-w-sm',
-    '9:16': 'max-w-[160px]',
+    '9:16': 'max-w-40',
     '1:1':  'max-w-[220px]',
     '3:4':  'max-w-[180px]',
     '4:3':  'max-w-xs',
@@ -181,16 +181,16 @@ function AdBandCard({ ad, onWatch }) {
 
   return (
     <div
-      className="flex-shrink-0 w-[165px] rounded-2xl border border-purple-500/30 bg-[#150a27]/90 overflow-hidden flex flex-col shadow-lg hover:border-amber-500/50 hover:shadow-amber-900/30 transition-all duration-300 group"
+      className="shrink-0 w-41.25 rounded-2xl border border-purple-500/30 bg-[#150a27]/90 overflow-hidden flex flex-col shadow-lg hover:border-amber-500/50 hover:shadow-amber-900/30 transition-all duration-300 group"
     >
       {/* Visuel */}
-      <div className="relative w-full h-[110px] bg-black/40 overflow-hidden flex items-center justify-center">
+      <div className="relative w-full h-27.5 bg-black/40 overflow-hidden flex items-center justify-center">
         {isVideo ? (
           <video src={ad.mediaUrl} muted playsInline loop autoPlay className="absolute inset-0 w-full h-full object-cover" />
         ) : isImage ? (
           <img src={ad.mediaUrl} alt={ad.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
         ) : (
-          <div className={`absolute inset-0 bg-gradient-to-br ${ad.gradient || 'from-purple-600 to-pink-700'} flex flex-col items-center justify-center`}>
+          <div className={`absolute inset-0 bg-linear-to-br ${ad.gradient || 'from-purple-600 to-pink-700'} flex flex-col items-center justify-center`}>
             <span className="text-3xl">{ad.icon || '📢'}</span>
           </div>
         )}
@@ -203,13 +203,13 @@ function AdBandCard({ ad, onWatch }) {
       {/* Infos */}
       <div className="p-2.5 flex flex-col gap-2 flex-1">
         <div>
-          <p className="text-white text-[11px] font-bold leading-snug line-clamp-2">{ad.title}</p>
+          <p className="text-white text-2xs font-bold leading-snug line-clamp-2">{ad.title}</p>
           {ad.tagline && <p className="text-slate-400 text-[10px] mt-0.5 line-clamp-1">{ad.tagline}</p>}
         </div>
         <button
           type="button"
           onClick={() => onWatch(ad)}
-          className="mt-auto w-full py-1.5 rounded-xl text-[11px] font-extrabold flex items-center justify-center gap-1 bg-gradient-to-r from-amber-500 via-orange-400 to-pink-500 text-white shadow hover:scale-[1.03] active:scale-95 transition-all cursor-pointer"
+          className="mt-auto w-full py-1.5 rounded-xl text-2xs font-extrabold flex items-center justify-center gap-1 bg-linear-to-r from-amber-500 via-orange-400 to-pink-500 text-white shadow hover:scale-[1.03] active:scale-95 transition-all cursor-pointer"
         >
           <Play className="w-3 h-3 fill-current" />
           <span>Voir +{rewardPts} pts</span>
@@ -320,8 +320,8 @@ export const StoreView = ({ onSelectPlan }) => {
               className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-2xl font-bold text-sm transition-all duration-300 cursor-pointer border ${
                 isActive
                   ? tab.id === 'earn'
-                    ? 'bg-gradient-to-r from-amber-500/30 via-orange-500/20 to-pink-500/20 border-amber-400/50 text-amber-300 shadow-[0_0_20px_rgba(251,191,36,0.15)]'
-                    : 'bg-gradient-to-r from-purple-600/30 to-indigo-600/20 border-purple-400/50 text-purple-200'
+                    ? 'bg-linear-to-r from-amber-500/30 via-orange-500/20 to-pink-500/20 border-amber-400/50 text-amber-300 shadow-[0_0_20px_rgba(251,191,36,0.15)]'
+                    : 'bg-linear-to-r from-purple-600/30 to-indigo-600/20 border-purple-400/50 text-purple-200'
                   : 'bg-white/5 border-white/10 text-slate-400 hover:text-white hover:bg-white/10'
               }`}
             >
@@ -349,7 +349,7 @@ export const StoreView = ({ onSelectPlan }) => {
             </div>
             <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight leading-tight">
               Achetez des Points pour débloquer{' '}
-              <span className="bg-gradient-to-r from-amber-400 via-orange-400 to-pink-500 bg-clip-text text-transparent">
+              <span className="bg-linear-to-r from-amber-400 via-orange-400 to-pink-500 bg-clip-text text-transparent">
                 en 1 Clic
               </span>
             </h1>
@@ -416,8 +416,8 @@ export const StoreView = ({ onSelectPlan }) => {
                     <ul className="space-y-2.5 mb-6">
                       {pack.features.map((feat, i) => (
                         <li key={i} className="flex items-start gap-2.5 text-xs text-slate-200 leading-snug">
-                          <div className="w-4 h-4 rounded-full bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center flex-shrink-0 mt-0.5">
-                            <Check className="w-2.5 h-2.5 text-emerald-400 stroke-[3]" />
+                          <div className="w-4 h-4 rounded-full bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0 mt-0.5">
+                            <Check className="w-2.5 h-2.5 text-emerald-400 stroke-3" />
                           </div>
                           <span>{feat}</span>
                         </li>
@@ -442,7 +442,7 @@ export const StoreView = ({ onSelectPlan }) => {
                         description: `${pack.totalPoints} points crédités immédiatement pour débloquer des livres audio en 1 clic.`,
                       });
                     }}
-                    className={`w-full py-3.5 rounded-2xl font-black text-xs sm:text-sm text-white bg-gradient-to-r ${pack.accent} hover:opacity-95 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-xl cursor-pointer`}
+                    className={`w-full py-3.5 rounded-2xl font-black text-xs sm:text-sm text-white bg-linear-to-r ${pack.accent} hover:opacity-95 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-xl cursor-pointer`}
                   >
                     <Zap className="w-4 h-4 fill-white" />
                     <span>Acheter ce Pack ({pack.price} FCFA)</span>
@@ -479,7 +479,7 @@ export const StoreView = ({ onSelectPlan }) => {
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
               Gagnez des{' '}
-              <span className="bg-gradient-to-r from-amber-400 via-orange-400 to-pink-400 bg-clip-text text-transparent">
+              <span className="bg-linear-to-r from-amber-400 via-orange-400 to-pink-400 bg-clip-text text-transparent">
                 Points Gratuits
               </span>
             </h1>
