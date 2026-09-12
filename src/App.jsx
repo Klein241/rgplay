@@ -137,15 +137,20 @@ export function App() {
       book.preview_url
     );
 
-    // Un livre n'est un ebook que s'il est explicitement un format écrit SANS audio
-    const isPureEbook = !isAudiobook && Boolean(
-      book.content_type === 'ebook' ||
-      book.content_type === 'epub' ||
-      book.content_type === 'pdf' ||
-      book.format === 'epub' ||
-      book.format === 'pdf' ||
-      book.is_ebook ||
-      book.is_pdf
+    // Un livre n'est un ebook que s'il est explicitement un format écrit SANS audio (ou forcé en mode lecture PDF)
+    const isPureEbook = Boolean(
+      book.force_pdf ||
+      book.is_pure_ebook ||
+      (!isAudiobook && (
+        book.content_type === 'ebook' ||
+        book.content_type === 'epub' ||
+        book.content_type === 'pdf' ||
+        book.format === 'epub' ||
+        book.format === 'pdf' ||
+        book.is_ebook ||
+        book.is_pdf ||
+        Boolean(book.pdf_url || book.pdfUrl)
+      ))
     );
 
     if (isPureEbook) {
@@ -240,16 +245,35 @@ export function App() {
       }
     }
 
-    // Écouter l'événement d'installation PWA
+    // Détection d'URL pour exclure un appareil de test admin (?admin_test=1 ou ?exclude_tracking=1)
+    if (typeof window !== 'undefined' && (window.location.search.includes('admin_test=1') || window.location.search.includes('exclude_tracking=1'))) {
+      localStorage.setItem('rg_exclude_tracking', 'true');
+      console.log('🛡️ Cet appareil est exclu des statistiques de tracking RG Play.');
+    }
+
+    // Écouter l'événement d'installation PWA native
     const handleAppInstalled = () => {
       localStorage.setItem('rg_pwa_installed', 'true');
       localStorage.setItem('rg_install_prompt_dismissed', 'true');
       setIsInstallModalOpen(false);
+      try {
+        import('./services/tracker').then(({ trackPwaInstall }) => {
+          trackPwaInstall({ trigger: 'appinstalled_native' });
+        });
+      } catch (_) {}
     };
     window.addEventListener('appinstalled', handleAppInstalled);
 
     // Invite à installer sur mobile (uniquement si pas déjà installée et pas rejetée)
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+    if (isStandalone) {
+      localStorage.setItem('rg_pwa_installed', 'true');
+      try {
+        import('./services/tracker').then(({ trackPwaInstall }) => {
+          trackPwaInstall({ trigger: 'standalone_active' });
+        });
+      } catch (_) {}
+    }
     const isPwaInstalled = localStorage.getItem('rg_pwa_installed') === 'true';
     const isPromptDismissed = localStorage.getItem('rg_install_prompt_dismissed') === 'true';
     const hasSeenPrompt = sessionStorage.getItem('rg_install_prompt_seen');
@@ -531,6 +555,7 @@ export function App() {
               <WelcomeOfferBanner
                 featuredBook={featuredBookForOffer}
                 onOpenCheckout={(book) => setSelectedBookForCheckout(book)}
+                onNavigate={handleTabChange}
               />
 
               {/* Streak Modal */}

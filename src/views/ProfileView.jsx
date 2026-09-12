@@ -10,6 +10,7 @@ import { useAudio } from '../context/AudioContext';
 import { useXp } from '../context/XpContext';
 import { usePush } from '../context/PushContext';
 import { UserProfileModal } from '../components/UserProfileModal';
+import { WhatsAppProfileCard } from '../components/WhatsAppProfileCard';
 import { downloadAudioMp3, getOfflineBooks, removeOfflineAudio, getOfflineCacheSize, cacheAudioForOffline } from '../utils/offlineAudioCache';
 import { trackAction } from '../services/tracker';
 import { ReferralCard } from '../components/ReferralSystem';
@@ -356,6 +357,9 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
           <p className="text-[10px] text-slate-400 font-medium">{weeklyPct >= 100 ? '🎉 Objectif atteint cette semaine !' : `${weeklyPct}% complété`}</p>
         </div>
       </div>
+
+      {/* ── Sécurisation & Sauvegarde WhatsApp ── */}
+      <WhatsAppProfileCard profile={profile} points={points} onProfileUpdate={(p) => setProfile(p)} />
 
       {/* ── Navigation par Onglets (Segmented Control Haute Visibilité) ── */}
       <div

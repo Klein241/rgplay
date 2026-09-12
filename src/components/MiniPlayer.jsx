@@ -1,6 +1,7 @@
 import React from 'react';
 import { Play, Pause, RotateCw, RotateCcw, Maximize2, ChevronUp, Square } from 'lucide-react';
 import { useAudio } from '../context/AudioContext';
+import { BackgroundVideoWorker } from './BackgroundVideoWorker';
 
 export const MiniPlayer = () => {
   const {
@@ -27,10 +28,12 @@ export const MiniPlayer = () => {
     : currentBook.cover_url;
 
   return (
-    <div
-      onClick={() => setIsFullScreenOpen(true)}
-      className="fixed bottom-24 md:bottom-6 left-1/2 -translate-x-1/2 z-35 w-[92%] max-w-2xl cursor-pointer group"
-    >
+    <>
+      <BackgroundVideoWorker />
+      <div
+        onClick={() => setIsFullScreenOpen(true)}
+        className="fixed bottom-24 md:bottom-6 left-1/2 -translate-x-1/2 z-35 w-[92%] max-w-2xl cursor-pointer group"
+      >
       {/* Glow halo derrière le player */}
       <div
         className="absolute -inset-2 rounded-3xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500"
@@ -237,5 +240,6 @@ export const MiniPlayer = () => {
         </div>
       </div>
     </div>
-  );
+  </>
+);
 };

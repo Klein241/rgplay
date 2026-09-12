@@ -93,3 +93,83 @@ Dans les paramètres MCP de Cursor :
 - *"Affiche les statistiques de fréquentation de la boutique RG Play pour aujourd'hui."*
 - *"Vérifie l'état de la base de données Cloudflare D1 et du stockage R2."*
 - *"Épingle le livre 'Psychologie de l'Argent' en haut du catalogue."*
+
+---
+
+## 🔴 RÈGLE OBLIGATOIRE — Compression Audio Avant Tout Upload R2
+
+> ⚠️ **Cette règle est non-négociable.** Tout agent IA (MANUS, Claude, Gemini, GPT…) doit l'appliquer **systématiquement** avant d'appeler `/api/r2/upload` ou `/api/r2/upload-from-url`.
+
+### Pourquoi ?
+Le stockage Cloudflare R2 est limité à **10 Go sur le plan gratuit**.
+- Un fichier WAV de 3 minutes = **~45 Mo** brut
+- Le même fichier en MP3 128kbps = **~3.5 Mo** compressé
+- **Économie : -92%** — un audiobook de 30 chapitres passe de ~1.3 Go à ~105 Mo
+
+Le serveur Cloudflare Worker **ne peut pas compresser audio** (pas d'AudioContext côté Edge). La compression doit donc être faite **avant l'envoi**.
+
+---
+
+### ✅ Commandes ffmpeg à utiliser (obligatoires)
+
+> `ffmpeg` est disponible nativement dans l'environnement MANUS (Linux). Vérifier avec `ffmpeg -version`.
+
+#### 🎵 Musique / Singles / Lofi (stéréo 128 kbps)
+```bash
+ffmpeg -i input.wav -codec:a libmp3lame -b:a 128k -ar 44100 -ac 2 output.mp3
+```
+
+#### 🎙️ Voix / Audiobooks / Podcasts / Masterclasses (mono 96 kbps)
+```bash
+ffmpeg -i input.wav -codec:a libmp3lame -b:a 96k -ar 44100 -ac 1 output.mp3
+```
+
+#### 📦 Conversion en masse — 30 chapitres d'un seul coup
+```bash
+# Convertir tous les WAV d'un dossier en MP3 mono 96kbps (voix)
+for f in /chemin/chapitres/*.wav; do
+  ffmpeg -i "$f" -codec:a libmp3lame -b:a 96k -ar 44100 -ac 1 "${f%.wav}.mp3"
+done
+```
+
+#### 🔄 Depuis un FLAC ou M4A
+```bash
+ffmpeg -i chapitre01.flac -codec:a libmp3lame -b:a 96k -ar 44100 -ac 1 chapitre01.mp3
+ffmpeg -i piste.m4a     -codec:a libmp3lame -b:a 128k -ar 44100 -ac 2 piste.mp3
+```
+
+---
+
+### ❌ Ce qu'il ne faut JAMAIS faire
+
+| Format interdit | Raison |
+|---|---|
+| Uploader un `.wav` brut | 40–60 Mo par fichier → R2 saturé en < 200 fichiers |
+| Uploader un `.flac` brut | Idem, non compressé |
+| Uploader un `.aiff` brut | Idem |
+| Envoyer un MP3 > 192 kbps | Taille inutilement grande pour du streaming mobile |
+
+---
+
+### 📋 Workflow complet MANUS pour un Audiobook
+
+```
+1. Télécharger les fichiers audio source (WAV/FLAC) depuis la source
+2. Convertir chaque chapitre avec ffmpeg (mono 96kbps) → fichiers .mp3
+3. Vérifier la taille : chaque chapitre doit peser < 5 Mo (3 min) à < 15 Mo (10 min)
+4. Uploader via POST /api/r2/upload (multipart) ou /api/r2/upload-from-url (URL)
+5. Récupérer le r2_key retourné et l'utiliser dans rgplay_create_or_update_audiobook
+```
+
+---
+
+### 🎯 Tableau des tailles cibles
+
+| Durée du chapitre | WAV brut (avant) | MP3 96k mono (après) | Gain |
+|---|---|---|---|
+| 3 min | ~45 Mo | ~2.1 Mo | **-95%** |
+| 5 min | ~75 Mo | ~3.5 Mo | **-95%** |
+| 10 min | ~150 Mo | ~7 Mo | **-95%** |
+| 30 min (chapitre long) | ~450 Mo | ~21 Mo | **-95%** |
+| **Audiobook 30 chapitres × 5 min** | **~2.25 Go** | **~105 Mo** | **-95%** |
+

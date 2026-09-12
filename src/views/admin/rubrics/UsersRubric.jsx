@@ -3,11 +3,12 @@ import {
   Users, Sparkles, Search, RefreshCw, Plus, CheckCircle2,
   AlertCircle, Loader2, ArrowUpRight, Award, Shield,
   Smartphone, Mail, Calendar, Clock, BookOpen, Gift, Coins,
-  Copy, Check
+  Copy, Check, ExternalLink, UserPlus
 } from 'lucide-react';
 import { apiClient } from '../../../services/api';
+import { getFlagEmoji, COUNTRY_NAMES } from '../../../services/tracker';
 
-export const UsersRubric = () => {
+export const UsersRubric = ({ setActiveRubric, setAnalyticsSearchId } = {}) => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -109,12 +110,18 @@ export const UsersRubric = () => {
 
       let matchFilter = true;
       if (filter === 'with-points') matchFilter = (u.points || 0) > 0;
+      if (filter === 'whatsapp') matchFilter = Boolean(u.phone && u.phone.trim());
+      if (filter === 'sponsors') matchFilter = (u.referral_count || 0) > 0;
       if (filter === 'recent') {
         const days = u.created_at ? (Date.now() - new Date(u.created_at).getTime()) / (1000 * 3600 * 24) : 999;
         matchFilter = days <= 7;
       }
 
       return matchSearch && matchFilter;
+    }).sort((a, b) => {
+      const dateA = new Date(a.created_at || 0).getTime();
+      const dateB = new Date(b.created_at || 0).getTime();
+      return dateB - dateA;
     });
   }, [users, search, filter]);
 
@@ -123,11 +130,15 @@ export const UsersRubric = () => {
     const total = users.length;
     const totalPoints = users.reduce((sum, u) => sum + (Number(u.points) || 0), 0);
     const totalMinutes = users.reduce((sum, u) => sum + (Number(u.listening_minutes) || 0), 0);
+    const totalReferrals = users.reduce((sum, u) => sum + (Number(u.referral_count) || 0), 0);
+    const sponsorsCount = users.filter(u => (u.referral_count || 0) > 0).length;
     return {
       total,
       totalPoints,
       avgPoints: total > 0 ? Math.round(totalPoints / total) : 0,
-      totalHours: Math.round(totalMinutes / 60)
+      totalHours: Math.round(totalMinutes / 60),
+      totalReferrals,
+      sponsorsCount,
     };
   }, [users]);
 
@@ -161,7 +172,7 @@ export const UsersRubric = () => {
       </div>
 
       {/* ── CARTES DE STATISTIQUES ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         <div className="p-4 rounded-2xl bg-slate-900/80 border border-white/10 shadow-lg">
           <span className="text-2xs font-bold text-slate-400 block mb-1">Total Utilisateurs</span>
           <div className="flex items-center justify-between">
@@ -173,7 +184,7 @@ export const UsersRubric = () => {
         </div>
 
         <div className="p-4 rounded-2xl bg-slate-900/80 border border-amber-500/20 shadow-lg">
-          <span className="text-2xs font-bold text-slate-400 block mb-1">Total Sky Points en Circulation</span>
+          <span className="text-2xs font-bold text-slate-400 block mb-1">Total Sky Points</span>
           <div className="flex items-center justify-between">
             <span className="text-2xl font-black text-amber-300 font-mono">
               {stats.totalPoints.toLocaleString()} ⭐
@@ -197,13 +208,26 @@ export const UsersRubric = () => {
         </div>
 
         <div className="p-4 rounded-2xl bg-slate-900/80 border border-white/10 shadow-lg">
-          <span className="text-2xs font-bold text-slate-400 block mb-1">Temps d'Écoute Cumulé</span>
+          <span className="text-2xs font-bold text-slate-400 block mb-1">Temps d'Écoute</span>
           <div className="flex items-center justify-between">
             <span className="text-2xl font-black text-cyan-400 font-mono">
               {stats.totalHours}h
             </span>
             <div className="w-8 h-8 rounded-xl bg-cyan-500/20 flex items-center justify-center text-cyan-400">
               <Clock className="w-4 h-4" />
+            </div>
+          </div>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-slate-900/80 border border-indigo-500/20 shadow-lg col-span-2 sm:col-span-1">
+          <span className="text-2xs font-bold text-slate-400 block mb-1">Parrains Actifs</span>
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-2xl font-black text-indigo-300 font-mono">{stats.sponsorsCount}</span>
+              <span className="text-2xs text-indigo-400/80 font-bold block">{stats.totalReferrals} filleuls</span>
+            </div>
+            <div className="w-8 h-8 rounded-xl bg-indigo-500/20 flex items-center justify-center text-indigo-400">
+              <UserPlus className="w-4 h-4" />
             </div>
           </div>
         </div>
@@ -234,6 +258,8 @@ export const UsersRubric = () => {
           {[
             { id: 'all', label: 'Tous' },
             { id: 'with-points', label: 'Avec Points ⭐' },
+            { id: 'sponsors', label: '🤝 Parrains Actifs' },
+            { id: 'whatsapp', label: 'WhatsApp Lié 📱' },
             { id: 'recent', label: 'Inscrits Récents' },
           ].map(tab => (
             <button
@@ -275,6 +301,7 @@ export const UsersRubric = () => {
                   <th className="py-3.5 px-4">Contact</th>
                   <th className="py-3.5 px-4">Niveau & Rang</th>
                   <th className="py-3.5 px-4">Solde Sky Points ⭐</th>
+                  <th className="py-3.5 px-4">Parrainage 🤝</th>
                   <th className="py-3.5 px-4">Activité</th>
                   <th className="py-3.5 px-4 text-right">Actions</th>
                 </tr>
@@ -346,12 +373,21 @@ export const UsersRubric = () => {
                             </div>
                           )}
                           {u.phone && (
-                            <div className="flex items-center gap-1.5 text-slate-400">
-                              <Smartphone className="w-3 h-3 text-slate-500" />
-                              <span>{u.phone}</span>
+                            <div className="flex items-center gap-1.5 text-emerald-400 font-medium">
+                              <Smartphone className="w-3 h-3 text-emerald-400 shrink-0" />
+                              <span className="font-mono">{u.phone}</span>
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
+                                WhatsApp
+                              </span>
                             </div>
                           )}
-                          {!u.email && !u.phone && (
+                          {u.country && (
+                            <div className="flex items-center gap-1.5 text-slate-400 font-medium">
+                              <span>{getFlagEmoji(u.country)}</span>
+                              <span>{COUNTRY_NAMES[u.country] || u.country}</span>
+                            </div>
+                          )}
+                          {!u.email && !u.phone && !u.country && (
                             <span className="text-slate-500 italic">Non renseigné</span>
                           )}
                         </div>
@@ -377,6 +413,39 @@ export const UsersRubric = () => {
                         </div>
                       </td>
 
+                      {/* Parrainage */}
+                      <td className="py-3 px-4">
+                        <div className="space-y-1.5">
+                          {(u.referral_count || 0) > 0 ? (
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 font-bold text-xs">
+                              <UserPlus className="w-3 h-3 text-emerald-400" />
+                              <span>{u.referral_count} filleul{u.referral_count > 1 ? 's' : ''}</span>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-slate-600 italic">Aucun</span>
+                          )}
+                          {u.referral_code && (
+                            <div className="flex items-center gap-1 text-[10px] text-slate-400 mt-1">
+                              <span className="font-mono bg-slate-800/60 px-1.5 py-0.5 rounded border border-white/8">
+                                {u.referral_code}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleCopy(u.referral_code, `ref-${u.id}`)}
+                                className="hover:text-slate-300 transition-colors"
+                                title="Copier le code"
+                              >
+                                {copiedId === `ref-${u.id}` ? (
+                                  <Check className="w-2.5 h-2.5 text-emerald-400" />
+                                ) : (
+                                  <Copy className="w-2.5 h-2.5" />
+                                )}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+
                       {/* Activité */}
                       <td className="py-3 px-4 text-slate-400 text-2xs">
                         <div>{u.listening_minutes || 0} min d'écoute</div>
@@ -385,16 +454,32 @@ export const UsersRubric = () => {
                         </div>
                       </td>
 
-                      {/* Bouton d'action */}
+                      {/* Boutons d'action */}
                       <td className="py-3 px-4 text-right">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenCreditModal(u)}
-                          className="px-3 py-1.5 rounded-xl bg-linear-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black text-xs inline-flex items-center gap-1.5 shadow-md shadow-amber-950/40 transition-all cursor-pointer hover:scale-105 active:scale-95"
-                        >
-                          <Coins className="w-3.5 h-3.5" />
-                          <span>+ Créditer Sky Points</span>
-                        </button>
+                        <div className="flex flex-col gap-1.5 items-end">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenCreditModal(u)}
+                            className="px-3 py-1.5 rounded-xl bg-linear-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black text-xs inline-flex items-center gap-1.5 shadow-md shadow-amber-950/40 transition-all cursor-pointer hover:scale-105 active:scale-95 whitespace-nowrap"
+                          >
+                            <Coins className="w-3.5 h-3.5" />
+                            <span>+ Créditer Points</span>
+                          </button>
+                          {setActiveRubric && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (setAnalyticsSearchId) setAnalyticsSearchId(u.id);
+                                if (setActiveRubric) setActiveRubric('analytics');
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-purple-600/20 hover:bg-purple-600/35 border border-purple-500/30 text-purple-300 font-bold text-xs inline-flex items-center gap-1.5 transition-all cursor-pointer hover:scale-105 active:scale-95 whitespace-nowrap"
+                              title="Voir dans Statistiques & Visiteurs"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                              <span>Voir dans Stats</span>
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

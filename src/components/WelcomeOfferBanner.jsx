@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Zap, X, Clock, Flame } from 'lucide-react';
 
 // ── Durée de l'offre : 15 minutes = 900 secondes ──
 const OFFER_DURATION_SECONDS = 900;
 const STORAGE_KEY = 'rg_welcome_offer';
+const INITIAL_DELAY_MS = 140 * 1000;   // ~2 min 20s après l'arrivée (décalé du push pour éviter le chevauchement)
+const REMIND_INTERVAL_MS = 5 * 60 * 1000; // Rappel toutes les 5 minutes si fermée
 
 const getOfferState = () => {
   try {
@@ -15,25 +17,27 @@ const getOfferState = () => {
 
 const initOffer = () => {
   const now = Date.now();
-  const state = { startedAt: now, dismissed: false };
+  const state = { startedAt: now, dismissed: false, claimed: false, dismissedAt: 0 };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   return state;
 };
 
-export const WelcomeOfferBanner = ({ onOpenCheckout, featuredBook }) => {
+export const WelcomeOfferBanner = ({ onOpenCheckout, onNavigate, featuredBook }) => {
   const [visible, setVisible] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(OFFER_DURATION_SECONDS);
   const [animate, setAnimate] = useState(false);
+  const sessionStartTimeRef = useRef(Date.now());
 
   useEffect(() => {
     let state = getOfferState();
 
-    // Première visite : démarrer l'offre
+    // Première visite : initialiser l'offre
     if (!state) {
       state = initOffer();
     }
 
-    if (state.dismissed) return;
+    // Si l'offre a déjà été utilisée
+    if (state.claimed) return;
 
     const elapsed = Math.floor((Date.now() - state.startedAt) / 1000);
     const remaining = OFFER_DURATION_SECONDS - elapsed;
@@ -44,15 +48,46 @@ export const WelcomeOfferBanner = ({ onOpenCheckout, featuredBook }) => {
     }
 
     setSecondsLeft(remaining);
-    setVisible(true);
 
-    // Petite animation d'entrée
-    setTimeout(() => setAnimate(true), 300);
+    const checkShouldShow = () => {
+      const currentState = getOfferState();
+      if (!currentState || currentState.claimed) return false;
 
-    const interval = setInterval(() => {
+      const currentRemaining = OFFER_DURATION_SECONDS - Math.floor((Date.now() - currentState.startedAt) / 1000);
+      if (currentRemaining <= 0) return false;
+
+      const now = Date.now();
+      const elapsedSinceLoad = now - sessionStartTimeRef.current;
+      if (elapsedSinceLoad < INITIAL_DELAY_MS) return false;
+
+      if (currentState.dismissedAt && now - currentState.dismissedAt < REMIND_INTERVAL_MS) {
+        return false;
+      }
+
+      return true;
+    };
+
+    // 1. Minuteur initial de ~2 minutes
+    const initialTimer = setTimeout(() => {
+      if (checkShouldShow()) {
+        setVisible(true);
+        setTimeout(() => setAnimate(true), 150);
+      }
+    }, INITIAL_DELAY_MS);
+
+    // 2. Intervalle régulier de rappel si non réclamée
+    const checkInterval = setInterval(() => {
+      if (!visible && checkShouldShow()) {
+        setVisible(true);
+        setTimeout(() => setAnimate(true), 150);
+      }
+    }, 30000);
+
+    // 3. Décompte des secondes
+    const secondInterval = setInterval(() => {
       setSecondsLeft(prev => {
         if (prev <= 1) {
-          clearInterval(interval);
+          clearInterval(secondInterval);
           setVisible(false);
           return 0;
         }
@@ -60,19 +95,62 @@ export const WelcomeOfferBanner = ({ onOpenCheckout, featuredBook }) => {
       });
     }, 1000);
 
-    return () => clearInterval(interval);
-  }, []);
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(checkInterval);
+      clearInterval(secondInterval);
+    };
+  }, [visible]);
 
   const dismiss = useCallback(() => {
     const state = getOfferState() || {};
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, dismissed: true }));
-    setVisible(false);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      ...state,
+      dismissed: true,
+      dismissedAt: Date.now()
+    }));
+    setAnimate(false);
+    setTimeout(() => setVisible(false), 300);
   }, []);
 
   const handleCTA = () => {
-    dismiss();
-    if (onOpenCheckout && featuredBook) {
-      onOpenCheckout({ ...featuredBook, discount_price: Math.round((featuredBook.price || 3500) * 0.6) });
+    const state = getOfferState() || {};
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      ...state,
+      claimed: true,
+      dismissed: true
+    }));
+    setAnimate(false);
+    setVisible(false);
+
+    // 1. Redirection effective vers la boutique (Store)
+    if (onNavigate) {
+      onNavigate('store');
+    }
+    window.dispatchEvent(new CustomEvent('rg:navigate-tab', { detail: 'store' }));
+
+    // 2. Préparation de l'offre avec -40% et ouverture directe du checkout
+    const offerItem = featuredBook ? {
+      ...featuredBook,
+      discount_price: Math.round((featuredBook.price || 3500) * 0.6)
+    } : {
+      id: 'pack_1000',
+      title: 'Pack Populaire (Offre de Bienvenue -40%)',
+      subtitle: '750 Points RG (+150 pts bonus offerts)',
+      author: "Read's Great VIP",
+      rawPrice: 600,
+      price: 600,
+      unit: 'FCFA',
+      is_point_pack: true,
+      points_reward: 750,
+      cover_url: '/icon.svg',
+      description: 'Offre exclusive de bienvenue : 750 Points RG à 600 FCFA au lieu de 1 000 FCFA (-40%) pour débloquer immédiatement vos livres audio et ebooks !'
+    };
+
+    if (onOpenCheckout) {
+      setTimeout(() => {
+        onOpenCheckout(offerItem);
+      }, 100);
     }
   };
 
@@ -140,13 +218,14 @@ export const WelcomeOfferBanner = ({ onOpenCheckout, featuredBook }) => {
                   </span>
                 </div>
                 <p className="text-2xs text-slate-300 mt-0.5">
-                  Profitez de -40% sur votre premier achat
+                  Profitez de -40% sur votre premier pack ou livre audio
                 </p>
               </div>
             </div>
             <button
               onClick={dismiss}
-              className="w-7 h-7 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all shrink-0"
+              className="w-7 h-7 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all shrink-0 cursor-pointer"
+              title="Fermer"
             >
               <X className="w-3.5 h-3.5 text-slate-400" />
             </button>
@@ -168,7 +247,7 @@ export const WelcomeOfferBanner = ({ onOpenCheckout, featuredBook }) => {
           {/* CTA */}
           <button
             onClick={handleCTA}
-            className="w-full py-3 rounded-2xl font-black text-sm text-white transition-all active:scale-95 shadow-lg"
+            className="w-full py-3 rounded-2xl font-black text-sm text-white transition-all active:scale-95 shadow-lg cursor-pointer hover:brightness-110"
             style={{
               background: urgency
                 ? 'linear-gradient(135deg, #ef4444, #f97316)'

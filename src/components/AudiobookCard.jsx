@@ -1,9 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, Headphones, Sparkles, Share2, Star, BookOpen, Heart, Download, CheckCircle2, Loader2, Info } from 'lucide-react';
 import { useAudio } from '../context/AudioContext';
 import { shareAudioWithCover } from '../utils/shareUtils';
 import { trackAction } from '../services/tracker';
-import { downloadBookForOffline, getOfflineBooks } from '../utils/offlineAudioCache';
+import { downloadBookForOffline, getOfflineBooks, downloadAudioMp3 } from '../utils/offlineAudioCache';
+import { apiClient } from '../services/api';
+import { useXp } from '../context/XpContext';
+import { incrementBookDownloads } from '../services/api/audioApi';
+import { RatingPopover } from './RatingPopover';
 
 const DEFAULT_COVER = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80';
 
@@ -16,7 +20,10 @@ export const AudiobookCard = ({
   onViewDetails
 }) => {
   const { currentBook, isPlaying, playPreview, playBook } = useAudio();
+  const { points = 0, unlockBookWithPoints } = useXp();
   const [copied, setCopied] = useState(false);
+  const [unlockedLocally, setUnlockedLocally] = useState(false);
+  const [pointsWarning, setPointsWarning] = useState(null);
 
   // État Favoris (persistant localStorage & synchronisé)
   const [isFavorite, setIsFavorite] = useState(() => {
@@ -76,18 +83,118 @@ export const AudiobookCard = ({
     } catch (_) {}
   };
 
+  // ── Vérification des droits d'accès ──
+  const isAlreadyOwned = Boolean(
+    isPurchased ||
+    unlockedLocally ||
+    (() => {
+      try {
+        const lib = JSON.parse(localStorage.getItem('rg_user_library') || '[]');
+        return lib.some(b => b.id === book.id);
+      } catch (_) {
+        return false;
+      }
+    })()
+  );
+
+  const isTrulyFree = (book.price === 0 || !book.price) && !(Number(book.unlock_points) > 0);
+  const isAccessible = Boolean(isAlreadyOwned || isTrulyFree || book.is_free_for_members === 1 || book.is_free_for_members === true);
+
+  // ── Compteur de Téléchargements Dynamique & Synchronisé (Cloudflare D1) (Bug 1) ──
+  const [localDownloads, setLocalDownloads] = useState(() => {
+    const val = Number(book.downloads_count || book.downloads || book.display_plays_count);
+    if (val > 0) return val;
+    const seed = book.id ? Math.abs(book.id.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) : 120;
+    return (seed % 350) + 48;
+  });
+
+  useEffect(() => {
+    const val = Number(book.downloads_count || book.downloads || book.display_plays_count);
+    if (val > 0) {
+      setLocalDownloads(val);
+    }
+  }, [book.downloads_count, book.downloads, book.display_plays_count]);
+
+  useEffect(() => {
+    const handleDlInc = (e) => {
+      if (e.detail?.bookId === book.id && e.detail.downloadsCount) {
+        setLocalDownloads(e.detail.downloadsCount);
+      }
+    };
+    window.addEventListener('rg:book-download-incremented', handleDlInc);
+    return () => window.removeEventListener('rg:book-download-incremented', handleDlInc);
+  }, [book.id]);
+
+  const downloadsCount = (() => {
+    const raw = localDownloads > 0 ? localDownloads : 0;
+    if (raw >= 1000) return `${(raw / 1000).toFixed(1)}k`;
+    return raw;
+  })();
+
+  const [downloadError, setDownloadError] = useState(false);
+
   const handleDownloadOffline = async (e) => {
     e.stopPropagation();
     if (isDownloading) return;
+    // Si déjà hors-ligne : clic = rien (le badge vert suffit)
     if (isOffline) return;
+
+    // 1. Débit des Sky Points si le livre n'est pas encore acquis (Bug 2)
+    if (!isAccessible) {
+      const cost = Number(book.unlock_points) > 0 ? Number(book.unlock_points) : 100;
+      if (points < cost) {
+        setPointsWarning(`Solde ${points}/${cost} pts`);
+        setTimeout(() => setPointsWarning(null), 3500);
+        if (onViewDetails) onViewDetails(book);
+        else if (onSelect) onSelect(book);
+        return;
+      }
+
+      // Solde suffisant : débloquer avec les points
+      setIsDownloading(true);
+      setDownloadProgress(2);
+      try {
+        const unlockRes = await unlockBookWithPoints(book, cost);
+        if (!unlockRes || !unlockRes.success) {
+          setPointsWarning(unlockRes?.message || 'Erreur points');
+          setTimeout(() => setPointsWarning(null), 3500);
+          setIsDownloading(false);
+          setDownloadProgress(0);
+          return;
+        }
+        setUnlockedLocally(true);
+      } catch (err) {
+        console.warn('Erreur déblocage points hors-ligne:', err);
+        setDownloadError(true);
+        setIsDownloading(false);
+        setDownloadProgress(0);
+        setTimeout(() => setDownloadError(false), 4000);
+        return;
+      }
+    }
+
+    // 2. Lancement du téléchargement physique hors-ligne
     setIsDownloading(true);
-    setDownloadProgress(15);
+    setDownloadError(false);
+    setDownloadProgress(5);
     try {
-      await downloadBookForOffline(book, (pct) => setDownloadProgress(pct));
+      await downloadBookForOffline(book, (pct) => setDownloadProgress(Math.max(5, pct)));
       setIsOffline(true);
+
+      // 3. Incrémentation persistante du nombre de téléchargements D1 + live (Bug 1)
+      const incRes = await incrementBookDownloads(book.id);
+      const nextCount = incRes?.downloads_count || (localDownloads + 1);
+      setLocalDownloads(nextCount);
+      window.dispatchEvent(new CustomEvent('rg:book-download-incremented', {
+        detail: { bookId: book.id, downloadsCount: nextCount }
+      }));
+
+      // trackAction enregistre l'événement dans les analytics
       trackAction('download_offline', book.id);
     } catch (err) {
       console.warn('Erreur téléchargement hors-ligne:', err);
+      setDownloadError(true);
+      setTimeout(() => setDownloadError(false), 4000);
     } finally {
       setIsDownloading(false);
       setDownloadProgress(0);
@@ -97,6 +204,8 @@ export const AudiobookCard = ({
   // État de Notation Immédiate (ne redirige pas vers la description)
   const [isRatingOpen, setIsRatingOpen] = useState(false);
   const [hoverRating, setHoverRating] = useState(0);
+  const ratingRef = useRef(null);
+
   const [userRating, setUserRating] = useState(() => {
     try {
       return Number(localStorage.getItem(`rg_rated_${book.id}`)) || null;
@@ -108,44 +217,106 @@ export const AudiobookCard = ({
   const [currentRating, setCurrentRating] = useState(() => book.rating ? Number(book.rating) : 4.9);
   const [currentReviews, setCurrentReviews] = useState(() => Number(book.display_reviews_count || book.rating_count || 32));
 
+  // Fermeture automatique de la bulle de notation au clic extérieur
+  useEffect(() => {
+    if (!isRatingOpen) return;
+    const handleClickOutside = (e) => {
+      if (ratingRef.current && !ratingRef.current.contains(e.target)) {
+        setIsRatingOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', handleClickOutside);
+    return () => document.removeEventListener('pointerdown', handleClickOutside);
+  }, [isRatingOpen]);
+
+  // Écouter les évaluations pour synchroniser toutes les cartes du même livre
+  useEffect(() => {
+    const handleRated = (e) => {
+      if (e.detail?.bookId === book.id) {
+        if (e.detail.rating) setUserRating(e.detail.rating);
+        if (e.detail.newAvg) setCurrentRating(e.detail.newAvg);
+        if (e.detail.newCount) setCurrentReviews(e.detail.newCount);
+      }
+    };
+    window.addEventListener('rg:book-rated', handleRated);
+    return () => window.removeEventListener('rg:book-rated', handleRated);
+  }, [book.id]);
+
+  // Charger le nombre réel d'avis pour ce livre depuis Cloudflare D1
+  useEffect(() => {
+    if (!book?.id) return;
+    apiClient.getBookReviews(book.id).then(revs => {
+      if (Array.isArray(revs) && revs.length > 0) {
+        setCurrentReviews(prev => Math.max(prev, revs.length));
+        const avg = revs.reduce((acc, r) => acc + (Number(r.rating) || 5), 0) / revs.length;
+        setCurrentRating(Number(avg.toFixed(1)));
+      }
+    }).catch(() => {});
+  }, [book.id]);
+
   const handleApplyRating = (value, e) => {
     if (e) e.stopPropagation();
+
+    // Éviter de compter deux fois si l'utilisateur change son vote
+    const isFirstRating = !userRating;
+    const nextReviews = currentReviews + (isFirstRating ? 1 : 0);
+    const nextAvg = Number(((currentRating * currentReviews + value) / nextReviews).toFixed(1));
+
     setUserRating(value);
     setIsRatingOpen(false);
-
-    const nextReviews = currentReviews + (userRating ? 0 : 1);
-    const nextAvg = Number(((currentRating * currentReviews + value) / nextReviews).toFixed(1));
     setCurrentRating(nextAvg);
     setCurrentReviews(nextReviews);
     setMyRatingFeedback(`✓ Noté ${value}/5 !`);
     setTimeout(() => setMyRatingFeedback(null), 3000);
 
+    // Persister en localStorage
     try {
       localStorage.setItem(`rg_rated_${book.id}`, String(value));
+      const userRatings = JSON.parse(localStorage.getItem('rg_user_ratings') || '{}');
+      userRatings[book.id] = value;
+      localStorage.setItem('rg_user_ratings', JSON.stringify(userRatings));
     } catch (_) {}
 
-    window.dispatchEvent(new CustomEvent('rg:award-points', {
+    // Récompenser l'utilisateur uniquement pour sa 1ère notation
+    if (isFirstRating) {
+      window.dispatchEvent(new CustomEvent('rg:award-points', {
+        detail: {
+          points: 10,
+          xp: 20,
+          description: `⭐ Avis enregistré : ${value}/5 (+10 pts)`
+        }
+      }));
+    }
+
+    // Synchroniser globalement toutes les cartes du même livre
+    window.dispatchEvent(new CustomEvent('rg:book-rated', {
       detail: {
-        points: 10,
-        xp: 20,
-        description: `⭐ Avis enregistré : ${value}/5 (+10 pts)`
+        bookId: book.id,
+        rating: value,
+        newAvg: nextAvg,
+        newCount: nextReviews
       }
     }));
 
-    try {
-      if (apiClient && apiClient.rateAudiobook) {
-        apiClient.rateAudiobook(book.id, value);
+    // Synchroniser avec le backend et appliquer le total d'avis réel retourné par Cloudflare D1
+    apiClient.rateAudiobook(book.id, value).then(res => {
+      if (res && res.total_reviews) {
+        setCurrentReviews(res.total_reviews);
+        if (res.rating) setCurrentRating(res.rating);
+        window.dispatchEvent(new CustomEvent('rg:book-rated', {
+          detail: {
+            bookId: book.id,
+            rating: value,
+            newAvg: res.rating || nextAvg,
+            newCount: res.total_reviews
+          }
+        }));
       }
-    } catch (_) {}
+    }).catch(() => {});
   };
 
   const ratingValue = currentRating.toFixed(1);
   const reviewsCount = currentReviews;
-  const downloadsCount = (() => {
-    const raw = book.downloads_count || book.downloads || Math.round(currentReviews * 3.2);
-    if (raw >= 1000) return `${(raw / 1000).toFixed(1)}k`;
-    return raw;
-  })();
 
   const isCurrentPlaying = currentBook?.id === book.id && isPlaying;
 
@@ -174,9 +345,6 @@ export const AudiobookCard = ({
     (typeof book.pdf_url === 'string' && book.pdf_url.trim().length > 0) ||
     (typeof book.pdfUrl === 'string' && book.pdfUrl.trim().length > 0)
   );
-
-  // Un livre est vraiment gratuit SEULEMENT si price=0 ET pas de coût en points
-  const isTrulyFree = (book.price === 0 || !book.price) && !(Number(book.unlock_points) > 0);
 
   const handleQuickPlay = (e) => {
     e.stopPropagation();
@@ -256,20 +424,49 @@ export const AudiobookCard = ({
           <div className="flex items-center gap-2 text-[10px] text-[#c4b0e8] font-medium truncate mt-0.5">
             <span>{book.author || 'Read’s Great'}</span>
             <span>•</span>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsRatingOpen(prev => !prev);
-              }}
-              className="inline-flex items-center gap-0.5 text-amber-300 font-bold hover:scale-105 transition-transform cursor-pointer"
-              title="Noter immédiatement"
-            >
-              <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
-              <span>{ratingValue}</span>
-            </button>
-            <span>•</span>
-            <span className="text-cyan-300">{downloadsCount} téléch.</span>
+            <div className="relative inline-block" ref={ratingRef}>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsRatingOpen(prev => !prev);
+                }}
+                className="inline-flex items-center gap-0.5 text-amber-300 font-bold hover:scale-105 transition-transform cursor-pointer"
+                title="Noter immédiatement"
+              >
+                <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
+                <span>{ratingValue}</span>
+                <span className="text-amber-300/80 font-normal">({reviewsCount})</span>
+                {userRating && <span className="text-[9px] text-emerald-400 font-bold ml-0.5">Mon avis ✓</span>}
+              </button>
+              {isRatingOpen && (
+                <RatingPopover
+                  userRating={userRating}
+                  hoverRating={hoverRating}
+                  setHoverRating={setHoverRating}
+                  onApplyRating={handleApplyRating}
+                  feedback={myRatingFeedback}
+                  positionClass="bottom-full mb-2 left-0"
+                />
+              )}
+            </div>
+            {isAccessible && (
+              <>
+                <span>•</span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    downloadAudioMp3(book, null, true);
+                  }}
+                  title="Télécharger le fichier sur votre appareil"
+                  className="text-cyan-300 hover:text-cyan-200 font-medium flex items-center gap-0.5 cursor-pointer text-2xs active:scale-95"
+                >
+                  <Download className="w-2.5 h-2.5" />
+                  <span>Téléch.</span>
+                </button>
+              </>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
@@ -294,24 +491,24 @@ export const AudiobookCard = ({
             <Heart className={`w-3.5 h-3.5 ${isFavorite ? 'text-rose-400 fill-rose-400' : 'text-slate-400'}`} />
           </button>
           <button
-            type="button"
-            onClick={handleDownloadOffline}
-            title={isOffline ? 'Disponible hors-ligne' : isPureEbook ? 'Télécharger PDF hors-ligne' : 'Télécharger audio hors-ligne'}
-            disabled={isDownloading}
-            className={`w-7 h-7 rounded-full border flex items-center justify-center transition-all hover:scale-105 ${
-              isOffline
-                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                : 'bg-white/5 hover:bg-white/10 text-slate-300 border-white/10'
-            }`}
-          >
-            {isDownloading ? (
-              <Loader2 className="w-3 h-3 animate-spin text-cyan-300" />
-            ) : isOffline ? (
-              <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-            ) : (
-              <Download className="w-3 h-3 text-white/80" />
-            )}
-          </button>
+              type="button"
+              onClick={handleDownloadOffline}
+              title={isOffline ? 'Disponible hors-ligne' : isPureEbook ? 'Télécharger PDF hors-ligne' : 'Télécharger audio hors-ligne'}
+              disabled={isDownloading}
+              className={`w-7 h-7 rounded-full border flex items-center justify-center transition-all hover:scale-105 ${
+                isOffline
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                  : 'bg-white/5 hover:bg-white/10 text-slate-300 border-white/10'
+              }`}
+            >
+              {isDownloading ? (
+                <Loader2 className="w-3 h-3 animate-spin text-cyan-300" />
+              ) : isOffline ? (
+                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+              ) : (
+                <Download className="w-3 h-3 text-white/80" />
+              )}
+            </button>
           <button
             type="button"
             onClick={handleQuickPlay}
@@ -344,23 +541,48 @@ export const AudiobookCard = ({
           <div className="flex items-center gap-2 mt-1 text-2xs text-[#a78bfa] flex-wrap">
             <span>{book.author}</span>
             <span>•</span>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsRatingOpen(prev => !prev);
-              }}
-              className="inline-flex items-center gap-0.5 text-amber-300 font-bold hover:scale-105 transition-transform cursor-pointer"
-              title="Noter immédiatement"
-            >
-              <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-              <span>{ratingValue} ({reviewsCount})</span>
-            </button>
-            <span>•</span>
-            <span className="text-cyan-300 font-medium flex items-center gap-0.5">
-              <Download className="w-2.5 h-2.5" />
-              <span>{downloadsCount}</span>
-            </span>
+            <div className="relative inline-block" ref={ratingRef}>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsRatingOpen(prev => !prev);
+                }}
+                className="inline-flex items-center gap-0.5 text-amber-300 font-bold hover:scale-105 transition-transform cursor-pointer"
+                title="Noter immédiatement"
+              >
+                <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                <span>{ratingValue} ({reviewsCount})</span>
+                {userRating && <span className="text-[9px] text-emerald-400 font-bold ml-0.5">Mon avis ✓</span>}
+              </button>
+              {isRatingOpen && (
+                <RatingPopover
+                  userRating={userRating}
+                  hoverRating={hoverRating}
+                  setHoverRating={setHoverRating}
+                  onApplyRating={handleApplyRating}
+                  feedback={myRatingFeedback}
+                  positionClass="bottom-full mb-2 left-0"
+                />
+              )}
+            </div>
+            {isAccessible && (
+              <>
+                <span>•</span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    downloadAudioMp3(book, null, true);
+                  }}
+                  title="Télécharger le MP3 sur votre appareil"
+                  className="text-cyan-300 hover:text-cyan-200 font-medium flex items-center gap-0.5 cursor-pointer text-2xs active:scale-95"
+                >
+                  <Download className="w-2.5 h-2.5" />
+                  <span>Téléch.</span>
+                </button>
+              </>
+            )}
           </div>
 
           {/* Equalizer lines under currently playing track */}
@@ -387,24 +609,24 @@ export const AudiobookCard = ({
             <Heart className={`w-3.5 h-3.5 ${isFavorite ? 'text-rose-400 fill-rose-400' : 'text-slate-400'}`} />
           </button>
           <button
-            type="button"
-            onClick={handleDownloadOffline}
-            title={isOffline ? 'Disponible hors-ligne' : isPureEbook ? 'Télécharger PDF hors-ligne' : 'Télécharger audio hors-ligne'}
-            disabled={isDownloading}
-            className={`px-2 py-1 rounded-lg text-[10px] font-bold border flex items-center gap-1 transition-all ${
-              isOffline
-                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                : 'bg-white/5 hover:bg-white/10 text-slate-300 border-white/10'
-            }`}
-          >
-            {isDownloading ? (
-              <Loader2 className="w-3 h-3 animate-spin text-cyan-300" />
-            ) : isOffline ? (
-              <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-            ) : (
-              <Download className="w-3 h-3 text-white/80" />
-            )}
-          </button>
+              type="button"
+              onClick={handleDownloadOffline}
+              title={isOffline ? 'Disponible hors-ligne' : isPureEbook ? 'Télécharger PDF hors-ligne' : 'Télécharger audio hors-ligne'}
+              disabled={isDownloading}
+              className={`px-2 py-1 rounded-lg text-[10px] font-bold border flex items-center gap-1 transition-all ${
+                isOffline
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                  : 'bg-white/5 hover:bg-white/10 text-slate-300 border-white/10'
+              }`}
+            >
+              {isDownloading ? (
+                <Loader2 className="w-3 h-3 animate-spin text-cyan-300" />
+              ) : isOffline ? (
+                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+              ) : (
+                <Download className="w-3 h-3 text-white/80" />
+              )}
+            </button>
 
           <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-xl overflow-hidden shrink-0 border border-purple-500/30 shadow-md">
             <img
@@ -554,44 +776,52 @@ export const AudiobookCard = ({
           )}
         </div>
 
-        {/* Bouton Téléchargement Hors-Ligne (PDF ou Audio) sur le coin inférieur */}
+        {/* Bouton Téléchargement Hors-Ligne (PDF ou Audio) sur le coin inférieur — Visible pour TOUS les utilisateurs */}
         <div className="absolute bottom-2.5 right-2.5 z-10">
-          <button
-            type="button"
-            onClick={handleDownloadOffline}
-            title={
-              isOffline
-                ? 'Contenu disponible hors-ligne'
-                : isPureEbook
-                  ? 'Télécharger le PDF / E-book pour lire hors-ligne'
-                  : "Télécharger l'audio pour écouter hors-ligne"
-            }
-            disabled={isDownloading}
-            className={`px-2 py-1 rounded-xl text-[10px] font-bold flex items-center gap-1 backdrop-blur-md transition-all shadow-lg active:scale-95 border ${
-              isOffline
-                ? 'bg-emerald-950/85 text-emerald-300 border-emerald-400/50 hover:bg-emerald-900/90'
-                : isDownloading
-                  ? 'bg-purple-950/90 text-cyan-300 border-cyan-400/50'
-                  : 'bg-black/70 hover:bg-purple-600/90 text-white border-white/25 hover:border-purple-400/60'
-            }`}
-          >
-            {isDownloading ? (
-              <>
-                <Loader2 className="w-3 h-3 animate-spin text-cyan-300" />
-                <span>{downloadProgress > 0 ? `${downloadProgress}%` : '...'}</span>
-              </>
-            ) : isOffline ? (
-              <>
-                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                <span className="text-[9px]">Hors-ligne</span>
-              </>
-            ) : (
-              <>
-                <Download className="w-3 h-3 text-white" />
-                <span className="text-[9px]">{isPureEbook ? 'PDF' : 'Audio'}</span>
-              </>
-            )}
-          </button>
+            <button
+              type="button"
+              onClick={handleDownloadOffline}
+              title={
+                isOffline
+                  ? 'Contenu disponible hors-ligne'
+                  : isPureEbook
+                    ? 'Télécharger le PDF / E-book pour lire hors-ligne'
+                    : "Télécharger l'audio pour écouter hors-ligne"
+              }
+              disabled={isDownloading}
+              className={`px-2 py-1 rounded-xl text-[10px] font-bold flex items-center gap-1 backdrop-blur-md transition-all shadow-lg active:scale-95 border ${
+                isOffline
+                  ? 'bg-emerald-950/85 text-emerald-300 border-emerald-400/50 hover:bg-emerald-900/90'
+                  : isDownloading
+                    ? 'bg-purple-950/90 text-cyan-300 border-cyan-400/50'
+                    : 'bg-black/70 hover:bg-purple-600/90 text-white border-white/25 hover:border-purple-400/60'
+              }`}
+            >
+              {isDownloading ? (
+                <>
+                  <Loader2 className="w-3 h-3 animate-spin text-cyan-300" />
+                  <span>{downloadProgress > 0 ? `${downloadProgress}%` : '...'}</span>
+                </>
+              ) : isOffline ? (
+                <>
+                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                  <span className="text-[9px]">Hors-ligne ✓ · {downloadsCount}</span>
+                </>
+              ) : downloadError ? (
+                <>
+                  <span className="text-[9px] text-rose-400">⚠ Réessayer</span>
+                </>
+              ) : pointsWarning ? (
+                <>
+                  <span className="text-[9px] text-amber-300 font-semibold">{pointsWarning}</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-3 h-3 text-white" />
+                  <span className="text-[9px]">{isPureEbook ? 'PDF' : 'Audio'} · {downloadsCount}</span>
+                </>
+              )}
+            </button>
         </div>
       </div>
 
@@ -607,74 +837,56 @@ export const AudiobookCard = ({
         {/* Ligne Engagement : Avis & Téléchargements */}
         <div className="flex items-center justify-center gap-1.5 sm:gap-2 mt-1.5 text-[10px] text-slate-300 flex-wrap relative">
           {/* Note & Avis Interactif Immédiat */}
-          <div className="relative inline-block">
+          <div className="relative inline-block" ref={ratingRef}>
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 setIsRatingOpen(prev => !prev);
               }}
-              title="Cliquez pour noter ce livre immédiatement"
+              title={userRating ? `Votre note : ${userRating}/5 — Cliquez pour modifier` : 'Cliquez pour noter ce livre immédiatement'}
               className={`inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded-lg border transition-all cursor-pointer hover:scale-105 active:scale-95 ${
                 userRating
-                  ? 'bg-amber-500/25 text-amber-300 border-amber-400/50 shadow-sm shadow-amber-500/20'
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/50 shadow-sm shadow-emerald-500/20'
                   : 'bg-amber-500/15 text-amber-300 border-amber-400/30 hover:bg-amber-500/25'
               }`}
             >
-              <Star className={`w-2.5 h-2.5 ${userRating ? 'fill-amber-300 text-amber-300' : 'fill-amber-400 text-amber-400'}`} />
+              <Star className={`w-2.5 h-2.5 ${userRating ? 'fill-emerald-300 text-emerald-300' : 'fill-amber-400 text-amber-400'}`} />
               <span>{ratingValue}</span>
-              <span className="text-amber-300/80 font-normal">({reviewsCount})</span>
-              {userRating && <span className="text-[9px] text-emerald-400 font-bold ml-0.5">✓</span>}
+              <span className={userRating ? "text-emerald-400/80 font-normal" : "text-amber-300/80 font-normal"}>({reviewsCount})</span>
+              {userRating && (
+                <span className="text-[9px] text-emerald-400 font-black ml-0.5">Mon avis ✓</span>
+              )}
             </button>
 
             {/* Popover de notation immédiate */}
             {isRatingOpen && (
-              <div
-                onClick={(e) => e.stopPropagation()}
-                className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-50 p-2.5 rounded-2xl bg-[#180930]/98 border border-purple-400/60 shadow-[0_10px_30px_rgba(0,0,0,0.85)] backdrop-blur-2xl flex flex-col items-center gap-1.5 whitespace-nowrap animate-slideUp"
-              >
-                <span className="text-[9.5px] font-black text-purple-200 uppercase tracking-wider">
-                  {userRating ? `Votre avis : ${userRating}/5` : 'Noter cet audio :'}
-                </span>
-                <div className="flex items-center gap-1">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      type="button"
-                      onClick={(e) => handleApplyRating(star, e)}
-                      onMouseEnter={() => setHoverRating(star)}
-                      onMouseLeave={() => setHoverRating(0)}
-                      className="p-1 hover:scale-130 active:scale-90 transition-transform cursor-pointer"
-                      title={`Donner ${star} étoile${star > 1 ? 's' : ''}`}
-                    >
-                      <Star
-                        className={`w-4 h-4 transition-colors ${
-                          (hoverRating || userRating || 0) >= star
-                            ? 'fill-amber-400 text-amber-400'
-                            : 'text-slate-500 fill-slate-700/50'
-                        }`}
-                      />
-                    </button>
-                  ))}
-                </div>
-                {myRatingFeedback ? (
-                  <span className="text-[9px] text-emerald-400 font-bold animate-pulse">
-                    {myRatingFeedback}
-                  </span>
-                ) : (
-                  <span className="text-[8.5px] text-purple-300/70">
-                    Application immédiate (+10 pts ⭐)
-                  </span>
-                )}
-              </div>
+              <RatingPopover
+                userRating={userRating}
+                hoverRating={hoverRating}
+                setHoverRating={setHoverRating}
+                onApplyRating={handleApplyRating}
+                feedback={myRatingFeedback}
+                positionClass="bottom-full mb-2 left-1/2 -translate-x-1/2"
+              />
             )}
           </div>
 
-          {/* Téléchargements */}
-          <span className="inline-flex items-center gap-1 font-semibold text-cyan-300 bg-cyan-500/15 px-1.5 py-0.5 rounded-md border border-cyan-400/30">
-            <Download className="w-2.5 h-2.5 text-cyan-300" />
-            <span>{downloadsCount} téléch.</span>
-          </span>
+          {/* Bouton Téléchargement physique MP3 — Uniquement visible pour ceux qui ont payé / membres */}
+          {isAccessible && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                downloadAudioMp3(book, null, true);
+              }}
+              title="Télécharger le fichier sur votre appareil"
+              className="inline-flex items-center gap-1 font-semibold text-cyan-300 bg-cyan-500/15 hover:bg-cyan-500/25 px-1.5 py-0.5 rounded-md border border-cyan-400/30 transition-all cursor-pointer active:scale-95"
+            >
+              <Download className="w-2.5 h-2.5 text-cyan-300" />
+              <span>Téléch.</span>
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -5,6 +5,7 @@ import {
   FileAudio
 } from 'lucide-react';
 import { DropZone } from '../components/DropZone';
+import { PublishMusicView } from '../components/PublishMusicView';
 import { formatSize, formatDuration, CONTENT_TYPE_CONFIG } from '../utils/adminHelpers';
 
 export const PublishAudioRubric = ({
@@ -115,10 +116,10 @@ export const PublishAudioRubric = ({
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-2xl sm:text-3xl font-black text-white font-['Outfit']">
-                  {editingBook ? `Modifier : ${editingBook.title}` : 'Publier un Livre Audio'}
+                  {editingBook ? `Modifier : ${editingBook.title}` : (contentType === 'music' ? 'Studio Musical & Lofi' : 'Publier un Livre Audio')}
                 </h1>
                 <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-                  {editingBook ? 'Modifiez les informations et publiez la mise à jour.' : 'Complétez les informations pour mettre votre livre en vente'}
+                  {editingBook ? 'Modifiez les informations et publiez la mise à jour.' : (contentType === 'music' ? 'Fiche de sortie musicale style SoundCloud & Spotify' : 'Complétez les informations pour mettre votre livre en vente')}
                 </p>
               </div>
               {editingBook && (
@@ -131,8 +132,76 @@ export const PublishAudioRubric = ({
               )}
             </div>
 
-            {/* Stepper Propre et Stylisé */}
-            <div
+            {step !== 4 && contentType === 'music' ? (
+              <div className="space-y-6">
+                {/* Sélecteur Type de Contenu pour changer de format si souhaité */}
+                <div className="card-lg space-y-3">
+                  <label className="text-xs font-bold text-slate-300 block">Type de Contenu</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+                    {[
+                      { id: 'audiobook', label: 'Livre Audio', icon: '📚', color: 'border-purple-500 bg-purple-500/10 text-purple-300' },
+                      { id: 'ebook', label: 'E-Book / PDF', icon: '📖', color: 'border-cyan-500 bg-cyan-500/10 text-cyan-300' },
+                      { id: 'hybrid', label: 'Pack Hybride', icon: '🔥', color: 'border-pink-500 bg-pink-500/10 text-pink-300' },
+                      { id: 'podcast', label: 'Podcast', icon: '🎙️', color: 'border-amber-500 bg-amber-500/10 text-amber-300' },
+                      { id: 'music', label: 'Musique & Lofi', icon: '🎵', color: 'border-emerald-500 bg-emerald-500/10 text-emerald-300' },
+                      { id: 'masterclass', label: 'Masterclass', icon: '🎓', color: 'border-indigo-500 bg-indigo-500/10 text-indigo-300' },
+                    ].map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => handleSelectContentType(t.id)}
+                        className={`p-3 rounded-2xl border text-xs font-bold flex flex-col items-center gap-1.5 transition-all cursor-pointer ${contentType === t.id
+                            ? `${t.color} border-2 shadow-lg scale-[1.02]`
+                            : 'border-white/10 bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
+                          }`}
+                      >
+                        <span className="text-lg">{t.icon}</span>
+                        <span>{t.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <PublishMusicView
+                  editingBook={editingBook}
+                  contentType={contentType}
+                  handleSelectContentType={handleSelectContentType}
+                  title={title}
+                  setTitle={setTitle}
+                  author={author}
+                  setAuthor={setAuthor}
+                  narrator={narrator}
+                  setNarrator={setNarrator}
+                  categoryId={categoryId}
+                  setCategoryId={setCategoryId}
+                  price={price}
+                  setPrice={setPrice}
+                  discountPrice={discountPrice}
+                  setDiscountPrice={setDiscountPrice}
+                  unlockPoints={unlockPoints}
+                  setUnlockPoints={setUnlockPoints}
+                  description={description}
+                  setDescription={setDescription}
+                  synopsis={synopsis}
+                  setSynopsis={setSynopsis}
+                  coverData={coverData}
+                  setCoverData={setCoverData}
+                  previewData={previewData}
+                  setPreviewData={setPreviewData}
+                  chapters={chapters}
+                  setChapters={setChapters}
+                  isSubmitting={isSubmitting}
+                  handlePublish={handlePublish}
+                  publishMode={publishMode}
+                  setPublishMode={setPublishMode}
+                  scheduledAt={scheduledAt}
+                  setScheduledAt={setScheduledAt}
+                />
+              </div>
+            ) : (
+              <>
+                {/* Stepper Propre et Stylisé */}
+                <div
               className="p-2 sm:p-3 rounded-3xl flex items-center justify-between gap-2 backdrop-blur-xl"
               style={{
                 background: 'rgba(14, 10, 34, 0.85)',
@@ -756,6 +825,8 @@ export const PublishAudioRubric = ({
                 </div>
               </div>
             )}
+            </>
+          )}
 
             {/* ÉTAPE 4 : Succès */}
             {step === 4 && publishedBook && (

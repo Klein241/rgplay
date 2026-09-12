@@ -35,6 +35,7 @@ export const LibraryView = ({ onSelectBook, onGoToDiscover }) => {
   });
   const [selectedEbook, setSelectedEbook] = useState(null);
   const [selectedAuthor, setSelectedAuthor] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const { playBook, currentBook, isPlaying } = useAudio();
   const { readingMinutes, listeningMinutes, points } = useXp();
@@ -50,6 +51,8 @@ export const LibraryView = ({ onSelectBook, onGoToDiscover }) => {
       setOfflineBooks(getOfflineBooks());
     } catch (e) {
       console.error(e);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -233,8 +236,21 @@ export const LibraryView = ({ onSelectBook, onGoToDiscover }) => {
             </span>
           </div>
 
+          {/* État chargement */}
+          {isLoading && (
+            <div className="py-16 flex flex-col items-center gap-4 text-center animate-pulse">
+              <div className="w-16 h-16 rounded-3xl bg-purple-500/15 border border-purple-400/30 flex items-center justify-center">
+                <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+              </div>
+              <p className="text-sm font-bold text-white">Les livres sont en cours de chargement...</p>
+              <p className="text-xs text-purple-300/70 max-w-xs">
+                Synchronisation de la bibliothèque numérique Read's Great.
+              </p>
+            </div>
+          )}
+
           {/* État vide */}
-          {ebookBooks.length === 0 && (
+          {!isLoading && ebookBooks.length === 0 && (
             <div className="py-16 flex flex-col items-center gap-4 text-center">
               <div className="w-16 h-16 rounded-3xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
                 <BookOpen className="w-8 h-8 text-purple-400" />
@@ -374,15 +390,15 @@ export const LibraryView = ({ onSelectBook, onGoToDiscover }) => {
                       {book.author || "Read's Great"}
                     </p>
 
-                    {/* Note et téléchargements */}
+                    {/* Note et téléchargements réels */}
                     <div className="mt-1 flex items-center justify-between text-[9px] text-slate-300">
                       <span className="flex items-center gap-0.5 text-amber-300 font-bold">
                         <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
-                        <span>{book.rating ? Number(book.rating).toFixed(1) : '4.9'}</span>
+                        <span>{book.rating ? Number(book.rating).toFixed(1) : (book.rating_count ? '5.0' : 'Nouveau')}</span>
                       </span>
                       <span className="flex items-center gap-0.5 text-cyan-300 font-medium">
                         <Download className="w-2 h-2" />
-                        <span>{book.downloads_count || book.downloads || Math.round((Number(book.rating_count) || 40) * 3)}</span>
+                        <span>{book.downloads_count || book.downloads || 0}</span>
                       </span>
                     </div>
 
@@ -522,7 +538,7 @@ export const LibraryView = ({ onSelectBook, onGoToDiscover }) => {
 
                     <button
                       type="button"
-                      onClick={() => setSelectedEbook(book)}
+                      onClick={() => onSelectBook({ ...book, force_pdf: true })}
                       className="flex-1 py-2 px-3 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 border border-purple-500/30 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <BookOpen className="w-3.5 h-3.5" />
@@ -709,7 +725,7 @@ export const LibraryView = ({ onSelectBook, onGoToDiscover }) => {
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          onSelectBook(book);
+                          onSelectBook({ ...book, force_pdf: true });
                         }}
                         className="px-3 py-1 rounded-lg bg-linear-to-r from-purple-600 to-pink-600 text-white text-2xs font-bold flex items-center gap-1 cursor-pointer active:scale-95 transition-all shadow-md"
                       >

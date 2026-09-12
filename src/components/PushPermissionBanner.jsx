@@ -1,63 +1,92 @@
-import React, { useState } from 'react';
-import { Bell, X, Sparkles, CheckCircle2, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Bell, X, Sparkles, ChevronRight } from 'lucide-react';
 import { usePush } from '../context/PushContext';
+
+// ── Délais d'affichage ──
+const INITIAL_DELAY_MS = 2 * 60 * 1000;  // 2 minutes après l'arrivée
+const REMIND_INTERVAL_MS = 5 * 60 * 1000; // Rappel toutes les 5 minutes si non activé
 
 export const PushPermissionBanner = () => {
   const { requestPermission, permission } = usePush();
+  const [isVisible, setIsVisible] = useState(false);
   const [isActivating, setIsActivating] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(() => {
-    try {
-      return localStorage.getItem('rg_push_banner_minimized') === 'true';
-    } catch {
-      return false;
-    }
-  });
+  const sessionStartTimeRef = useRef(Date.now());
 
-  // Si les notifications sont déjà autorisées, ne plus afficher
-  if (permission === 'granted') return null;
+  // Nettoyage immédiat de l'ancien état "minimized" qui restait figé sur l'écran
+  useEffect(() => {
+    try {
+      localStorage.removeItem('rg_push_banner_minimized');
+    } catch (_) {}
+  }, []);
+
+  useEffect(() => {
+    // Si notifications non supportées, déjà autorisées ou bloquées par le navigateur, ne pas afficher
+    if (typeof Notification === 'undefined' || permission === 'granted' || permission === 'denied') {
+      setIsVisible(false);
+      return;
+    }
+
+    const checkShouldShow = () => {
+      if (permission !== 'default') return false;
+
+      const now = Date.now();
+      const elapsedSinceLoad = now - sessionStartTimeRef.current;
+      if (elapsedSinceLoad < INITIAL_DELAY_MS) return false;
+
+      try {
+        const lastDismissed = Number(sessionStorage.getItem('rg_push_banner_dismissed_at') || 0);
+        if (lastDismissed && now - lastDismissed < REMIND_INTERVAL_MS) {
+          return false;
+        }
+      } catch (_) {}
+
+      return true;
+    };
+
+    // 1. Minuteur initial de 2 minutes
+    const initialTimer = setTimeout(() => {
+      if (checkShouldShow()) {
+        setIsVisible(true);
+      }
+    }, INITIAL_DELAY_MS);
+
+    // 2. Intervalle régulier de rappel si l'utilisateur ne l'a pas activé
+    const intervalTimer = setInterval(() => {
+      if (!isVisible && checkShouldShow()) {
+        setIsVisible(true);
+      }
+    }, 30000); // vérifie toutes les 30s si l'intervalle est atteint
+
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(intervalTimer);
+    };
+  }, [permission, isVisible]);
+
+  // Si les notifications sont déjà traitées ou bannière masquée
+  if (permission === 'granted' || permission === 'denied' || !isVisible) {
+    return null;
+  }
 
   const handleActivate = async () => {
     setIsActivating(true);
     try {
       await requestPermission();
+      setIsVisible(false);
     } finally {
       setIsActivating(false);
     }
   };
 
-  const handleMinimize = (e) => {
+  const handleDismiss = (e) => {
     if (e) e.stopPropagation();
-    setIsMinimized(true);
+    setIsVisible(false);
     try {
-      localStorage.setItem('rg_push_banner_minimized', 'true');
-    } catch {}
+      sessionStorage.setItem('rg_push_banner_dismissed_at', String(Date.now()));
+      localStorage.removeItem('rg_push_banner_minimized');
+    } catch (_) {}
   };
 
-  // ── Mode Réduit Persistant : Gros bouton flottant toujours accessible ──
-  if (isMinimized) {
-    return (
-      <div className="fixed bottom-28 sm:bottom-32 md:bottom-24 right-4 z-45 animate-slideUp">
-        <button
-          onClick={handleActivate}
-          disabled={isActivating}
-          className="group relative flex items-center gap-3.5 px-6 py-3.5 sm:py-4 rounded-2xl sm:rounded-3xl bg-linear-to-r from-purple-600 via-fuchsia-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-black text-xs sm:text-sm shadow-[0_0_35px_rgba(168,85,247,0.7)] border-2 border-purple-300/60 hover:scale-105 active:scale-95 transition-all cursor-pointer"
-          title="Activer les notifications push"
-        >
-          <span className="w-3 h-3 rounded-full bg-cyan-300 animate-ping" />
-          <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shrink-0 shadow-inner">
-            <Bell size={20} className="animate-bounce text-white fill-white" />
-          </div>
-          <div className="text-left">
-            <p className="leading-tight font-black tracking-wide text-xs sm:text-sm uppercase">Activer les Notifications</p>
-            <p className="text-[10.5px] text-purple-100 font-medium">Ne ratez aucune nouveauté audio</p>
-          </div>
-          <ChevronRight size={18} className="text-purple-200 group-hover:translate-x-1 transition-transform" />
-        </button>
-      </div>
-    );
-  }
-
-  // ── Mode Déplié : Bannière Large avec Grand Bouton d'Action Imposant ──
   return (
     <div className="fixed bottom-28 sm:bottom-32 md:bottom-24 right-4 left-4 sm:left-auto sm:max-w-lg z-45 animate-slideUp">
       <div className="rounded-3xl p-5 sm:p-6 border-2 border-purple-400/70 shadow-[0_12px_45px_rgba(0,0,0,0.85),0_0_40px_rgba(168,85,247,0.45)] bg-linear-to-br from-[#1c0d36]/98 via-[#130726]/98 to-[#0b0318]/98 backdrop-blur-2xl relative overflow-hidden">
@@ -87,15 +116,15 @@ export const PushPermissionBanner = () => {
             </div>
 
             <button
-              onClick={handleMinimize}
-              className="text-slate-400 hover:text-white p-1.5 rounded-xl hover:bg-white/10 transition-colors shrink-0"
-              title="Réduire"
+              onClick={handleDismiss}
+              className="text-slate-400 hover:text-white p-1.5 rounded-xl hover:bg-white/10 transition-colors shrink-0 cursor-pointer"
+              title="Fermer"
             >
               <X size={18} />
             </button>
           </div>
 
-          {/* GRAND BOUTON D'ACTIVATION PERSISTANT */}
+          {/* BOUTONS D'ACTION */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 pt-1">
             <button
               onClick={handleActivate}
@@ -117,13 +146,13 @@ export const PushPermissionBanner = () => {
             </button>
 
             <button
-              onClick={handleMinimize}
+              onClick={handleDismiss}
               className="px-4 py-2.5 rounded-xl text-slate-400 hover:text-slate-200 text-xs font-semibold transition-colors text-center hover:bg-white/5 cursor-pointer"
             >
-              Réduire
+              Plus tard
             </button>
           </div>
-          
+
           <p className="text-center text-[10px] text-purple-200/60">
             ✓ 100% Gratuit • Sans publicité abusive • Révoquable en 1 clic
           </p>

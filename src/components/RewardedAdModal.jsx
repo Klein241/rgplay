@@ -191,22 +191,19 @@ export function RewardedAdModal({ isOpen, onClose, initialAdId = null, initialAd
     setPhase("done");
     if (videoRef.current) videoRef.current.pause();
     if (audioRef.current) audioRef.current.pause();
-    if (!currentAd?.ctaUrl || ctaClicked) {
-      triggerReward("watch");
-    }
+    // Débloque systématiquement la récompense et enregistre la complétion dès que le décompte arrive à 0s
+    triggerReward("watch");
   };
 
   const handleCtaClick = () => {
     setCtaClicked(true);
     trackAdClick(currentAd, 'rewarded_modal');
-    if (phase === "done" || phase === "watching") {
-      triggerReward("cta");
-      if (phase === "watching") {
-        clearInterval(timerRef.current);
-        setPhase("done");
-        if (videoRef.current) videoRef.current.pause();
-        if (audioRef.current) audioRef.current.pause();
-      }
+    triggerReward("cta");
+    if (phase === "watching") {
+      clearInterval(timerRef.current);
+      setPhase("done");
+      if (videoRef.current) videoRef.current.pause();
+      if (audioRef.current) audioRef.current.pause();
     }
     if (currentAd?.ctaUrl) {
       window.open(currentAd.ctaUrl, '_blank', 'noopener,noreferrer');
@@ -436,7 +433,7 @@ export function RewardedAdModal({ isOpen, onClose, initialAdId = null, initialAd
                   />
                 </div>
                 <p className="text-[10px] text-purple-300/70 text-center">
-                  Puis cliquez le lien partenaire pour valider vos +{rewardPts} points...
+                  Patientez jusqu'à la fin du décompte pour recevoir vos +{rewardPts} points fidélité...
                 </p>
               </div>
 

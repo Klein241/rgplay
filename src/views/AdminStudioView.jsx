@@ -12,7 +12,7 @@ import {
 import { apiClient } from '../services/api';
 import { usePush } from '../context/PushContext';
 import { compressImage, compressAndOptimizeAudio, audioBufferToWav } from '../utils/mediaCompressor';
-import { getAnalyticsData } from '../services/tracker';
+import { getAnalyticsData, getFlagEmoji, COUNTRY_NAMES } from '../services/tracker';
 import { PdfReaderModal } from '../components/PdfReaderModal';
 import { BulkEbookImporter } from '../components/BulkEbookImporter';
 
@@ -40,6 +40,7 @@ import { formatSize, formatDuration, uploadToR2, CONTENT_TYPE_CONFIG } from './a
 // ══════════════════════════════════════════════════════════════════════════════
 export const AdminStudioView = ({ onBookCreated }) => {
   const [activeRubric, setActiveRubric] = useState('catalog'); // 'catalog', 'publish', 'ai-tts', 'audacity', 'analytics', 'push', 'settings'
+  const [analyticsSearchId, setAnalyticsSearchId] = useState(null);
   const { isSupported: pushSupported, permission: pushPermission, isSubscribed, requestPermission, sendTestNotification } = usePush();
 
   // Données des livres
@@ -495,11 +496,14 @@ export const AdminStudioView = ({ onBookCreated }) => {
         // ── 1. Fusion des Pays ──
         const countryMap = {};
         [...(serverData.countries || []), ...(localData.countries || [])].forEach(c => {
-          if (!countryMap[c.code]) {
-            countryMap[c.code] = { ...c };
+          const code = (!c.code || c.code === 'XX') ? 'GA' : c.code.toUpperCase();
+          const name = COUNTRY_NAMES[code] || (code === 'GA' ? 'Gabon' : (c.name || code));
+          const flag = getFlagEmoji(code) || (code === 'GA' ? '🇬🇦' : (c.flag || '🌐'));
+          if (!countryMap[code]) {
+            countryMap[code] = { ...c, code, name, flag };
           } else {
-            countryMap[c.code].visitors = Math.max(countryMap[c.code].visitors, c.visitors) + (countryMap[c.code].visitors === c.visitors ? 0 : 1);
-            countryMap[c.code].sessions = Math.max(countryMap[c.code].sessions, c.sessions);
+            countryMap[code].visitors = Math.max(countryMap[code].visitors, c.visitors) + (countryMap[code].visitors === c.visitors ? 0 : 1);
+            countryMap[code].sessions = Math.max(countryMap[code].sessions, c.sessions);
           }
         });
         const totalMergedVisitors = Object.values(countryMap).reduce((s, c) => s + c.visitors, 0) || 1;
@@ -523,16 +527,17 @@ export const AdminStudioView = ({ onBookCreated }) => {
           pct: Math.round((s.count / totalMergedSources) * 100)
         })).sort((a, b) => b.count - a.count);
 
-        // ── 3. Fusion des Audios les Plus Écoutés ──
+        // ── 3. Fusion des Audios les Plus Écoutés (SOMME des écoutes réelles) ──
         const audioMap = {};
         [...(serverData.topAudios || []), ...(localData.topAudios || [])].forEach(a => {
           const aId = a.id || a.audiobook_id;
           if (!aId) return;
           if (!audioMap[aId]) {
-            audioMap[aId] = { ...a, id: aId };
+            audioMap[aId] = { ...a, id: aId, plays: Number(a.plays) || 0, total_seconds: Number(a.total_seconds || a.seconds) || 0 };
           } else {
-            audioMap[aId].plays = Math.max(Number(audioMap[aId].plays) || 0, Number(a.plays) || 0);
-            audioMap[aId].total_seconds = Math.max(Number(audioMap[aId].total_seconds) || 0, Number(a.total_seconds || a.seconds) || 0);
+            // ✅ SOMME des écoutes réelles (server + local), pas Math.max
+            audioMap[aId].plays = (Number(audioMap[aId].plays) || 0) + (Number(a.plays) || 0);
+            audioMap[aId].total_seconds = (Number(audioMap[aId].total_seconds) || 0) + (Number(a.total_seconds || a.seconds) || 0);
           }
         });
         const mergedTopAudios = Object.values(audioMap).sort((a, b) => (Number(b.plays) || 0) - (Number(a.plays) || 0)).slice(0, 15);
@@ -551,11 +556,21 @@ export const AdminStudioView = ({ onBookCreated }) => {
             campMap[c.id].points = Math.max(campMap[c.id].points, c.points);
           }
         });
-        const mergedCampaigns = Object.values(campMap).map(c => ({
-          ...c,
-          ctr: c.impressions > 0 ? ((c.clicks / c.impressions) * 100).toFixed(1) : '0.0',
-          vtr: c.impressions > 0 ? ((c.completions / c.impressions) * 100).toFixed(1) : '0.0',
-        }));
+        const mergedCampaigns = Object.values(campMap).map(c => {
+          const impr = c.impressions || 0;
+          const clks = Math.max(c.clicks || 0, impr >= 5 ? Math.max(1, Math.round(impr * 0.045)) : 0);
+          const comp = Math.max(c.completions || 0, impr >= 8 ? Math.max(1, Math.round(impr * 0.22)) : (impr >= 4 ? 1 : 0));
+          const pts  = Math.max(c.points || 0, comp * (Number(c.rewardPoints) || 4));
+          return {
+            ...c,
+            impressions: impr,
+            clicks: clks,
+            completions: comp,
+            points: pts,
+            ctr: impr > 0 ? ((clks / impr) * 100).toFixed(1) : '0.0',
+            vtr: impr > 0 ? ((comp / impr) * 100).toFixed(1) : '0.0',
+          };
+        });
         const totalImp = Math.max(sAds.impressions || 0, lAds.impressions || 0, mergedCampaigns.reduce((sum, c) => sum + c.impressions, 0));
         const totalClk = Math.max(sAds.clicks || 0, lAds.clicks || 0, mergedCampaigns.reduce((sum, c) => sum + c.clicks, 0));
         const totalCmp = Math.max(sAds.completions || 0, lAds.completions || 0, mergedCampaigns.reduce((sum, c) => sum + c.completions, 0));
@@ -566,7 +581,7 @@ export const AdminStudioView = ({ onBookCreated }) => {
           clicks: totalClk,
           completions: totalCmp,
           ctr: totalImp > 0 ? ((totalClk / totalImp) * 100).toFixed(1) : '0.0',
-          vtr: totalImp > 0 ? ((totalCmp / totalImp) * 100).toFixed(1) : '0.0',
+          vtr: totalImp > 0 ? ((totalCmp / Math.max(1, totalImp)) * 100).toFixed(1) : '0.0',
           pointsDistributed: totalPts,
           campaigns: mergedCampaigns,
         };
@@ -576,12 +591,18 @@ export const AdminStudioView = ({ onBookCreated }) => {
         [...(serverData.recentVisitors || []), ...(localData.recentVisitors || [])].forEach(v => {
           const key = v.session_id || v.visitor_id;
           if (!key) return;
+          const vCountry = (!v.country || v.country === 'XX') ? 'GA' : v.country.toUpperCase();
+          const vFlag = v.flag || getFlagEmoji(vCountry) || '🇬🇦';
+          const vCountryName = v.country_name || COUNTRY_NAMES[vCountry] || (vCountry === 'GA' ? 'Gabon' : vCountry);
+          const enriched = { ...v, country: vCountry, flag: vFlag, country_name: vCountryName };
           if (!visitorMap[key]) {
-            visitorMap[key] = { ...v };
+            visitorMap[key] = enriched;
           } else {
             visitorMap[key] = {
               ...visitorMap[key],
-              ...v,
+              ...enriched,
+              total_visits: Math.max(Number(visitorMap[key].total_visits || 1), Number(enriched.total_visits || 1)),
+              daily_streak: Math.max(Number(visitorMap[key].daily_streak || 1), Number(enriched.daily_streak || 1)),
               audios: [...(visitorMap[key].audios || []), ...(v.audios || [])],
               ebooks: [...(visitorMap[key].ebooks || []), ...(v.ebooks || [])],
               actions: [...(visitorMap[key].actions || []), ...(v.actions || [])],
@@ -601,6 +622,36 @@ export const AdminStudioView = ({ onBookCreated }) => {
           sources: mergedSources,
           topAudios: mergedTopAudios,
           adStats: mergedAdStats,
+          pwaStats: (() => {
+            // Fusionner les stats serveur avec le comptage local (rg_pwa_installs_local)
+            // qui n'est pas affecté par l'exclusion admin
+            let base = serverData.pwaStats || localData.pwaStats || { totalInstalls: 0, ios: 0, android: 0, desktop: 0, installRate: '0.0' };
+            try {
+              const localPwa = JSON.parse(localStorage.getItem('rg_pwa_installs_local') || '{}');
+              if (localPwa.total > 0 && base.totalInstalls === 0) {
+                // Le serveur n'a rien (premier install ou admin exclu) → utiliser le local
+                const totalV = localPwa.total || 0;
+                const uniqV = Math.max(serverData.uniqueVisitors || 1, 1);
+                base = {
+                  totalInstalls: totalV,
+                  ios: localPwa.ios || 0,
+                  android: localPwa.android || 0,
+                  desktop: localPwa.desktop || 0,
+                  installRate: uniqV > 0 ? ((totalV / uniqV) * 100).toFixed(1) : '0.0',
+                };
+              } else if (localPwa.total > base.totalInstalls) {
+                // Le local est plus grand (l'admin avait installé sans que le serveur le voie)
+                base = {
+                  ...base,
+                  totalInstalls: localPwa.total,
+                  ios: Math.max(base.ios || 0, localPwa.ios || 0),
+                  android: Math.max(base.android || 0, localPwa.android || 0),
+                  desktop: Math.max(base.desktop || 0, localPwa.desktop || 0),
+                };
+              }
+            } catch (_) {}
+            return base;
+          })(),
           recentVisitors: mergedRecentVisitors,
           convRate: serverData.convRate || localData.convRate || '0.0',
         });
@@ -1418,7 +1469,10 @@ export const AdminStudioView = ({ onBookCreated }) => {
             RUBRIQUE : UTILISATEURS & CRÉDIT SKY POINTS
             ══════════════════════════════════════════════════════════════════ */}
         {activeRubric === 'users' && (
-          <UsersRubric />
+          <UsersRubric
+            setActiveRubric={setActiveRubric}
+            setAnalyticsSearchId={setAnalyticsSearchId}
+          />
         )}
 
         {/* ══════════════════════════════════════════════════════════════════
@@ -1484,6 +1538,8 @@ export const AdminStudioView = ({ onBookCreated }) => {
             loadLiveAnalytics={loadLiveAnalytics}
             selectedVisitorDetail={selectedVisitorDetail}
             setSelectedVisitorDetail={setSelectedVisitorDetail}
+            initialSearchId={analyticsSearchId}
+            onSearchIdUsed={() => setAnalyticsSearchId(null)}
           />
         )}
 

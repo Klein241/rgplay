@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   ChevronDown, Heart, RotateCcw, Play, Pause, SkipBack, SkipForward, 
   Moon, Gauge, Bookmark, ListMusic, Volume2, VolumeX, Share2, Sparkles,
-  Search, Menu, CheckCircle2, Star, ChevronLeft, ChevronRight, X, Square
+  Search, Menu, CheckCircle2, Star, ChevronLeft, ChevronRight, X, Square, Film
 } from 'lucide-react';
 import { useAudio } from '../context/AudioContext';
 import { apiClient } from '../services/api';
@@ -11,6 +11,7 @@ import { SpeedSelectorModal } from './SpeedSelectorModal';
 import { SleepTimerModal } from './SleepTimerModal';
 import { BookChatModal } from './BookChatModal';
 import { AdBanner } from './AdBanner';
+import { WhatsAppStatusModal } from './WhatsAppStatusModal';
 
 export const FullScreenPlayer = () => {
   const {
@@ -43,6 +44,7 @@ export const FullScreenPlayer = () => {
   const [isFavorite, setIsFavorite] = useState(false);
   const [shareToast, setShareToast] = useState('');
   const [recentPlaylist, setRecentPlaylist] = useState([]);
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
 
   // Calcul du pourcentage de progression
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
@@ -269,6 +271,15 @@ export const FullScreenPlayer = () => {
               )}
             </button>
 
+            {/* Bouton Créer Statut WhatsApp */}
+            <button
+              onClick={() => setIsWhatsAppModalOpen(true)}
+              className="p-2 rounded-full hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 transition-colors cursor-pointer"
+              title="Créer une vidéo pour Statut WhatsApp"
+            >
+              <Film className="w-5 h-5" />
+            </button>
+
             {/* Bouton Chapitres & Séries dédié */}
             <button
               onClick={() => setActiveView('chapters')}
@@ -493,6 +504,13 @@ export const FullScreenPlayer = () => {
         book={currentBook}
         isOpen={isChatOpen}
         onClose={() => setIsChatOpen(false)}
+      />
+
+      <WhatsAppStatusModal
+        isOpen={isWhatsAppModalOpen}
+        onClose={() => setIsWhatsAppModalOpen(false)}
+        book={currentBook}
+        chapter={currentChapter}
       />
 
     </div>

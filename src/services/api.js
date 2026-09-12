@@ -578,26 +578,7 @@ export const apiClient = {
     } catch (e) {}
   },
 
-  // ── Avis et Notations D1 ──────────────────────────────────────────
-  async getBookReviews(bookId) {
-    try {
-      const res = await fetch(`${API_BASE}/books/${encodeURIComponent(bookId)}/reviews`);
-      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
-        const reviews = await res.json();
-        if (Array.isArray(reviews)) {
-          localStorage.setItem(`rg_reviews_${bookId}`, JSON.stringify(reviews));
-          return reviews;
-        }
-      }
-    } catch (e) {
-      console.warn('Fallback reviews localStorage:', e);
-    }
-    try {
-      const stored = localStorage.getItem(`rg_reviews_${bookId}`);
-      if (stored) return JSON.parse(stored);
-    } catch (_) {}
-    return [];
-  },
+
 
   async addBookReview(bookId, reviewData) {
     // 1. Optimistic local update
@@ -1476,7 +1457,131 @@ export const apiClient = {
       return { success: false, error: e.message };
     }
   },
+
+  // ── Méthode POST générique ────────────────────────────────────────
+  async post(path, data = {}) {
+    try {
+      const userId = getUserId();
+      const res = await fetch(`${API_BASE}${path}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': userId,
+        },
+        body: JSON.stringify({ ...data, user_id: userId }),
+      });
+      if (res.ok) {
+        return await res.json().catch(() => ({ success: true }));
+      }
+    } catch (e) {
+      console.warn(`[apiClient.post] ${path}:`, e);
+    }
+    return null;
+  },
+
+  // ── Dépôt d'une note / avis sur un livre audio ───────────────────
+  async rateAudiobook(bookId, rating, comment = '') {
+    try {
+      const userId = getUserId();
+      const res = await fetch(`${API_BASE}/audiobooks/${encodeURIComponent(bookId)}/reviews`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': userId,
+        },
+        body: JSON.stringify({
+          rating: Number(rating),
+          comment: (comment || `Note ${rating}/5 attribuée par l'auditeur`).trim(),
+          user_id: userId,
+          user_name: 'Auditeur RG Play',
+        }),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn('[apiClient.rateAudiobook] Erreur réseau:', e);
+    }
+    return null;
+  },
+
+  // ── Dépôt d'un avis complet (alias pour AudiobookDetailModal) ───────
+  async addBookReview(bookId, data = {}) {
+    const rating = data.rating || 5;
+    const comment = data.comment || '';
+    const userName = data.author || data.user_name || 'Auditeur RG Play';
+    try {
+      const userId = getUserId();
+      const res = await fetch(`${API_BASE}/audiobooks/${encodeURIComponent(bookId)}/reviews`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': userId,
+        },
+        body: JSON.stringify({
+          rating: Number(rating),
+          comment: comment.trim(),
+          user_id: userId,
+          user_name: userName,
+        }),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn('[apiClient.addBookReview] Erreur:', e);
+    }
+    return null;
+  },
+
+  // ── Liaison & Récupération de Compte via WhatsApp ───────────────
+  async linkWhatsApp(phone, name = '') {
+    try {
+      const userId = getUserId();
+      const res = await fetch(`${API_BASE}/users/link-whatsapp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': userId,
+        },
+        body: JSON.stringify({ userId, phone, name }),
+      });
+      return await res.json();
+    } catch (e) {
+      console.warn('[apiClient.linkWhatsApp] Erreur:', e);
+      return { success: false, error: e.message || 'Erreur réseau' };
+    }
+  },
+
+  async recoverWhatsApp(phone) {
+    try {
+      const res = await fetch(`${API_BASE}/users/recover-whatsapp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone }),
+      });
+      return await res.json();
+    } catch (e) {
+      console.warn('[apiClient.recoverWhatsApp] Erreur:', e);
+      return { success: false, error: e.message || 'Erreur réseau' };
+    }
+  },
+
+  async getVisitorsVsUsers() {
+    try {
+      const res = await fetch(`${API_BASE}/admin/analytics/visitors-vs-users`, {
+        headers: { 'X-Admin': 'true', 'Cache-Control': 'no-cache' },
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn('[apiClient.getVisitorsVsUsers] Erreur:', e);
+    }
+    return { visitors: [], activeUsers: [] };
+  },
 };
+
 
 function getDefaultAudiobooks() {
   return [];

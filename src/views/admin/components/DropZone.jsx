@@ -71,18 +71,22 @@ export const DropZone = ({ label, accept, type, icon: Icon = UploadCloud, value,
         const isEpub = file.name.toLowerCase().endsWith('.epub');
         setCompressionInfo(`📖 Format ${isEpub ? 'EPUB Interactif' : 'PDF Haute Définition'} vérifié (${formatSize(file.size)})`);
       } else if (type === 'audio' || type === 'preview' || file.type.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|aac|flac)$/i.test(file.name)) {
-        const comp = await compressAndOptimizeAudio(file, { onProgress: (p) => setProgress(Math.round(p * 0.4)) });
+        const comp = await compressAndOptimizeAudio(file, {
+          contentType: type,
+          onProgress: (p) => setProgress(Math.round(p * 0.4)),
+        });
         fileToUpload = comp.file;
         if (comp.duration) {
           detectedDuration = Math.round(comp.duration);
           if (onDurationDetected) onDurationDetected(detectedDuration);
         }
         if (comp.ratio > 0) {
-          setCompressionInfo(`✨ DSP Compressé : ${formatSize(comp.originalSize)} ➔ ${formatSize(comp.compressedSize)} (-${comp.ratio}%) • Qualité HD`);
+          setCompressionInfo(`✨ MP3 Compressé : ${formatSize(comp.originalSize)} ➔ ${formatSize(comp.compressedSize)} (-${comp.ratio}%) • Qualité HD`);
         } else if (comp.isOptimized) {
-          setCompressionInfo(`✨ DSP Normalisé & Optimisé (${formatSize(comp.compressedSize)}) • Prêt pour le streaming`);
+          setCompressionInfo(`✨ Audio déjà optimisé (${formatSize(comp.compressedSize)}) • Prêt pour le streaming`);
         }
       }
+
     } catch (compErr) {
       console.warn('[Compression] Repli sur fichier brut:', compErr);
     }

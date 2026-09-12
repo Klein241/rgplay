@@ -22,7 +22,9 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
   const [pointsUnlocking, setPointsUnlocking] = useState(false);
   const [pointsError, setPointsError] = useState(null);
 
-  const [userRating, setUserRating] = useState(5);
+  const [userRating, setUserRating] = useState(() => {
+    try { return Number(localStorage.getItem(`rg_rated_${book?.id}`)) || 5; } catch { return 5; }
+  });
   const [hoverRating, setHoverRating] = useState(0);
   const [userReviewText, setUserReviewText] = useState('');
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
@@ -128,9 +130,13 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
         }
       });
 
+      // Restaurer la note précédente depuis localStorage (si l'utilisateur avait déjà noté)
+      try {
+        const saved = Number(localStorage.getItem(`rg_rated_${book.id}`));
+        setUserRating(saved || 5);
+      } catch (_) { setUserRating(5); }
       setReviewSubmitted(false);
       setUserReviewText('');
-      setUserRating(5);
       setActiveTab('synopsis');
 
       // Inject dynamic OG meta tags for social share preview
@@ -314,7 +320,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
             <span className="text-[9px] text-slate-400 font-medium block">{isEbookItem ? 'Lecteurs' : 'Lectures'}</span>
             <p className="font-bold text-purple-300 flex items-center justify-center gap-1">
               {isEbookItem ? <BookOpen className="w-3 h-3 text-purple-400" /> : <Headphones className="w-3 h-3 text-purple-400" />}
-              {fmtCount(book.display_plays_count) || (book.rating_count ? `${book.rating_count * 8}` : '1.2k')}
+              {fmtCount(book.display_plays_count) || fmtCount(book.downloads_count) || (book.rating_count ? `${book.rating_count * 2}` : '0')}
             </p>
           </div>
           <div className="space-y-0.5">
@@ -655,7 +661,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
                 <span>Agent SKY (Mentor IA)</span>
               </button>
 
-              {/* Téléchargement Hors-Ligne (YouTube Style) & MP3 — UNIQUEMENT pour les livres audio */}
+              {/* Téléchargement Hors-Ligne (YouTube Style) — Visible pour TOUS les utilisateurs (pas besoin d'avoir acheté) */}
               {!isEbookItem && (
                 <div className="flex flex-col gap-1.5 w-full sm:w-auto">
                   <div className="flex items-center gap-2">
@@ -689,6 +695,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
                       )}
                     </button>
 
+                    {/* Téléchargement MP3 physique sur l'appareil — Réservé aux utilisateurs ayant accès */}
                     {isAccessible && (
                       <button
                         onClick={handleDownloadMp3}

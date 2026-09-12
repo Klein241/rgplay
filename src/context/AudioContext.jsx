@@ -594,6 +594,7 @@ export const AudioProvider = ({ children }) => {
         removeBookmark,
         formatTime,
         setIsFullScreenOpen,
+        getAudioElement: () => audioRef.current,
       }}
     >
       {children}

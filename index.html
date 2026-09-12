@@ -24,11 +24,14 @@
     <meta name="twitter:image" content="https://rg-play.pages.dev/og-cover.jpg" />
 
     
-    <!-- PWA Settings -->
+    <!-- PWA Settings (iOS & Android) -->
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="RG Play" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
     <link rel="manifest" href="/manifest.json" />
 
     <!-- Google Fonts: Plus Jakarta Sans, Outfit & Syne -->
@@ -37,8 +40,38 @@
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800;900&family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Syne:wght@600;700;800;900&display=swap" rel="stylesheet" />
 
     <title>RG Play - Livres Audio en Streaming & Vente</title>
+      <!-- Global capture of PWA BeforeInstallPrompt -->
+    <script>
+      window.deferredPwaPrompt = null;
+      window.addEventListener('beforeinstallprompt', function (e) {
+        e.preventDefault();
+        window.deferredPwaPrompt = e;
+        window.dispatchEvent(new CustomEvent('rg:pwa-prompt-ready', { detail: { prompt: e } }));
+        console.log('[PWA] beforeinstallprompt capturé globalement.');
+      });
+      window.addEventListener('appinstalled', function () {
+        window.deferredPwaPrompt = null;
+        localStorage.setItem('rg_pwa_installed', 'true');
+        window.dispatchEvent(new CustomEvent('rg:pwa-installed'));
+        console.log('[PWA] Application installée avec succès !');
+      });
+    </script>
   </head>
   <body class="bg-dark text-slate-100 antialiased selection:bg-purple-500 selection:text-white">
+    <script>
+      // Capture précoce du prompt d'installation PWA dès le chargement de la page
+      window.__deferredPwaPrompt = null;
+      window.addEventListener('beforeinstallprompt', function (e) {
+        e.preventDefault();
+        window.__deferredPwaPrompt = e;
+        window.dispatchEvent(new CustomEvent('rg:pwa-prompt-ready'));
+      });
+      window.addEventListener('appinstalled', function () {
+        window.__deferredPwaPrompt = null;
+        localStorage.setItem('rg_pwa_installed', 'true');
+        window.dispatchEvent(new CustomEvent('rg:pwa-installed'));
+      });
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

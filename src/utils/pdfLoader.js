@@ -19,13 +19,11 @@ export function loadPdfJs() {
 
     const script = document.createElement('script');
     script.setAttribute('data-pdfjs', 'true');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-    script.crossOrigin = 'anonymous';
+    // Priorité absolue au bundle local en cache pour le fonctionnement hors-ligne
+    script.src = '/vendor/pdfjs/pdf.min.js';
 
     const setupWorker = (lib, workerUrl) => {
       try {
-        // En PWA ou mobile, un worker direct cross-origin peut lever un SecurityError.
-        // Un blob script utilisant importScripts contourne élégamment cette restriction.
         const blob = new Blob([`importScripts("${workerUrl}");`], { type: 'application/javascript' });
         lib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(blob);
       } catch {
@@ -35,7 +33,7 @@ export function loadPdfJs() {
 
     script.onload = () => {
       if (window.pdfjsLib) {
-        setupWorker(window.pdfjsLib, 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js');
+        setupWorker(window.pdfjsLib, '/vendor/pdfjs/pdf.worker.min.js');
         resolve(window.pdfjsLib);
       } else {
         reject(new Error('PDF.js non initialisé'));
@@ -44,20 +42,35 @@ export function loadPdfJs() {
 
     script.onerror = () => {
       pdfjsLoadingPromise = null;
-      // Repli sur CDN jsdelivr si cdnjs est bloqué
-      const fallbackScript = document.createElement('script');
-      fallbackScript.setAttribute('data-pdfjs-fallback', 'true');
-      fallbackScript.src = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
-      fallbackScript.onload = () => {
+      // Repli sur CDN cdnjs puis jsdelivr si le fichier local n'est pas trouvé
+      const cdnScript = document.createElement('script');
+      cdnScript.setAttribute('data-pdfjs-cdn', 'true');
+      cdnScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      cdnScript.crossOrigin = 'anonymous';
+      cdnScript.onload = () => {
         if (window.pdfjsLib) {
-          setupWorker(window.pdfjsLib, 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js');
+          setupWorker(window.pdfjsLib, 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js');
           resolve(window.pdfjsLib);
         } else {
-          reject(new Error('PDF.js fallback échoué'));
+          reject(new Error('PDF.js CDN non initialisé'));
         }
       };
-      fallbackScript.onerror = (err) => reject(new Error('Échec chargement PDF.js CDN principal et fallback: ' + err));
-      document.head.appendChild(fallbackScript);
+      cdnScript.onerror = () => {
+        const fallbackScript = document.createElement('script');
+        fallbackScript.setAttribute('data-pdfjs-fallback', 'true');
+        fallbackScript.src = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
+        fallbackScript.onload = () => {
+          if (window.pdfjsLib) {
+            setupWorker(window.pdfjsLib, 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js');
+            resolve(window.pdfjsLib);
+          } else {
+            reject(new Error('PDF.js fallback échoué'));
+          }
+        };
+        fallbackScript.onerror = (err) => reject(new Error('Échec chargement PDF.js local et CDNs: ' + err));
+        document.head.appendChild(fallbackScript);
+      };
+      document.head.appendChild(cdnScript);
     };
 
     document.head.appendChild(script);

@@ -509,28 +509,85 @@ export async function getOfflineCacheSize() {
  * Téléchargement physique MP3 sur le stockage de l'appareil
  */
 export async function downloadAudioMp3(book, chapter = null, isPurchased = false) {
-  const isFree = book?.price === 0 || book?.is_free_for_members === 1 || book?.is_free_for_members === true;
+  const isFree = book?.price === 0 || !book?.price || book?.is_free_for_members === 1 || book?.is_free_for_members === true;
   if (!isPurchased && !isFree) {
     return 'not_purchased';
   }
 
   try {
-    const targetUrl = chapter?.audio_url || chapter?.audio_stream_url || book?.preview_url || book?.chapters?.[0]?.audio_url;
+    // 1. Déterminer l'URL audio cible (privilégier le chapitre complet pour un utilisateur ayant accès)
+    const targetUrl = chapter?.audio_url || 
+      chapter?.audio_stream_url || 
+      book?.chapters?.[0]?.audio_url || 
+      book?.chapters?.[0]?.audio_stream_url || 
+      book?.audio_url || 
+      book?.preview_url;
+
     if (!targetUrl) return 'error';
 
-    const localUrl = await getOfflineAudioUrl(targetUrl, book?.id, 0);
-    const res = await fetch(localUrl);
-    const blob = await res.blob();
-    const blobUrl = URL.createObjectURL(blob);
-
-    const a = document.createElement('a');
-    a.href = blobUrl;
     const cleanTitle = (chapter?.title || book?.title || 'audio').replace(/[^a-zA-Z0-9_-]/g, '_');
+
+    // 2. Vérifier si le blob est déjà en cache IndexedDB (téléchargement instantané à débit 0)
+    let blob = await idbGetBlob(targetUrl);
+    if (!blob && book?.id) {
+      blob = await idbGetBlob(`audio_${book.id}_ch_0`) || 
+             await idbGetBlob(`audio_${book.id}_preview`);
+    }
+
+    // 3. Si non trouvé en IDB, tenter de récupérer la ressource binaire
+    if (!blob) {
+      const fetched = await fetchBinaryResource(targetUrl);
+      if (fetched?.blob) {
+        blob = fetched.blob;
+      }
+    }
+
+    // 4. Si nous avons un Blob valide
+    if (blob && blob.size > 0) {
+      const isIOS = typeof navigator !== 'undefined' && 
+        (/iPad|iPhone|iPod/.test(navigator.userAgent) || 
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+
+      // 4a. Support iOS : Web Share API pour "Enregistrer dans Fichiers"
+      if (isIOS && navigator.canShare && typeof File !== 'undefined') {
+        try {
+          const file = new File([blob], `${cleanTitle}.mp3`, { type: blob.type || 'audio/mpeg' });
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              files: [file],
+              title: cleanTitle,
+            });
+            return 'ok';
+          }
+        } catch (shareErr) {
+          console.warn('[Offline Engine] Web Share iOS annulé ou non supporté:', shareErr);
+        }
+      }
+
+      // 4b. Standard : ObjectURL et déclenchement du téléchargement via balise <a>
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `${cleanTitle}.mp3`;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+      return 'ok';
+    }
+
+    // 5. Fallback si le blob n'a pas pu être extrait (ex: restrictions strictes) : téléchargement direct via proxy ou nouvelle fenêtre
+    const downloadProxyUrl = `/api/audio/download?url=${encodeURIComponent(targetUrl)}&title=${encodeURIComponent(cleanTitle)}`;
+    const a = document.createElement('a');
+    a.href = downloadProxyUrl;
     a.download = `${cleanTitle}.mp3`;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
     return 'ok';
   } catch (err) {
     console.error('Erreur téléchargement MP3:', err);

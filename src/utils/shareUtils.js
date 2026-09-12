@@ -1,72 +1,76 @@
 /**
- * Utilitaire de partage avancé RG Play
- * Partage l'audio avec sa pochette d'illustration (Fichier Image) et son lien d'écoute
+ * shareUtils.js — Utilitaires de partage RG Play
+ * Partage l'audio avec sa pochette ou une vidéo statut pré-encodée.
  */
 
+import { getBackgroundVideo } from './backgroundVideoShare';
+
+/**
+ * Partage avec la vidéo pré-encodée si disponible, sinon avec la pochette.
+ */
 export async function shareAudioWithCover(book) {
   if (!book) return { success: false, reason: 'no_book' };
 
-  const url = `${window.location.origin}/?book=${encodeURIComponent(book.id)}`;
+  const url = `${window.location.origin}/?book=${encodeURIComponent(book.id)}&play=1`;
   const shareTitle = `${book.title} — RG Play`;
-  const shareText = `🎧 Écoutez "${book.title}" par ${book.author} sur RG Play`;
+  const shareText = `🎧 Écoutez "${book.title}" par ${book.author}\n👉 Écoutez gratuitement sur RG Play : ${url}\n📚 Bibliothèque READ'S GREAT`;
 
-  // 1. Tenter le partage natif avec fichier image (si supporté par le navigateur/mobile)
-  if (typeof navigator !== 'undefined' && navigator.share) {
+  if (typeof navigator === 'undefined' || !navigator.share) {
+    return _fallbackClipboard(url);
+  }
+
+  // 1. Priorité : vidéo pré-encodée en arrière-plan
+  const bgVideo = getBackgroundVideo(book.id);
+  if (bgVideo?.file && typeof navigator.canShare === 'function' && navigator.canShare({ files: [bgVideo.file] })) {
     try {
-      let fileToShare = null;
-
-      if (book.cover_url && typeof navigator.canShare === 'function') {
-        try {
-          const proxyOrDirectUrl = book.cover_url.includes('r2.cloudflarestorage.com') && book.cover_r2_key
-            ? `/api/r2/download?key=${encodeURIComponent(book.cover_r2_key)}`
-            : book.cover_url;
-
-          const response = await fetch(proxyOrDirectUrl, { mode: 'cors' }).catch(() => null);
-          if (response && response.ok) {
-            const blob = await response.blob();
-            const fileName = `${(book.title || 'audiobook').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}_cover.jpg`;
-            const file = new File([blob], fileName, { type: blob.type || 'image/jpeg' });
-
-            if (navigator.canShare({ files: [file] })) {
-              fileToShare = file;
-            }
-          }
-        } catch (imgErr) {
-          console.warn('[Share] Impossible d\'incorporer l\'image en pièce jointe:', imgErr);
-        }
-      }
-
-      if (fileToShare) {
-        await navigator.share({
-          title: shareTitle,
-          text: shareText,
-          url: url,
-          files: [fileToShare],
-        });
-        return { success: true, method: 'files' };
-      } else {
-        await navigator.share({
-          title: shareTitle,
-          text: shareText,
-          url: url,
-        });
-        return { success: true, method: 'native' };
-      }
+      await navigator.share({ title: shareTitle, text: shareText, files: [bgVideo.file] });
+      return { success: true, method: 'video' };
     } catch (err) {
-      if (err.name === 'AbortError') {
-        return { success: false, reason: 'cancelled' };
-      }
-      console.warn('[Share] Repli sur presse-papiers:', err);
+      if (err.name === 'AbortError') return { success: false, reason: 'cancelled' };
     }
   }
 
-  // 2. Repli Presse-papiers
+  // 2. Repli : pochette image
   try {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
+    let fileToShare = null;
+    if (book.cover_url && typeof navigator.canShare === 'function') {
+      try {
+        const proxyUrl = book.cover_url.includes('r2.cloudflarestorage.com') && book.cover_r2_key
+          ? `/api/r2/download?key=${encodeURIComponent(book.cover_r2_key)}`
+          : book.cover_url;
+        const res = await fetch(proxyUrl, { mode: 'cors' }).catch(() => null);
+        if (res?.ok) {
+          const blob = await res.blob();
+          const file = new File(
+            [blob],
+            `${(book.title || 'book').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}_cover.jpg`,
+            { type: blob.type || 'image/jpeg' }
+          );
+          if (navigator.canShare({ files: [file] })) fileToShare = file;
+        }
+      } catch (_) {}
+    }
+
+    if (fileToShare) {
+      await navigator.share({ title: shareTitle, text: shareText, url, files: [fileToShare] });
+      return { success: true, method: 'files' };
+    }
+
+    await navigator.share({ title: shareTitle, text: shareText, url });
+    return { success: true, method: 'native' };
+  } catch (err) {
+    if (err.name === 'AbortError') return { success: false, reason: 'cancelled' };
+  }
+
+  return _fallbackClipboard(url);
+}
+
+async function _fallbackClipboard(url) {
+  try {
+    if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(url);
       return { success: true, method: 'clipboard' };
     }
   } catch (_) {}
-
   return { success: false, reason: 'unsupported' };
 }
