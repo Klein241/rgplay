@@ -269,7 +269,8 @@ export function App() {
     window.addEventListener('appinstalled', handleAppInstalled);
 
     // Invite à installer sur mobile (uniquement si pas déjà installée et pas rejetée)
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+    const isPwaUrl = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('source') === 'pwa';
+    const isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone || isPwaUrl;
     if (isStandalone) {
       localStorage.setItem('rg_pwa_installed', 'true');
       try {

@@ -11,7 +11,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 
 // ─── Enregistrement du Service Worker (PWA offline) ───────────────────────────
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
+  const registerSW = () => {
     navigator.serviceWorker
       .register('/sw.js', { scope: '/' })
       .then((reg) => {
@@ -21,5 +21,11 @@ if ('serviceWorker' in navigator) {
       .catch((err) => {
         console.warn('[SW] Échec enregistrement :', err);
       });
-  });
+  };
+
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    registerSW();
+  } else {
+    window.addEventListener('load', registerSW);
+  }
 }

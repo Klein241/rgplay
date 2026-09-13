@@ -8,7 +8,7 @@
  *               → Audio offline servi depuis le cache rg-play-audio-offline
  */
 
-const SW_VERSION = 'v2.4.0';
+const SW_VERSION = 'v2.5.0';
 const CACHE_SHELL  = `rg-play-shell-${SW_VERSION}`;
 const CACHE_AUDIO  = 'rg-play-audio-offline'; // Partagé avec offlineAudioCache.js
 
@@ -18,6 +18,9 @@ const SHELL_URLS = [
   '/index.html',
   '/manifest.json',
   '/icon.svg',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/apple-touch-icon.png',
   '/vendor/pdfjs/pdf.min.js',
   '/vendor/pdfjs/pdf.worker.min.js',
 ];

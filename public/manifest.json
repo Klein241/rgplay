@@ -2,13 +2,14 @@
   "name": "RG Play - Livres Audio",
   "short_name": "RG Play",
   "description": "Bibliothèque et boutique de livres audio haute fidélité",
-  "start_url": "/",
-  "id": "/",
+  "start_url": "/?source=pwa",
+  "id": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
   "background_color": "#07041A",
-  "theme_color": "#9d4edd",
+  "theme_color": "#0f0c1b",
   "orientation": "portrait-primary",
+  "categories": ["books", "entertainment", "music", "education"],
   "icons": [
     {
       "src": "/apple-touch-icon.png",
@@ -42,7 +43,8 @@
     {
       "src": "/icon.svg",
       "sizes": "any",
-      "type": "image/svg+xml"
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     }
   ]
 }
