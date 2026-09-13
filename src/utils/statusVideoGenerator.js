@@ -54,32 +54,43 @@ export async function generateWhatsAppStatusVideo({
     } catch (_) {}
   }
 
-  // 5. Capture du flux audio
-  if (audioElement) {
+  // 5. Capture du flux audio (uniquement pour la génération active - pas en arrière-plan)
+  // IMPORTANT: captureStream() ne doit être appelé qu'une seule fois et ne doit
+  // pas interférer avec la lecture en cours. On clone le flux pour ne pas perturber
+  // le player audio.
+  if (audioElement && !isBackground) {
     try {
       if (typeof audioElement.captureStream === 'function') {
-        audioStream = audioElement.captureStream();
+        const rawStream = audioElement.captureStream();
+        // Cloner les pistes audio pour éviter de stopper la lecture
+        const clonedStream = new MediaStream();
+        rawStream.getAudioTracks().forEach(track => {
+          clonedStream.addTrack(track.clone());
+        });
+        audioStream = clonedStream;
       } else if (typeof audioElement.mozCaptureStream === 'function') {
         audioStream = audioElement.mozCaptureStream();
       }
     } catch (e) {
       console.warn('[StatusGenerator] captureStream:', e);
+      audioStream = null;
     }
   }
 
-  // 6. Exécution : MediaRecorder en priorité (encodage synchrone matériel AV natif sans dépréciation)
-  if (typeof MediaRecorder !== 'undefined') {
+  // 6. Exécution : Priorité ABSOLUE à WebCodecs + MP4-Muxer (Vrai MP4 H.264/AAC 100% compatible WhatsApp)
+  if (hasWebCodecs) {
     try {
-      return await recordWithMediaRecorder({
+      return await recordWithWebCodecs({
         canvas, ctx, coverImg, book, chapter, audioStream, duration, quoteText, onProgress, signal,
       });
-    } catch (mediaRecorderErr) {
-      console.warn('[StatusGenerator] MediaRecorder échoué, repli WebCodecs:', mediaRecorderErr);
+    } catch (webCodecsErr) {
+      console.warn('[StatusGenerator] WebCodecs échoué, repli MediaRecorder:', webCodecsErr);
     }
   }
 
-  if (hasWebCodecs) {
-    return await recordWithWebCodecs({
+  // 7. Repli MediaRecorder uniquement si WebCodecs n'est pas disponible
+  if (typeof MediaRecorder !== 'undefined') {
+    return await recordWithMediaRecorder({
       canvas, ctx, coverImg, book, chapter, audioStream, duration, quoteText, onProgress, signal,
     });
   }
@@ -258,10 +269,15 @@ async function recordWithMediaRecorder({
 
     recorder.onstop = () => {
       cleanup();
-      const outputMime = recorder.mimeType || selectedMime || 'video/mp4';
+      // ✅ FIX CRITIQUE : créer le blob depuis les chunks collectés
+      const outputMime = recorder.mimeType || selectedMime || 'video/webm';
+      const isMp4 = outputMime.includes('mp4');
+      // Sur Android Chrome, MediaRecorder ne supporte que WebM même si on demande MP4
+      // Forcer .webm si le MIME réel est webm pour éviter le double-ext .mp4.webm
+      const ext = isMp4 ? 'mp4' : 'webm';
       const blob = new Blob(chunks, { type: outputMime });
       const cleanTitle = (book.title || 'audiobook').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
-      const file = new File([blob], `statut_rgplay_${cleanTitle}.mp4`, { type: 'video/mp4' });
+      const file = new File([blob], `statut_rgplay_${cleanTitle}.${ext}`, { type: outputMime });
       resolve({ file, blob, url: URL.createObjectURL(blob) });
     };
 

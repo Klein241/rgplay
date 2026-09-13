@@ -86,19 +86,23 @@ export function App() {
         import('./utils/userId').then(({ recordReferredBy }) => {
           recordReferredBy(refCode);
         });
-        apiClient.registerReferral(refCode).then(() => {
-          const alreadyGranted = localStorage.getItem('rg_referred_bonus_granted');
-          if (!alreadyGranted) {
-            localStorage.setItem('rg_referred_bonus_granted', 'true');
-            setTimeout(() => {
-              window.dispatchEvent(new CustomEvent('rg:award-points', {
-                detail: {
-                  points: 500,
-                  xp: 100,
-                  description: '🎁 Cadeau de Parrainage : 500 Points Offerts !'
-                }
-              }));
-            }, 1000);
+        apiClient.registerReferral(refCode).then((res) => {
+          if (res?.success) {
+            const alreadyGranted = localStorage.getItem('rg_referred_bonus_granted');
+            if (!alreadyGranted) {
+              localStorage.setItem('rg_referred_bonus_granted', 'true');
+              setTimeout(() => {
+                window.dispatchEvent(new CustomEvent('rg:award-points', {
+                  detail: {
+                    points: 500,
+                    xp: 100,
+                    description: '🎁 Cadeau de Parrainage : 500 Points Offerts !'
+                  }
+                }));
+              }, 1000);
+            }
+          } else if (res?.error) {
+            console.warn('[Parrainage refusé par le serveur anti-fraude]:', res.error);
           }
         });
       }

@@ -1580,6 +1580,65 @@ export const apiClient = {
     }
     return { visitors: [], activeUsers: [] };
   },
+
+  async getGamificationState() {
+    try {
+      const uid = getUserId();
+      const res = await fetch(`${API_BASE}/gamification?userId=${encodeURIComponent(uid)}`, {
+        headers: { 'X-User-Id': uid, 'Cache-Control': 'no-cache' },
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn('[apiClient.getGamificationState] Erreur:', e);
+    }
+    return null;
+  },
+
+  async syncGamificationState(state) {
+    try {
+      const uid = getUserId();
+      const res = await fetch(`${API_BASE}/gamification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-User-Id': uid },
+        body: JSON.stringify({ ...state, userId: uid }),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn('[apiClient.syncGamificationState] Erreur:', e);
+    }
+    return null;
+  },
+
+  async registerReferral(referrerCode) {
+    try {
+      const uid = getUserId();
+      const res = await fetch(`${API_BASE}/referral/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-User-Id': uid },
+        body: JSON.stringify({ referrerCode, userId: uid }),
+      });
+      return await res.json();
+    } catch (e) {
+      console.warn('[apiClient.registerReferral] Erreur:', e);
+      return { success: false, error: e.message };
+    }
+  },
+
+  async getReferralStats(code) {
+    try {
+      const res = await fetch(`${API_BASE}/referral/stats?code=${encodeURIComponent(code)}`);
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn('[apiClient.getReferralStats] Erreur:', e);
+    }
+    return { success: true, stats: { code, referrals: [], creditsEarned: 0, pendingCredits: 0 } };
+  },
 };
 
 

@@ -157,32 +157,43 @@ export const AudioProvider = ({ children }) => {
     };
 
     const onEnded = () => {
-      // 🛡️ Garde-fou Anti-Coupure : Si la durée réelle est connue et qu'on est loin de la fin
-      // (coupure réseau / buffer vide), on tente UNE SEULE reprise pour éviter la boucle infinie
+      const book = currentBookRef.current;
+      const chap = book?.chapters?.[currentChapterIndexRef.current];
+      const realOrEstimatedDuration = (audio.duration && isFinite(audio.duration) && audio.duration > 0)
+        ? audio.duration
+        : Number(chap?.duration_seconds || 0);
+
+      // 🛡️ Garde-fou Anti-Coupure : Si la piste s'arrête alors qu'on est loin de la fin
+      // (coupure réseau, buffer vide, appel entrant), NE PAS sauter au chapitre suivant !
       if (
-        audio.duration &&
-        isFinite(audio.duration) &&
-        audio.duration > 10 &&
-        audio.currentTime < (audio.duration - 5) &&
-        endedRetryCountRef.current < 1
+        realOrEstimatedDuration > 10 &&
+        audio.currentTime < (realOrEstimatedDuration - 6) &&
+        endedRetryCountRef.current < 3
       ) {
         endedRetryCountRef.current += 1;
-        console.warn(`[AudioContext] 'ended' prématuré à ${audio.currentTime.toFixed(1)}s / ${audio.duration.toFixed(1)}s. Reprise (tentative ${endedRetryCountRef.current}/1)...`);
-        audio.play().catch(() => {
-          // Si la reprise échoue, passer au chapitre suivant
-          endedRetryCountRef.current = 0;
-          handleNextChapterRef.current?.();
-        });
+        console.warn(`[AudioContext] 'ended' prématuré à ${audio.currentTime.toFixed(1)}s / ${realOrEstimatedDuration.toFixed(1)}s. Tentative de reprise (${endedRetryCountRef.current}/3)...`);
+        setTimeout(() => {
+          audio.play().catch(() => {
+            console.warn('[AudioContext] Reprise différée...');
+          });
+        }, 500);
+        return;
+      }
+
+      // Si on a dépassé les 3 tentatives et qu'on est encore au milieu de l'audio,
+      // on met en pause propre au lieu de sauter brutalement au prochain livre/chapitre
+      if (realOrEstimatedDuration > 10 && audio.currentTime < (realOrEstimatedDuration - 6)) {
+        console.warn(`[AudioContext] Flux interrompu à ${audio.currentTime.toFixed(1)}s. Mise en pause sécurisée.`);
+        setIsPlaying(false);
+        endedRetryCountRef.current = 0;
         return;
       }
 
       // Réinitialiser le compteur de tentatives pour le prochain chapitre
       endedRetryCountRef.current = 0;
 
-      if (currentBookRef.current) {
-        const book = currentBookRef.current;
-        const chap = book.chapters?.[currentChapterIndexRef.current];
-        trackAudioPlay(book, chap, audio.duration || audio.currentTime);
+      if (book) {
+        trackAudioPlay(book, chap, realOrEstimatedDuration || audio.currentTime);
         cacheAudioForOffline(book, chap);
       }
 
@@ -244,8 +255,11 @@ export const AudioProvider = ({ children }) => {
     if (progressSaveTimerRef.current) clearInterval(progressSaveTimerRef.current);
 
     progressSaveTimerRef.current = setInterval(() => {
+      const audio = audioRef.current;
+      const curPos = audio.currentTime || 0;
+      const curDur = (audio.duration && isFinite(audio.duration)) ? audio.duration : duration;
       const chapter = currentBook.chapters?.[currentChapterIndex];
-      const percent = duration > 0 ? Math.round((currentTime / duration) * 100) : 0;
+      const percent = curDur > 0 ? Math.round((curPos / curDur) * 100) : 0;
 
       // Si l'écoute dépasse 90%, pré-mettre en cache une seule fois pour le mode hors-ligne
       const cacheKey = `${currentBook.id}_ch_${currentChapterIndex}`;
@@ -257,14 +271,14 @@ export const AudioProvider = ({ children }) => {
       apiClient.saveProgress({
         audiobook_id: currentBook.id,
         chapter_id: chapter?.id,
-        position_seconds: currentTime,
+        position_seconds: curPos,
         completed_percentage: percent,
         is_completed: percent >= 95,
       });
     }, 5000);
 
     return () => clearInterval(progressSaveTimerRef.current);
-  }, [currentBook, currentChapterIndex, currentTime, duration, isPlaying]);
+  }, [currentBook?.id, currentChapterIndex, isPlaying]);
 
   // Lancer la lecture d'un livre complet (démarrage ultra-rapide 0ms & support 100% hors-ligne)
   const playBook = (book, chapterIdx = 0, startTime = 0) => {

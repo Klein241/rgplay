@@ -205,6 +205,9 @@ export async function handleGetAdminUsers(request, env, corsHeaders) {
         COALESCE(u.plan, 'free') AS plan,
         COALESCE(u.wallet_balance, 0) AS wallet_balance,
         u.created_at,
+        u.referred_by,
+        u.referral_code,
+        (SELECT COUNT(*) FROM users u2 WHERE u2.referred_by = u.id) AS referral_count,
         CASE 
           WHEN g.points IS NULL OR g.points = 0 THEN 1000
           ELSE g.points
@@ -223,9 +226,13 @@ export async function handleGetAdminUsers(request, env, corsHeaders) {
           'GA'
         ) AS country,
         CASE WHEN u.phone IS NOT NULL AND u.phone != '' THEN 1 ELSE 0 END AS has_whatsapp,
-        1 AS is_real_user
+        1 AS is_real_user,
+        COALESCE(ipd.ip, (SELECT vs.ip FROM visitor_sessions vs WHERE vs.user_id = u.id OR vs.visitor_id = u.id ORDER BY vs.last_active_at DESC LIMIT 1)) AS ip_address,
+        COALESCE(ipd.last_seen_at, (SELECT vs.last_active_at FROM visitor_sessions vs WHERE vs.user_id = u.id OR vs.visitor_id = u.id ORDER BY vs.last_active_at DESC LIMIT 1)) AS ip_last_seen
       FROM users u
       LEFT JOIN user_gamification g ON u.id = g.user_id
+      LEFT JOIN ip_devices ipd ON ipd.primary_user_id = u.id
+      GROUP BY u.id
       ORDER BY u.created_at DESC
     `).all().catch(() => ({ results: [] }));
 
@@ -259,10 +266,13 @@ export async function handleGetAdminUsers(request, env, corsHeaders) {
         MAX(g.last_daily_reward_date) AS last_daily_reward_date,
         COALESCE(NULLIF(NULLIF(MAX(vs.country), 'XX'), ''), 'GA') AS country,
         0 AS has_whatsapp,
-        1 AS is_real_user
+        1 AS is_real_user,
+        COALESCE(MAX(ipd.ip), MAX(vs.ip)) AS ip_address,
+        COALESCE(MAX(ipd.last_seen_at), MAX(vs.last_active_at)) AS ip_last_seen
       FROM visitor_sessions vs
       LEFT JOIN users u ON vs.visitor_id = u.id OR vs.user_id = u.id
       LEFT JOIN user_gamification g ON vs.visitor_id = g.user_id OR vs.user_id = g.user_id
+      LEFT JOIN ip_devices ipd ON vs.visitor_id = ipd.primary_user_id
       WHERE u.id IS NULL 
         AND (
           vs.points > 0 

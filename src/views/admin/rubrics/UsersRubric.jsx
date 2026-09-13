@@ -3,7 +3,7 @@ import {
   Users, Sparkles, Search, RefreshCw, Plus, CheckCircle2,
   AlertCircle, Loader2, ArrowUpRight, Award, Shield,
   Smartphone, Mail, Calendar, Clock, BookOpen, Gift, Coins,
-  Copy, Check, ExternalLink, UserPlus
+  Copy, Check, ExternalLink, UserPlus, Network, ShieldAlert
 } from 'lucide-react';
 import { apiClient } from '../../../services/api';
 import { getFlagEmoji, COUNTRY_NAMES } from '../../../services/tracker';
@@ -302,6 +302,7 @@ export const UsersRubric = ({ setActiveRubric, setAnalyticsSearchId } = {}) => {
                   <th className="py-3.5 px-4">Niveau & Rang</th>
                   <th className="py-3.5 px-4">Solde Sky Points ⭐</th>
                   <th className="py-3.5 px-4">Parrainage 🤝</th>
+                  <th className="py-3.5 px-4">IP / Anti-Fraude 🛡️</th>
                   <th className="py-3.5 px-4">Activité</th>
                   <th className="py-3.5 px-4 text-right">Actions</th>
                 </tr>
@@ -444,6 +445,40 @@ export const UsersRubric = ({ setActiveRubric, setAnalyticsSearchId } = {}) => {
                             </div>
                           )}
                         </div>
+                      </td>
+
+                      {/* IP Anti-Fraude */}
+                      <td className="py-3 px-4">
+                        {u.ip_address ? (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1.5">
+                              <Network className="w-3 h-3 text-cyan-400 shrink-0" />
+                              <button
+                                type="button"
+                                onClick={() => handleCopy(u.ip_address, `ip-${u.id}`)}
+                                className="font-mono text-[10px] text-cyan-300 hover:text-cyan-200 transition-colors flex items-center gap-1"
+                                title="Copier l'adresse IP"
+                              >
+                                {u.ip_address}
+                                {copiedId === `ip-${u.id}` ? (
+                                  <Check className="w-2.5 h-2.5 text-emerald-400" />
+                                ) : (
+                                  <Copy className="w-2.5 h-2.5 text-slate-500" />
+                                )}
+                              </button>
+                            </div>
+                            {u.ip_last_seen && (
+                              <div className="text-[9px] text-slate-500">
+                                Vu {new Date(u.ip_last_seen).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1 text-[10px] text-slate-600 italic">
+                            <ShieldAlert className="w-3 h-3 text-slate-600" />
+                            <span>Non capturée</span>
+                          </div>
+                        )}
                       </td>
 
                       {/* Activité */}

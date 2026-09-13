@@ -48,22 +48,39 @@ export const XpProvider = ({ children }) => {
   const readingIntervalRef = useRef(null);
   const listeningIntervalRef = useRef(null);
 
-  // Sauvegarde locale instantanée
+  // Sauvegarde locale instantanée et synchronisation serveur D1
   const saveState = (newState) => {
     setGamification(newState);
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
     } catch {}
+
+    // Synchronisation en arrière-plan avec Cloudflare D1
+    if (apiClient.syncGamificationState) {
+      apiClient.syncGamificationState(newState).catch(() => {});
+    }
   };
 
-  // Synchronisation avec D1 au chargement
+  // Synchronisation avec D1 au chargement (avec persistance et verrouillage IP)
   useEffect(() => {
     const fetchRemoteState = async () => {
       try {
         const remote = await apiClient.getGamificationState?.();
         if (remote && typeof remote === 'object') {
+          // Si le serveur a restauré un compte lié à cette adresse IP
+          if (remote.boundUserId) {
+            try {
+              const currentId = localStorage.getItem('rg_user_id');
+              if (currentId !== remote.boundUserId) {
+                localStorage.setItem('rg_user_id', remote.boundUserId);
+              }
+            } catch (_) {}
+          }
+
           setGamification(prev => {
-            const merged = { ...prev, ...remote };
+            const merged = remote.restoredFromIp
+              ? { ...prev, ...remote, points: remote.points, xp: remote.xp }
+              : { ...prev, ...remote };
             try { localStorage.setItem(STORAGE_KEY, JSON.stringify(merged)); } catch {}
             return merged;
           });

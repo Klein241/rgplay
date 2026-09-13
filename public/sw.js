@@ -8,7 +8,7 @@
  *               → Audio offline servi depuis le cache rg-play-audio-offline
  */
 
-const SW_VERSION = 'v2.3.0';
+const SW_VERSION = 'v2.4.0';
 const CACHE_SHELL  = `rg-play-shell-${SW_VERSION}`;
 const CACHE_AUDIO  = 'rg-play-audio-offline'; // Partagé avec offlineAudioCache.js
 
@@ -199,9 +199,9 @@ self.addEventListener('fetch', (event) => {
 self.addEventListener('push', (event) => {
   let data = {
     title: 'RG Play',
-    body: 'Nouveau livre audio disponible !',
-    icon: '/icon.svg',
-    badge: '/icon.svg',
+    body: 'Nouveau contenu audio disponible !',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
   };
 
   if (event.data) {
@@ -211,9 +211,9 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: data.body,
-    icon: data.icon || '/icon.svg',
-    badge: data.badge || '/icon.svg',
-    tag: data.tag || 'rg-play-notif',
+    icon: data.icon || '/icon-192.png',
+    badge: data.badge || '/icon-192.png',
+    tag: data.tag || `rg-notif-${Date.now()}`,
     renotify: true,
     vibrate: [200, 100, 200],
     data: { url: data.url || '/', bookId: data.bookId },

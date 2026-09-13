@@ -3,8 +3,8 @@ import { apiClient, getUserId } from '../services/api';
 
 const PushContext = createContext(null);
 
-// Clé publique VAPID pour Web Push PWA
-const VAPID_PUBLIC_KEY = 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBkYI9sl6aKlEczgA4Ko';
+// Clé publique VAPID réelle pour Web Push PWA (P-256)
+const VAPID_PUBLIC_KEY = 'BBr2HgFOQCrVt45uP7DfTjfYcS2zaxXwcnQ8IAx1w5u1L8JDJ29UuX6-WB2pfIvk_hMTwmpvlodg_q3V6C5GZWc';
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -57,7 +57,7 @@ export function PushProvider({ children }) {
             id: n.id,
             title: n.title,
             body: n.body,
-            icon: n.icon || '/icon.svg',
+            icon: n.icon || '/icon-192.png',
             url: n.url || '/',
             bookId: n.book_id,
             time: n.sent_at ? new Date(n.sent_at).toLocaleDateString('fr-FR') : "Récemment",
@@ -116,7 +116,7 @@ export function PushProvider({ children }) {
   const sendLocalNotification = useCallback(async ({ title, body, icon, url, type, bookId }) => {
     const notifTitle = title || '🎧 RG Play';
     const notifBody = body || 'Nouveau contenu disponible !';
-    const notifIcon = icon || '/icon.svg';
+    const notifIcon = icon || '/icon-192.png';
 
     const newNotif = {
       id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,

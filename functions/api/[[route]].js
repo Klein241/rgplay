@@ -16,6 +16,8 @@ import { handleLinkWhatsApp, handleRecoverWhatsApp, handleGetAdminUsers } from '
 import { handleGetVisitorsVsUsers } from './handlers/analytics.js';
 import { handleAudioDownload, handleIncrementDownloads } from './handlers/download.js';
 import { handleGetBookReviews, handlePostBookReview } from './handlers/reviews.js';
+import { handlePushBroadcast } from './handlers/push.js';
+import { handleGetGamification, handleSyncGamification, handleRegisterReferral } from './handlers/antiFraud.js';
 
 // MOTEUR MCP CLOUDFLARE NATIF (Model Context Protocol pour Manus IA, Claude, etc.)
 // ════════════════════════════════════════════════════════════════════════════════
@@ -834,100 +836,14 @@ export async function onRequest(context) {
       });
     }
 
-    // ─── GET /api/gamification (Read's Great XP & Points) ──────────
+    // ─── GET /api/gamification (Protection & Persistance IP) ──────────
     if ((path === '/gamification' || path === '/gamification/') && method === 'GET') {
-      const userId = url.searchParams.get('userId') || 'user-demo';
-      if (env.DB) {
-        try {
-          const { results } = await env.DB.prepare(
-            'SELECT * FROM user_gamification WHERE user_id = ?'
-          ).bind(userId).all();
-          
-          if (results && results.length > 0) {
-            const row = results[0];
-            const unlockedBadges = typeof row.unlocked_badges === 'string' 
-              ? JSON.parse(row.unlocked_badges) 
-              : row.unlocked_badges || ['badge-welcome'];
-
-            // Récupérer les 20 dernières transactions
-            const { results: txs } = await env.DB.prepare(
-              'SELECT id, amount, type, description, created_at AS createdAt FROM point_transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 20'
-            ).bind(userId).all().catch(() => ({ results: [] }));
-
-            return jsonResponse({
-              xp: row.xp,
-              points: row.points,
-              level: row.level,
-              readingMinutes: row.reading_minutes,
-              listeningMinutes: row.listening_minutes,
-              booksCompleted: row.books_completed,
-              dailyStreak: row.daily_streak,
-              lastDailyRewardDate: row.last_daily_reward_date,
-              unlockedBadges,
-              recentTransactions: txs || [],
-            }, corsHeaders);
-          }
-        } catch (_) {}
-      }
-      return jsonResponse(null, corsHeaders);
+      return handleGetGamification(request, env, corsHeaders);
     }
 
-    // ─── POST /api/gamification (Sync State XP & Points) ───────────
+    // ─── POST /api/gamification (Sync State XP & Points avec IP) ───────────
     if ((path === '/gamification' || path === '/gamification/') && method === 'POST') {
-      const body = await request.json().catch(() => ({}));
-      const userId = body.userId || 'user-demo';
-      
-      if (env.DB) {
-        try {
-          await env.DB.prepare(`
-            INSERT INTO user_gamification (
-              user_id, xp, points, level, reading_minutes, listening_minutes, 
-              books_completed, daily_streak, last_daily_reward_date, unlocked_badges, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            ON CONFLICT(user_id) DO UPDATE SET
-              xp = excluded.xp,
-              points = excluded.points,
-              level = excluded.level,
-              reading_minutes = excluded.reading_minutes,
-              listening_minutes = excluded.listening_minutes,
-              books_completed = excluded.books_completed,
-              daily_streak = excluded.daily_streak,
-              last_daily_reward_date = excluded.last_daily_reward_date,
-              unlocked_badges = excluded.unlocked_badges,
-              updated_at = CURRENT_TIMESTAMP
-          `).bind(
-            userId,
-            body.xp || 0,
-            body.points || 0,
-            body.level || 1,
-            body.readingMinutes || 0,
-            body.listeningMinutes || 0,
-            body.booksCompleted || 0,
-            body.dailyStreak || 1,
-            body.lastDailyRewardDate || null,
-            JSON.stringify(body.unlockedBadges || ['badge-welcome'])
-          ).run();
-
-          // Enregistrer la dernière transaction si présente
-          if (body.recentTransactions && body.recentTransactions.length > 0) {
-            const latestTx = body.recentTransactions[0];
-            if (latestTx?.id) {
-              await env.DB.prepare(`
-                INSERT OR IGNORE INTO point_transactions (id, user_id, amount, type, description, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-              `).bind(
-                latestTx.id,
-                userId,
-                latestTx.amount || 0,
-                latestTx.type || 'bonus',
-                latestTx.description || 'Transaction',
-                latestTx.createdAt || new Date().toISOString()
-              ).run().catch(() => {});
-            }
-          }
-        } catch (_) {}
-      }
-      return jsonResponse({ success: true }, corsHeaders);
+      return handleSyncGamification(request, env, corsHeaders);
     }
 
     // ─── POST /api/ebook/progress (Sync progression liseuse) ────────
@@ -4252,31 +4168,9 @@ export async function onRequest(context) {
       return jsonResponse({ success: true, ads, message: 'Publicités enregistrées avec succès' }, corsHeaders);
     }
 
-    // ─── POST /api/referral/register (Enregistrement d'un parrainage) ───────────
+    // ─── POST /api/referral/register (Enregistrement avec contrôle anti-fraude IP) ───────────
     if (path === '/referral/register' && method === 'POST') {
-      const body = await request.json().catch(() => ({}));
-      const referrerCode = (body.referrerCode || '').trim().toUpperCase();
-      const newUserId = request.headers.get('X-User-Id') || body.userId;
-
-      if (referrerCode && newUserId && env.KV_BINDING) {
-        const refKey = `rg_referral_${referrerCode}`;
-        let current = await env.KV_BINDING.get(refKey, { type: 'json' }).catch(() => null) || {
-          code: referrerCode,
-          referrals: [],
-          creditsEarned: 0,
-          pendingCredits: 0
-        };
-
-        if (!current.referrals.includes(newUserId)) {
-          current.referrals.push(newUserId);
-          current.creditsEarned = (current.creditsEarned || 0) + 500;
-          await env.KV_BINDING.put(refKey, JSON.stringify(current));
-        }
-
-        return jsonResponse({ success: true, stats: current }, corsHeaders);
-      }
-
-      return jsonResponse({ success: true }, corsHeaders);
+      return handleRegisterReferral(request, env, corsHeaders);
     }
 
     // ─── GET /api/referral/stats (Statistiques de parrainage de l'utilisateur) ───
@@ -4300,8 +4194,8 @@ export async function onRequest(context) {
       return handleAudioDownload(request, env, corsHeaders);
     }
 
-    // ─── GET /api/r2/download (Téléchargement / Streaming direct depuis R2) ─
-    if ((path === '/r2/download' || path.startsWith('/r2/download/')) && method === 'GET') {
+    // ─── GET / HEAD /api/r2/download (Téléchargement / Streaming direct depuis R2) ─
+    if ((path === '/r2/download' || path.startsWith('/r2/download/')) && (method === 'GET' || method === 'HEAD')) {
       const key = url.searchParams.get('key') || path.replace('/r2/download/', '');
       if (!key) {
         return new Response('Clé de fichier R2 manquante', { status: 400, headers: corsHeaders });
@@ -4324,48 +4218,17 @@ export async function onRequest(context) {
         else if (lowerKey.endsWith('.png')) inferredType = 'image/png';
 
         // ── Résolution de la clé avec fallbacks ────────────────────────────────────
-        // Si la clé exacte n'est pas dans R2, on essaie des variantes de chemin
-        const fileName = key.split('/').pop(); // juste le nom de fichier
+        const fileName = key.split('/').pop();
         const keysToTry = [
-          key,                        // 1. Clé exacte (ex: previews/fichier.webm)
+          key,                        // 1. Clé exacte
           `audios/${fileName}`,       // 2. Préfixe audios/
           `previews/${fileName}`,     // 3. Préfixe previews/
           `audiobooks/${fileName}`,   // 4. Préfixe audiobooks/
-          fileName,                   // 5. Sans préfixe (racine du bucket)
-        ].filter((k, i, arr) => arr.indexOf(k) === i); // Dédupliquer
-
-        // ── Helper : servir un objet R2 avec ETag et cache CDN agressif ──────
-        const serveR2Object = (obj, status, extraHeaders) => {
-          const headers = new Headers(corsHeaders);
-          obj.writeHttpMetadata(headers);
-          if (!headers.get('Content-Type') || headers.get('Content-Type') === 'application/octet-stream') {
-            headers.set('Content-Type', inferredType);
-          }
-          headers.set('Accept-Ranges', 'bytes');
-          headers.set('Cache-Control', 'public, max-age=31536000, immutable');
-          headers.set('ETag', obj.httpEtag || `"${obj.etag || key}"`);
-          if (extraHeaders) {
-            Object.entries(extraHeaders).forEach(([hk, hv]) => headers.set(hk, hv));
-          }
-          const response = new Response(obj.body, { status: status || 200, headers });
-          return response;
-        };
+          fileName,                   // 5. Racine du bucket
+        ].filter((k, i, arr) => arr.indexOf(k) === i);
 
         const rangeHeader = request.headers.get('Range');
         const rangeMatch = rangeHeader ? rangeHeader.match(/bytes=(\d+)-(\d+)?/) : null;
-
-        // Vérification Cache Edge Cloudflare pour requêtes standard (Time to First Byte : ~15ms)
-        const edgeCache = typeof caches !== 'undefined' ? caches.default : null;
-        if (edgeCache && !rangeHeader) {
-          try {
-            const cachedRes = await edgeCache.match(request);
-            if (cachedRes) {
-              const resHeaders = new Headers(cachedRes.headers);
-              resHeaders.set('CF-Cache-Status', 'HIT');
-              return new Response(cachedRes.body, { status: cachedRes.status, headers: resHeaders });
-            }
-          } catch (_) {}
-        }
 
         for (const tryKey of keysToTry) {
           if (rangeMatch) {
@@ -4377,24 +4240,33 @@ export async function onRequest(context) {
             if (obj) {
               const actualEnd = end !== undefined ? Math.min(end, obj.size - 1) : (obj.size - 1);
               const chunkLen = actualEnd - start + 1;
-              return serveR2Object(obj, 206, {
-                'Content-Length': String(chunkLen),
-                'Content-Range': `bytes ${start}-${actualEnd}/${obj.size}`,
-              });
+              const headers = new Headers(corsHeaders);
+              obj.writeHttpMetadata(headers);
+              if (!headers.get('Content-Type') || headers.get('Content-Type') === 'application/octet-stream') {
+                headers.set('Content-Type', inferredType);
+              }
+              headers.set('Accept-Ranges', 'bytes');
+              headers.set('Content-Length', String(chunkLen));
+              headers.set('Content-Range', `bytes ${start}-${actualEnd}/${obj.size}`);
+              headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+              headers.set('ETag', obj.httpEtag || `"${obj.etag || key}"`);
+
+              return new Response(method === 'HEAD' ? null : obj.body, { status: 206, headers });
             }
           } else {
             const obj = await env.AUDIO_BUCKET.get(tryKey);
             if (obj) {
-              const res = serveR2Object(obj, 200, {
-                'Content-Length': String(obj.size),
-              });
-              // Mettre en cache Edge Cloudflare en tâche de fond pour les prochains auditeurs
-              if (edgeCache && obj.size < 25000000) {
-                try {
-                  context.waitUntil(edgeCache.put(request, res.clone()));
-                } catch (_) {}
+              const headers = new Headers(corsHeaders);
+              obj.writeHttpMetadata(headers);
+              if (!headers.get('Content-Type') || headers.get('Content-Type') === 'application/octet-stream') {
+                headers.set('Content-Type', inferredType);
               }
-              return res;
+              headers.set('Accept-Ranges', 'bytes');
+              headers.set('Content-Length', String(obj.size));
+              headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+              headers.set('ETag', obj.httpEtag || `"${obj.etag || key}"`);
+
+              return new Response(method === 'HEAD' ? null : obj.body, { status: 200, headers });
             }
           }
         }
@@ -4456,17 +4328,9 @@ export async function onRequest(context) {
       return jsonResponse({ success: true, message: 'Désinscription Push effectuée' }, corsHeaders);
     }
 
-    // ─── POST /api/admin/push/broadcast (Envoi de notification Push aux abonnés) ─
+    // ─── POST /api/admin/push/broadcast (Envoi de notification Push aux abonnés via VAPID RFC 8291) ─
     if (path === '/admin/push/broadcast' && method === 'POST') {
-      const body = await request.json();
-      const { title, message, url, bookId } = body;
-
-      return jsonResponse({
-        success: true,
-        broadcasted: true,
-        payload: { title, message, url, bookId },
-        message: 'Notification envoyée aux abonnés mobiles RG Play.',
-      }, corsHeaders);
+      return handlePushBroadcast(request, env, corsHeaders);
     }
 
     // ─── POST /api/ai/enrich (Synthèse, Key Takeaways & Tags DeepSeek pour Admin) ─
@@ -5331,6 +5195,26 @@ async function ensureAllTables(db) {
         book_id TEXT,
         sent_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         is_read BOOLEAN DEFAULT 0
+      )`),
+      db.prepare(`CREATE TABLE IF NOT EXISTS ip_devices (
+        id TEXT PRIMARY KEY,
+        ip TEXT NOT NULL,
+        device_fingerprint TEXT,
+        primary_user_id TEXT NOT NULL,
+        bonus_claimed INTEGER DEFAULT 1,
+        points_balance INTEGER DEFAULT 1000,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`),
+      db.prepare(`CREATE TABLE IF NOT EXISTS notifications_history (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        icon TEXT,
+        url TEXT DEFAULT '/',
+        book_id TEXT,
+        is_read INTEGER DEFAULT 0,
+        sent_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )`),
       db.prepare(`CREATE TABLE IF NOT EXISTS deleted_books (
         id TEXT PRIMARY KEY,
