@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { apiClient } from '../../../services/api';
 import { getFlagEmoji, COUNTRY_NAMES } from '../../../services/tracker';
+import { UserDateFilterBar, getUserPresetRange, isUserInDateRange } from '../components/UserDateFilterBar';
 
 export const UsersRubric = ({ setActiveRubric, setAnalyticsSearchId } = {}) => {
   const [users, setUsers] = useState([]);
@@ -14,6 +15,11 @@ export const UsersRubric = ({ setActiveRubric, setAnalyticsSearchId } = {}) => {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all'); // 'all' | 'with-points' | 'recent'
   const [copiedId, setCopiedId] = useState(null);
+
+  // Filtre temporel (Style Alibaba)
+  const [datePreset, setDatePreset] = useState('all');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
 
   // État de la modal de crédit de Sky Points
   const [creditModalUser, setCreditModalUser] = useState(null);
@@ -98,6 +104,17 @@ export const UsersRubric = ({ setActiveRubric, setAnalyticsSearchId } = {}) => {
     }
   };
 
+  // Plage de dates active
+  const userDateRange = useMemo(() => {
+    if (datePreset === 'custom') {
+      const from = customFrom ? new Date(customFrom + 'T00:00:00') : null;
+      const to   = customTo   ? new Date(customTo   + 'T23:59:59') : null;
+      if (from || to) return { from, to };
+      return null;
+    }
+    return getUserPresetRange(datePreset);
+  }, [datePreset, customFrom, customTo]);
+
   // Filtrage et recherche
   const filteredUsers = useMemo(() => {
     return users.filter(u => {
@@ -117,13 +134,15 @@ export const UsersRubric = ({ setActiveRubric, setAnalyticsSearchId } = {}) => {
         matchFilter = days <= 7;
       }
 
-      return matchSearch && matchFilter;
+      const matchDate = isUserInDateRange(u, userDateRange);
+
+      return matchSearch && matchFilter && matchDate;
     }).sort((a, b) => {
       const dateA = new Date(a.created_at || 0).getTime();
       const dateB = new Date(b.created_at || 0).getTime();
       return dateB - dateA;
     });
-  }, [users, search, filter]);
+  }, [users, search, filter, userDateRange]);
 
   // Statistiques calculées
   const stats = useMemo(() => {
@@ -232,6 +251,18 @@ export const UsersRubric = ({ setActiveRubric, setAnalyticsSearchId } = {}) => {
           </div>
         </div>
       </div>
+
+      {/* ── FILTRE DE DATES (Style Alibaba Analytics) ── */}
+      <UserDateFilterBar
+        datePreset={datePreset}
+        setDatePreset={setDatePreset}
+        customFrom={customFrom}
+        setCustomFrom={setCustomFrom}
+        customTo={customTo}
+        setCustomTo={setCustomTo}
+        filteredCount={filteredUsers.length}
+        totalCount={users.length}
+      />
 
       {/* ── BARRE DE RECHERCHE ET FILTRES ── */}
       <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">

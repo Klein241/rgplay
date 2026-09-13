@@ -84,15 +84,29 @@ export async function handleIncrementDownloads(request, env, corsHeaders, bookId
     }
     const nextCount = current + 1;
 
-    // 2. Mettre à jour dans Cloudflare D1
+    // 2. Mettre à jour dans Cloudflare D1 (display_plays_count ET downloads_count)
     await env.DB.prepare(
       'UPDATE audiobooks SET display_plays_count = ? WHERE id = ?'
     ).bind(nextCount, bookId).run();
 
+    try {
+      await env.DB.prepare(
+        'UPDATE audiobooks SET downloads_count = ? WHERE id = ?'
+      ).bind(nextCount, bookId).run().catch(async () => {
+        // Si la colonne n'existait pas, tenter de l'ajouter puis réappliquer
+        await env.DB.prepare('ALTER TABLE audiobooks ADD COLUMN downloads_count INTEGER DEFAULT 0').run().catch(() => {});
+        await env.DB.prepare('UPDATE audiobooks SET downloads_count = ? WHERE id = ?').bind(nextCount, bookId).run().catch(() => {});
+      });
+    } catch (_) {}
+
     // 3. Invalider les caches KV
     if (env.KV_BINDING) {
-      const prefixes = ['books_all_all_false', 'books_all_all_true', `book_${bookId}`];
-      for (const key of prefixes) {
+      const keys = [
+        'books_all_all_false', 'books_all_all_true',
+        'books_all_audiobook_false', 'books_all_audiobook_true',
+        `book_${bookId}`
+      ];
+      for (const key of keys) {
         await env.KV_BINDING.delete(key).catch(() => {});
       }
     }

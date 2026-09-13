@@ -18,6 +18,7 @@ import { handleAudioDownload, handleIncrementDownloads } from './handlers/downlo
 import { handleGetBookReviews, handlePostBookReview } from './handlers/reviews.js';
 import { handlePushBroadcast } from './handlers/push.js';
 import { handleGetGamification, handleSyncGamification, handleRegisterReferral } from './handlers/antiFraud.js';
+import { handleGetSettings, handleSaveSettings } from './handlers/settings.js';
 
 // MOTEUR MCP CLOUDFLARE NATIF (Model Context Protocol pour Manus IA, Claude, etc.)
 // ════════════════════════════════════════════════════════════════════════════════
@@ -687,9 +688,25 @@ export async function onRequest(context) {
     if (path === '/admin/analytics/visitors-vs-users' && method === 'GET') {
       return await handleGetVisitorsVsUsers(request, env, corsHeaders);
     }
-    const incDlMatch = path.match(/^\/audiobooks\/([a-zA-Z0-9_-]+)\/increment-downloads$/);
+    const incDlMatch = path.match(/^\/audiobooks\/([^\/]+)\/increment-downloads\/?$/);
     if (incDlMatch && method === 'POST') {
-      return await handleIncrementDownloads(request, env, corsHeaders, incDlMatch[1]);
+      return await handleIncrementDownloads(request, env, corsHeaders, decodeURIComponent(incDlMatch[1]));
+    }
+    const reviewsRouteMatch = path.match(/^\/(?:audiobooks|books)\/([^\/]+)\/reviews\/?$/);
+    if (reviewsRouteMatch) {
+      const bookId = decodeURIComponent(reviewsRouteMatch[1]);
+      if (method === 'GET') {
+        return await handleGetBookReviews(request, env, corsHeaders, bookId);
+      }
+      if (method === 'POST') {
+        return await handlePostBookReview(request, env, corsHeaders, bookId);
+      }
+    }
+    if (path === '/settings' && method === 'GET') {
+      return await handleGetSettings(request, env, corsHeaders);
+    }
+    if (path === '/settings' && method === 'POST') {
+      return await handleSaveSettings(request, env, corsHeaders);
     }
 
     // ─── ROUTAGE MCP POUR MANUS IA, CLAUDE & AGENTS EXTERNES (HTTP & SSE) ──────
@@ -1566,9 +1583,12 @@ export async function onRequest(context) {
               format: companionEbook.format || 'pdf',
             } : null,
             is_pinned: Boolean(book.is_pinned),
-            display_plays_count: Number(book.display_plays_count || 0),
-            display_reviews_count: Number(book.display_reviews_count || 0),
-            display_rating: Number(book.display_rating || book.rating || 5.0),
+            display_plays_count: Number(book.display_plays_count || book.downloads_count || 0),
+            downloads_count: Number(book.downloads_count || book.display_plays_count || 0),
+            display_reviews_count: Number(book.display_reviews_count || book.rating_count || 0),
+            rating_count: Number(book.rating_count || book.display_reviews_count || 0),
+            display_rating: Number(book.rating || book.display_rating || 5.0),
+            rating: Number(book.rating || book.display_rating || 5.0),
             cover_url: coverUrl,
             preview_url: previewUrl,
             chapters: bookChapters,
@@ -1645,9 +1665,12 @@ export async function onRequest(context) {
           ...book,
           content_type: book.content_type || 'audiobook',
           is_pinned: Boolean(book.is_pinned),
-          display_plays_count: Number(book.display_plays_count || 0),
-          display_reviews_count: Number(book.display_reviews_count || 0),
-          display_rating: Number(book.display_rating || book.rating || 5.0),
+          display_plays_count: Number(book.display_plays_count || book.downloads_count || 0),
+          downloads_count: Number(book.downloads_count || book.display_plays_count || 0),
+          display_reviews_count: Number(book.display_reviews_count || book.rating_count || 0),
+          rating_count: Number(book.rating_count || book.display_reviews_count || 0),
+          display_rating: Number(book.rating || book.display_rating || 5.0),
+          rating: Number(book.rating || book.display_rating || 5.0),
           cover_url: coverUrl,
           preview_url: previewUrl,
           chapters: enrichedChapters,

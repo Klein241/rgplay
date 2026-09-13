@@ -6,7 +6,7 @@ import { trackAction } from '../services/tracker';
 import { downloadBookForOffline, getOfflineBooks, downloadAudioMp3 } from '../utils/offlineAudioCache';
 import { apiClient } from '../services/api';
 import { useXp } from '../context/XpContext';
-import { incrementBookDownloads } from '../services/api/audioApi';
+import { incrementBookDownloads, fetchBookReviews, rateAudiobook } from '../services/api/audioApi';
 import { RatingPopover } from './RatingPopover';
 
 const DEFAULT_COVER = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80';
@@ -201,6 +201,21 @@ export const AudiobookCard = ({
     }
   };
 
+  // Gestionnaire de téléchargement direct de MP3 physique avec incrémentation persistante D1
+  const handleDirectDownloadMp3 = (e) => {
+    e.stopPropagation();
+    incrementBookDownloads(book.id).then(res => {
+      const next = res?.downloads_count || res?.display_plays_count;
+      if (next) {
+        setLocalDownloads(next);
+        window.dispatchEvent(new CustomEvent('rg:book-download-incremented', {
+          detail: { bookId: book.id, downloadsCount: next }
+        }));
+      }
+    }).catch(() => {});
+    downloadAudioMp3(book, null, true);
+  };
+
   // État de Notation Immédiate (ne redirige pas vers la description)
   const [isRatingOpen, setIsRatingOpen] = useState(false);
   const [hoverRating, setHoverRating] = useState(0);
@@ -214,8 +229,14 @@ export const AudiobookCard = ({
     }
   });
   const [myRatingFeedback, setMyRatingFeedback] = useState(null);
-  const [currentRating, setCurrentRating] = useState(() => book.rating ? Number(book.rating) : 4.9);
-  const [currentReviews, setCurrentReviews] = useState(() => Number(book.display_reviews_count || book.rating_count || 32));
+  const [currentRating, setCurrentRating] = useState(() => {
+    const r = Number(book.rating || book.display_rating);
+    return r > 0 ? r : 4.9;
+  });
+  const [currentReviews, setCurrentReviews] = useState(() => {
+    const c = Number(book.rating_count || book.display_reviews_count);
+    return c > 0 ? c : 0;
+  });
 
   // Fermeture automatique de la bulle de notation au clic extérieur
   useEffect(() => {
@@ -242,14 +263,20 @@ export const AudiobookCard = ({
     return () => window.removeEventListener('rg:book-rated', handleRated);
   }, [book.id]);
 
-  // Charger le nombre réel d'avis pour ce livre depuis Cloudflare D1
+  // Charger le nombre réel d'avis et la note personnelle pour ce livre depuis Cloudflare D1
   useEffect(() => {
     if (!book?.id) return;
-    apiClient.getBookReviews(book.id).then(revs => {
-      if (Array.isArray(revs) && revs.length > 0) {
-        setCurrentReviews(prev => Math.max(prev, revs.length));
-        const avg = revs.reduce((acc, r) => acc + (Number(r.rating) || 5), 0) / revs.length;
-        setCurrentRating(Number(avg.toFixed(1)));
+    fetchBookReviews(book.id).then(res => {
+      if (res && res.success) {
+        if (res.userRating) {
+          setUserRating(res.userRating);
+        }
+        if (res.averageRating) {
+          setCurrentRating(res.averageRating);
+        }
+        if (typeof res.totalReviews === 'number') {
+          setCurrentReviews(res.totalReviews);
+        }
       }
     }).catch(() => {});
   }, [book.id]);
@@ -260,7 +287,7 @@ export const AudiobookCard = ({
     // Éviter de compter deux fois si l'utilisateur change son vote
     const isFirstRating = !userRating;
     const nextReviews = currentReviews + (isFirstRating ? 1 : 0);
-    const nextAvg = Number(((currentRating * currentReviews + value) / nextReviews).toFixed(1));
+    const nextAvg = Number(((currentRating * Math.max(1, currentReviews) + value) / Math.max(1, nextReviews)).toFixed(1));
 
     setUserRating(value);
     setIsRatingOpen(false);
@@ -268,14 +295,6 @@ export const AudiobookCard = ({
     setCurrentReviews(nextReviews);
     setMyRatingFeedback(`✓ Noté ${value}/5 !`);
     setTimeout(() => setMyRatingFeedback(null), 3000);
-
-    // Persister en localStorage
-    try {
-      localStorage.setItem(`rg_rated_${book.id}`, String(value));
-      const userRatings = JSON.parse(localStorage.getItem('rg_user_ratings') || '{}');
-      userRatings[book.id] = value;
-      localStorage.setItem('rg_user_ratings', JSON.stringify(userRatings));
-    } catch (_) {}
 
     // Récompenser l'utilisateur uniquement pour sa 1ère notation
     if (isFirstRating) {
@@ -288,29 +307,13 @@ export const AudiobookCard = ({
       }));
     }
 
-    // Synchroniser globalement toutes les cartes du même livre
-    window.dispatchEvent(new CustomEvent('rg:book-rated', {
-      detail: {
-        bookId: book.id,
-        rating: value,
-        newAvg: nextAvg,
-        newCount: nextReviews
-      }
-    }));
-
-    // Synchroniser avec le backend et appliquer le total d'avis réel retourné par Cloudflare D1
-    apiClient.rateAudiobook(book.id, value).then(res => {
+    // Persistance dans Cloudflare D1 avec mise à jour du cache local
+    rateAudiobook(book.id, value).then(res => {
       if (res && res.total_reviews) {
         setCurrentReviews(res.total_reviews);
-        if (res.rating) setCurrentRating(res.rating);
-        window.dispatchEvent(new CustomEvent('rg:book-rated', {
-          detail: {
-            bookId: book.id,
-            rating: value,
-            newAvg: res.rating || nextAvg,
-            newCount: res.total_reviews
-          }
-        }));
+        if (res.rating || res.average_rating) {
+          setCurrentRating(res.rating || res.average_rating);
+        }
       }
     }).catch(() => {});
   };
@@ -455,10 +458,7 @@ export const AudiobookCard = ({
                 <span>•</span>
                 <button
                   type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    downloadAudioMp3(book, null, true);
-                  }}
+                  onClick={handleDirectDownloadMp3}
                   title="Télécharger le fichier sur votre appareil"
                   className="text-cyan-300 hover:text-cyan-200 font-medium flex items-center gap-0.5 cursor-pointer text-2xs active:scale-95"
                 >
@@ -571,10 +571,7 @@ export const AudiobookCard = ({
                 <span>•</span>
                 <button
                   type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    downloadAudioMp3(book, null, true);
-                  }}
+                  onClick={handleDirectDownloadMp3}
                   title="Télécharger le MP3 sur votre appareil"
                   className="text-cyan-300 hover:text-cyan-200 font-medium flex items-center gap-0.5 cursor-pointer text-2xs active:scale-95"
                 >
@@ -876,10 +873,7 @@ export const AudiobookCard = ({
           {isAccessible && (
             <button
               type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                downloadAudioMp3(book, null, true);
-              }}
+              onClick={handleDirectDownloadMp3}
               title="Télécharger le fichier sur votre appareil"
               className="inline-flex items-center gap-1 font-semibold text-cyan-300 bg-cyan-500/15 hover:bg-cyan-500/25 px-1.5 py-0.5 rounded-md border border-cyan-400/30 transition-all cursor-pointer active:scale-95"
             >

@@ -17,6 +17,7 @@ import { ReferralCard } from '../components/ReferralSystem';
 import { StreakBadge, StreakModal } from '../components/StreakSystem';
 import { AdBanner } from '../components/AdBanner';
 import { apiClient } from '../services/api';
+import { getAppSettings, buildWhatsAppSupportUrl, DEFAULT_PLATFORM_SETTINGS } from '../services/api/settingsApi';
 
 // ── Profil utilisateur par défaut ───────────────────────────────────────────
 const defaultProfile = {
@@ -116,6 +117,21 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
   const [subPhone, setSubPhone] = useState(profile.phone || '');
   const [isProcessingSub, setIsProcessingSub] = useState(false);
   const [isStreakModalOpen, setIsStreakModalOpen] = useState(false);
+  const [platformSettings, setPlatformSettings] = useState(DEFAULT_PLATFORM_SETTINGS);
+
+  useEffect(() => {
+    getAppSettings().then(s => { if (s) setPlatformSettings(s); });
+    const handleSettingsUpdate = (e) => {
+      if (e.detail?.settings) setPlatformSettings(e.detail.settings);
+    };
+    window.addEventListener('rg:settings-updated', handleSettingsUpdate);
+    return () => window.removeEventListener('rg:settings-updated', handleSettingsUpdate);
+  }, []);
+
+  const supportWhatsAppUrl = buildWhatsAppSupportUrl(
+    platformSettings.support_whatsapp,
+    platformSettings.support_whatsapp_message
+  );
 
   const { playBook, playbackRate, changePlaybackRate, sleepTimerOption, setSleepTimer } = useAudio();
   const {
@@ -638,7 +654,7 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
 
           {/* Support WhatsApp */}
           <a
-            href="https://wa.me/237699456779?text=Bonjour%20RG%20Play%2C%20j%27ai%20besoin%20d%27aide%20avec%20mon%20compte"
+            href={supportWhatsAppUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="card-lg flex items-center justify-between gap-4 hover:border-emerald-500/40 transition-colors border border-emerald-500/20"
@@ -649,7 +665,9 @@ export const ProfileView = ({ onOpenAdmin, onOpenInstallModal, onOpenCheckout })
               </div>
               <div>
                 <p className="text-sm font-bold text-white">Assistance & Support Client VIP</p>
-                <p className="text-xs text-slate-400">Équipe disponible par WhatsApp 7j/7</p>
+                <p className="text-xs text-slate-400">
+                  {platformSettings.support_whatsapp || '+24177624383'} • Équipe disponible par WhatsApp 7j/7
+                </p>
               </div>
             </div>
             <ExternalLink className="w-4 h-4 text-slate-400" />

@@ -34,7 +34,7 @@ const FALLBACK_OFFERS = [
     icon: "📚",
     duration: 8,
     rewardPoints: 3,
-    ctaUrl: "https://wa.me/237699456779",
+    ctaUrl: "https://wa.me/24177624383",
     ctaText: "Rejoindre la Communauté"
   },
 ];

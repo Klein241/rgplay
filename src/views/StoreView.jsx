@@ -254,7 +254,7 @@ export const StoreView = ({ onSelectPlan }) => {
             tagline: "Rejoignez la communauté de lecteurs d'Afrique.",
             mediaType: 'image', mediaUrl: null, aspectRatio: '1:1',
             gradient: 'from-purple-600 to-indigo-700', icon: '📚',
-            duration: 8, rewardPoints: 3, ctaUrl: 'https://wa.me/237699456779', ctaText: 'Rejoindre', active: true,
+            duration: 8, rewardPoints: 3, ctaUrl: 'https://wa.me/24177624383', ctaText: 'Rejoindre', active: true,
           },
         ];
         setEarnAds(fallback);

@@ -45,11 +45,14 @@ async function ensureReviewsTable(db) {
  */
 export async function handleGetBookReviews(request, env, corsHeaders, bookId) {
   if (!env.DB) {
-    return jsonResponse({ success: true, reviews: [], count: 0 }, corsHeaders);
+    return jsonResponse({ success: true, reviews: [], count: 0, total_reviews: 0, average_rating: null, user_rating: null }, corsHeaders);
   }
 
   try {
     await ensureReviewsTable(env.DB);
+
+    const url = new URL(request.url);
+    const userId = (request.headers.get('X-User-Id') || url.searchParams.get('user_id') || '').trim();
 
     const { results } = await env.DB.prepare(`
       SELECT id, audiobook_id, user_id, 
@@ -66,14 +69,55 @@ export async function handleGetBookReviews(request, env, corsHeaders, bookId) {
       LIMIT 100
     `).bind(bookId).all().catch(() => ({ results: [] }));
 
+    const revList = results || [];
+
+    // Détection de la note de l'utilisateur actuel
+    let userRating = null;
+    if (userId) {
+      const myRev = revList.find(r => r.user_id === userId);
+      if (myRev) {
+        userRating = Number(myRev.rating);
+      } else {
+        // Recherche en base si non présent dans les 100 premiers
+        const dbMyRev = await env.DB.prepare(`
+          SELECT rating FROM reviews WHERE audiobook_id = ? AND user_id = ? LIMIT 1
+        `).bind(bookId, userId).first().catch(() => null);
+        if (dbMyRev?.rating) {
+          userRating = Number(dbMyRev.rating);
+        }
+      }
+    }
+
+    // Calcul de la note moyenne et du nombre total d'avis
+    let avgRating = null;
+    let totalReviews = revList.length;
+
+    if (revList.length > 0) {
+      const sum = revList.reduce((acc, r) => acc + (Number(r.rating) || 0), 0);
+      avgRating = Number((sum / revList.length).toFixed(1));
+    } else {
+      // Fallback sur la table audiobooks si aucun avis individuel dans reviews
+      const bookRow = await env.DB.prepare(`
+        SELECT rating, rating_count, display_rating, display_reviews_count 
+        FROM audiobooks WHERE id = ? LIMIT 1
+      `).bind(bookId).first().catch(() => null);
+      if (bookRow) {
+        avgRating = Number(bookRow.rating || bookRow.display_rating || 5.0);
+        totalReviews = Number(bookRow.rating_count || bookRow.display_reviews_count || 0);
+      }
+    }
+
     return jsonResponse({
       success: true,
-      reviews: results || [],
-      count: (results || []).length
+      reviews: revList,
+      count: revList.length,
+      total_reviews: totalReviews,
+      average_rating: avgRating,
+      user_rating: userRating
     }, corsHeaders);
   } catch (err) {
     console.error('[handleGetBookReviews] Erreur:', err);
-    return jsonResponse({ success: true, reviews: [], count: 0 }, corsHeaders);
+    return jsonResponse({ success: true, reviews: [], count: 0, total_reviews: 0, average_rating: null, user_rating: null }, corsHeaders);
   }
 }
 
@@ -171,7 +215,9 @@ export async function handlePostBookReview(request, env, corsHeaders, bookId) {
         date: "À l'instant"
       },
       rating: newAvg,
+      average_rating: newAvg,
       total_reviews: newTotal,
+      user_rating: ratingVal,
       message: `Note ${ratingVal}/5 enregistrée avec succès`
     }, corsHeaders);
 

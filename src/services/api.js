@@ -445,10 +445,15 @@ export const apiClient = {
   async getBookReviews(bookId) {
     if (!bookId) return [];
     try {
-      const res = await fetch(`${API_BASE}/audiobooks/${encodeURIComponent(bookId)}/reviews`);
+      const res = await fetch(`${API_BASE}/audiobooks/${encodeURIComponent(bookId)}/reviews`, {
+        headers: { 'X-User-Id': getUserId() }
+      });
       if (res.ok) {
         const data = await res.json();
         if (data.success && Array.isArray(data.reviews)) {
+          if (data.user_rating) {
+            try { localStorage.setItem(`rg_rated_${bookId}`, String(data.user_rating)); } catch (_) {}
+          }
           return data.reviews;
         }
       }
