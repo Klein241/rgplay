@@ -105,7 +105,13 @@ export const WhatsAppStatusModal = ({ isOpen, onClose, book, chapter }) => {
 
   const handleShareWhatsApp = async () => {
     if (!generatedVideo?.file) return;
-    const file = generatedVideo.file;
+    let file = generatedVideo.file;
+    const cleanTitle = (book.title || 'audiobook').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+    // Garantie absolue d'extension .mp4 et type MIME video/mp4 pour WhatsApp
+    if (!file.name.toLowerCase().endsWith('.mp4') || file.type !== 'video/mp4') {
+      file = new File([generatedVideo.blob || file], `statut_rgplay_${cleanTitle}.mp4`, { type: 'video/mp4' });
+    }
+
     const playUrl = `${window.location.origin}/?book=${encodeURIComponent(book.id || '')}&play=1`;
     const shareText = `🎧 Écoutez "${book.title}" par ${book.author} sur RG Play\n👉 Écoutez gratuitement ici : ${playUrl}\n📚 Bibliothèque READ'S GREAT`;
     const shareData = {
@@ -139,12 +145,16 @@ export const WhatsAppStatusModal = ({ isOpen, onClose, book, chapter }) => {
     if (!generatedVideo?.url) return;
     const a = document.createElement('a');
     a.href = generatedVideo.url;
-    a.download = generatedVideo.file?.name || 'statut_rgplay.mp4';
+    let fileName = generatedVideo.file?.name || 'statut_rgplay.mp4';
+    if (!fileName.toLowerCase().endsWith('.mp4')) {
+      fileName = fileName.replace(/\.[^/.]+$/, '') + '.mp4';
+    }
+    a.download = fileName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
 
-    setFeedbackToast('✓ Vidéo téléchargée ! Importez-la sur votre statut');
+    setFeedbackToast('✓ Vidéo MP4 téléchargée ! Importez-la sur votre statut WhatsApp');
     setTimeout(() => setFeedbackToast(''), 3500);
   };
 

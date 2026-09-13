@@ -33,10 +33,9 @@ export async function generateWhatsAppStatusVideo({
   const coverImg = await loadSafeImage(book.cover_url);
   let audioStream = null;
 
-  // 3. Détection WebCodecs complète (vidéo + audio)
+  // 3. Détection WebCodecs vidéo
   const hasWebCodecs = typeof window !== 'undefined' &&
     typeof window.VideoEncoder === 'function' &&
-    typeof window.AudioEncoder === 'function' &&
     typeof window.VideoFrame === 'function';
 
   // 4. Préparation audio (uniquement si ce n'est pas un encodage silencieux d'arrière-plan)
@@ -55,14 +54,11 @@ export async function generateWhatsAppStatusVideo({
   }
 
   // 5. Capture du flux audio (uniquement pour la génération active - pas en arrière-plan)
-  // IMPORTANT: captureStream() ne doit être appelé qu'une seule fois et ne doit
-  // pas interférer avec la lecture en cours. On clone le flux pour ne pas perturber
-  // le player audio.
+  // Cloner les pistes audio pour éviter de stopper la lecture en cours
   if (audioElement && !isBackground) {
     try {
       if (typeof audioElement.captureStream === 'function') {
         const rawStream = audioElement.captureStream();
-        // Cloner les pistes audio pour éviter de stopper la lecture
         const clonedStream = new MediaStream();
         rawStream.getAudioTracks().forEach(track => {
           clonedStream.addTrack(track.clone());
@@ -98,8 +94,6 @@ export async function generateWhatsAppStatusVideo({
   throw new Error("L'enregistrement vidéo n'est pas supporté sur ce navigateur");
 }
 
-
-
 /**
  * Encodage MP4 H.264 + AAC via WebCodecs et MP4-Muxer
  */
@@ -111,45 +105,84 @@ async function recordWithWebCodecs({
   const hasQuote = Boolean(quoteText?.trim());
   const audioTrack = audioStream?.getAudioTracks()?.[0];
 
+  // 1. Détection du profil H.264 matériellement supporté
+  const candidateVideoCodecs = [
+    'avc1.42001f', // Baseline 3.1
+    'avc1.42E01F', // Constrained Baseline 3.1
+    'avc1.4d001f', // Main 3.1
+    'avc1.64001f', // High 3.1
+  ];
+  let selectedVideoCodec = 'avc1.42001f';
+  for (const c of candidateVideoCodecs) {
+    try {
+      const res = await VideoEncoder.isConfigSupported({
+        codec: c,
+        width: CANVAS_WIDTH,
+        height: CANVAS_HEIGHT,
+        bitrate: 2_200_000,
+        framerate: FPS,
+      });
+      if (res && res.supported) {
+        selectedVideoCodec = c;
+        break;
+      }
+    } catch (_) {}
+  }
+
+  // 2. Vérification du support matériel AudioEncoder AAC
+  const aacConfig = {
+    codec: 'mp4a.40.2', // AAC-LC standard compatible WhatsApp
+    numberOfChannels: AUDIO_CHANNELS,
+    sampleRate: AUDIO_SAMPLE_RATE,
+    bitrate: 128_000,
+  };
+  let canEncodeAudio = false;
+  if (audioTrack && typeof window.AudioEncoder === 'function') {
+    try {
+      const sup = await AudioEncoder.isConfigSupported(aacConfig).catch(() => null);
+      if (sup && sup.supported) {
+        canEncodeAudio = true;
+      }
+    } catch (_) {
+      canEncodeAudio = false;
+    }
+  }
+
+  // 3. Configuration MP4-Muxer (n'inclut l'audio que si le matériel peut l'encoder en AAC)
   const muxerOpts = {
     target: new ArrayBufferTarget(),
     video: { codec: 'avc', width: CANVAS_WIDTH, height: CANVAS_HEIGHT, frameRate: FPS },
     fastStart: 'in-memory',
     firstTimestampBehavior: 'offset',
   };
-  if (audioTrack) {
+  if (canEncodeAudio) {
     muxerOpts.audio = { codec: 'aac', numberOfChannels: AUDIO_CHANNELS, sampleRate: AUDIO_SAMPLE_RATE };
   }
 
   const muxer = new Muxer(muxerOpts);
 
-  // Encodeur vidéo H.264
+  // 4. Initialisation VideoEncoder
   const videoEncoder = new VideoEncoder({
     output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
     error: e => console.error('[VideoEncoder]', e),
   });
   videoEncoder.configure({
-    codec: 'avc1.42001f',
+    codec: selectedVideoCodec,
     width: CANVAS_WIDTH, height: CANVAS_HEIGHT,
     bitrate: 2_200_000, framerate: FPS,
   });
 
-  // Encodeur audio AAC
+  // 5. Initialisation AudioEncoder si supporté
   let audioEncoder = null;
   let audioCtx = null;
   let scriptNode = null;
-  if (audioTrack) {
+  if (canEncodeAudio) {
     try {
       audioEncoder = new AudioEncoder({
         output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
         error: e => console.warn('[AudioEncoder]', e),
       });
-      audioEncoder.configure({
-        codec: 'mp4a.40.2', // AAC-LC
-        numberOfChannels: AUDIO_CHANNELS,
-        sampleRate: AUDIO_SAMPLE_RATE,
-        bitrate: 128_000,
-      });
+      audioEncoder.configure(aacConfig);
 
       audioCtx = new AudioContext({ sampleRate: AUDIO_SAMPLE_RATE });
       const srcNode = audioCtx.createMediaStreamSource(new MediaStream([audioTrack]));
@@ -181,7 +214,7 @@ async function recordWithWebCodecs({
         } catch (e) {
           if (!audioProcessErrorLogged) {
             audioProcessErrorLogged = true;
-            console.warn('[AudioProcess] WebCodecs AudioData non supporté sur ce navigateur, repli muet:', e?.message || e);
+            console.warn('[AudioProcess] WebCodecs AudioData repli:', e?.message || e);
           }
           try { scriptNode.disconnect(); } catch (_) {}
         }
@@ -197,7 +230,7 @@ async function recordWithWebCodecs({
     }
   }
 
-  // Boucle d'encodage vidéo
+  // 6. Boucle de rendu frame par frame
   for (let f = 0; f < totalFrames; f++) {
     if (signal?.aborted) throw new DOMException('Annulé', 'AbortError');
     const elapsedMs = f * (1000 / FPS);
@@ -224,12 +257,20 @@ async function recordWithWebCodecs({
 }
 
 /**
- * Repli standard MediaRecorder
+ * Repli standard MediaRecorder (Export MP4 garanti pour WhatsApp)
  */
 async function recordWithMediaRecorder({
   canvas, ctx, coverImg, book, chapter, audioStream, duration, quoteText, onProgress, signal
 }) {
-  const types = ['video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm'];
+  const types = [
+    'video/mp4;codecs=avc1,mp4a.40.2',
+    'video/mp4;codecs=avc1',
+    'video/mp4',
+    'video/webm;codecs=h264,opus',
+    'video/webm;codecs=vp9,opus',
+    'video/webm;codecs=vp8,opus',
+    'video/webm',
+  ];
   const recorderOptions = { videoBitsPerSecond: 2500000 };
   let selectedMime = '';
   for (const t of types) {
@@ -269,15 +310,10 @@ async function recordWithMediaRecorder({
 
     recorder.onstop = () => {
       cleanup();
-      // ✅ FIX CRITIQUE : créer le blob depuis les chunks collectés
-      const outputMime = recorder.mimeType || selectedMime || 'video/webm';
-      const isMp4 = outputMime.includes('mp4');
-      // Sur Android Chrome, MediaRecorder ne supporte que WebM même si on demande MP4
-      // Forcer .webm si le MIME réel est webm pour éviter le double-ext .mp4.webm
-      const ext = isMp4 ? 'mp4' : 'webm';
-      const blob = new Blob(chunks, { type: outputMime });
+      // WhatsApp et Instagram exigent impérativement l'extension .mp4 et le MIME video/mp4
       const cleanTitle = (book.title || 'audiobook').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
-      const file = new File([blob], `statut_rgplay_${cleanTitle}.${ext}`, { type: outputMime });
+      const blob = new Blob(chunks, { type: 'video/mp4' });
+      const file = new File([blob], `statut_rgplay_${cleanTitle}.mp4`, { type: 'video/mp4' });
       resolve({ file, blob, url: URL.createObjectURL(blob) });
     };
 
