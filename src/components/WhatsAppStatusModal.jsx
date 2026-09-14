@@ -105,11 +105,15 @@ export const WhatsAppStatusModal = ({ isOpen, onClose, book, chapter }) => {
 
   const handleShareWhatsApp = async () => {
     if (!generatedVideo?.file) return;
-    let file = generatedVideo.file;
-    const cleanTitle = (book.title || 'audiobook').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
-    // Garantie absolue d'extension .mp4 et type MIME video/mp4 pour WhatsApp
-    if (!file.name.toLowerCase().endsWith('.mp4') || file.type !== 'video/mp4') {
-      file = new File([generatedVideo.blob || file], `statut_rgplay_${cleanTitle}.mp4`, { type: 'video/mp4' });
+    const file = generatedVideo.file;
+    const isWebmFallback = generatedVideo.isWebmFallback === true;
+
+    // Avertissement si le navigateur a produit du WebM (impossible de le renommer en MP4)
+    if (isWebmFallback) {
+      setFeedbackToast('⚠️ Fichier WebM : WhatsApp peut refuser. Utilisez Chrome/Edge sur PC.');
+      setTimeout(() => setFeedbackToast(''), 5000);
+      handleDownload();
+      return;
     }
 
     const playUrl = `${window.location.origin}/?book=${encodeURIComponent(book.id || '')}&play=1`;
@@ -129,33 +133,39 @@ export const WhatsAppStatusModal = ({ isOpen, onClose, book, chapter }) => {
         return;
       } catch (err) {
         if (err.name === 'AbortError') return;
+        // Partage échoué : informer l utilisateur et proposer le téléchargement manuel
+        setFeedbackToast('📥 Partage non disponible — téléchargez puis importez sur WhatsApp');
+        setTimeout(() => setFeedbackToast(''), 4000);
+        // Ne PAS déclencher handleDownload() automatiquement pour éviter les doubles fichiers
+        return;
       }
     }
 
+    // navigator.share non disponible (PC sans extension mobile) -> copier le lien et télécharger
     try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(shareText);
-      }
+      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(shareText);
     } catch (_) {}
-
-    handleDownload();
+    setFeedbackToast('📋 Lien copié ! Téléchargez la vidéo ci-dessous pour la partager manuellement.');
+    setTimeout(() => setFeedbackToast(''), 5000);
   };
 
   const handleDownload = () => {
     if (!generatedVideo?.url) return;
     const a = document.createElement('a');
     a.href = generatedVideo.url;
-    let fileName = generatedVideo.file?.name || 'statut_rgplay.mp4';
-    if (!fileName.toLowerCase().endsWith('.mp4')) {
-      fileName = fileName.replace(/\.[^/.]+$/, '') + '.mp4';
-    }
+    // Respecter le vrai nom de fichier produit par le générateur (mp4 ou webm)
+    const fileName = generatedVideo.file?.name || 'statut_rgplay.mp4';
     a.download = fileName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
 
-    setFeedbackToast('✓ Vidéo MP4 téléchargée ! Importez-la sur votre statut WhatsApp');
-    setTimeout(() => setFeedbackToast(''), 3500);
+    const isWebm = fileName.endsWith('.webm');
+    const toast = isWebm
+      ? '⬇️ Fichier WebM téléchargé (WhatsApp peut le refuser — utilisez Chrome sur PC pour un vrai MP4)'
+      : '✓ Vidéo MP4 téléchargée ! Importez-la sur votre statut WhatsApp';
+    setFeedbackToast(toast);
+    setTimeout(() => setFeedbackToast(''), 4000);
   };
 
   const handleReset = () => {

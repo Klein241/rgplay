@@ -31,7 +31,14 @@ export function wrapText(ctx, text, maxWidth) {
 }
 
 /**
- * Charge une image de manière sécurisée avec fallback CORS
+ * Charge une image avec CORS strict pour eviter la contamination du Canvas (Tainted Canvas).
+ *
+ * RÈGLE CRITIQUE : Ne jamais charger une image sans crossOrigin='anonymous' sur un Canvas
+ * destine a WebCodecs (VideoFrame). Un canvas souille declenche une SecurityError
+ * qui fait planter WebCodecs et force le repli sur MediaRecorder (WebM).
+ *
+ * Si l image CORS echoue (serveur sans Access-Control-Allow-Origin), on retourne null
+ * plutot que de souiller le canvas. Le rendu continuera sans pochette (fond degrade).
  */
 export async function loadSafeImage(url) {
   if (!url) return null;
@@ -39,13 +46,13 @@ export async function loadSafeImage(url) {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
+    // En cas d echec CORS : retourner null (canvas propre), PAS de fallback sans crossOrigin
     img.onerror = () => {
-      const imgFallback = new Image();
-      imgFallback.onload = () => resolve(imgFallback);
-      imgFallback.onerror = () => resolve(null);
-      imgFallback.src = url;
+      console.warn('[StatusCanvas] Image non chargeable en CORS, rendu sans pochette:', url);
+      resolve(null);
     };
-    img.src = url;
+    // Ajouter un timestamp pour eviter le cache navigateur sans CORS
+    img.src = url.includes('?') ? `${url}&_cors=1` : `${url}?_cors=1`;
   });
 }
 
