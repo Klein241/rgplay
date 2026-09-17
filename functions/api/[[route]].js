@@ -19,6 +19,7 @@ import { handleGetBookReviews, handlePostBookReview } from './handlers/reviews.j
 import { handlePushBroadcast } from './handlers/push.js';
 import { handleGetGamification, handleSyncGamification, handleRegisterReferral } from './handlers/antiFraud.js';
 import { handleGetSettings, handleSaveSettings } from './handlers/settings.js';
+import { handleR2Stream, handleChapterStream, handleAudiobookPreview } from './handlers/audiobooks.js';
 
 // MOTEUR MCP CLOUDFLARE NATIF (Model Context Protocol pour Manus IA, Claude, etc.)
 // ════════════════════════════════════════════════════════════════════════════════
@@ -1437,8 +1438,10 @@ export async function onRequest(context) {
         } catch (_) {}
       }
 
-      // Cache KV si pas de filtres dynamiques (recherche)
-      if (!search && env.KV_BINDING) {
+      // Cache KV si pas de filtres dynamiques (recherche) ET pas de requête no-cache
+      const noCache = request.headers.get('Cache-Control')?.includes('no-cache') ||
+                      request.headers.get('Pragma')?.includes('no-cache');
+      if (!search && !noCache && env.KV_BINDING) {
         const cacheKey = `books_${category || 'all'}_${type || 'all'}_${featured || 'false'}`;
         const cached = await env.KV_BINDING.get(cacheKey, { type: 'json' });
         if (cached && Array.isArray(cached)) {
@@ -1692,120 +1695,16 @@ export async function onRequest(context) {
       return handlePostBookReview(request, env, corsHeaders, audiobookReviewsMatch[1]);
     }
 
-    // ─── GET /api/chapters/:id/stream (Streaming R2 avec HTTP Range) ────
-
+    // ─── GET / HEAD /api/chapters/:id/stream (Streaming R2 modulaire avec Range & HEAD) ────
     const streamChapterMatch = path.match(/^\/chapters\/([a-zA-Z0-9_-]+)\/stream$/);
-    if (streamChapterMatch && method === 'GET') {
-      const chapterId = streamChapterMatch[1];
-      let r2Key = null;
-
-      // Vérifier si l'utilisateur a acheté le livre (via KV session)
-      const userId = request.headers.get('X-User-Id') || 'user-demo';
-      
-      if (env.DB) {
-        const chapter = await env.DB.prepare(
-          'SELECT c.audio_r2_key, c.audiobook_id, c.chapter_number FROM chapters c WHERE c.id = ?'
-        ).bind(chapterId).first();
-
-        if (!chapter) return jsonResponse({ error: 'Chapitre non trouvé' }, corsHeaders, 404);
-
-        // Si c'est le chapitre 1 (extrait gratuit), streaming immédiat sans restriction !
-        const isFreePreview = Number(chapter.chapter_number) <= 1;
-
-        if (!isFreePreview) {
-          // Vérifier si le livre est gratuit
-          const book = await env.DB.prepare(
-            'SELECT price, is_free_for_members, unlock_points FROM audiobooks WHERE id = ?'
-          ).bind(chapter.audiobook_id).first();
-
-          const isBookFree = book && (Number(book.price) === 0 || book.is_free_for_members || Number(book.unlock_points) === 0);
-
-          if (!isBookFree) {
-            // Vérification d'achat dans D1
-            const purchase = await env.DB.prepare(
-              "SELECT id FROM purchases WHERE (user_id = ? OR user_id = 'user-demo') AND audiobook_id = ? AND status = 'completed'"
-            ).bind(userId, chapter.audiobook_id).first();
-
-            if (!purchase) {
-              return jsonResponse({ error: 'Accès non autorisé - Livre non acheté', purchase_required: true }, corsHeaders, 403);
-            }
-          }
-        }
-
-        r2Key = chapter.audio_r2_key;
-      }
-
-      // Streaming depuis R2 avec support complet HTTP Range
-      if (env.AUDIO_BUCKET && r2Key) {
-        const rangeHeader = request.headers.get('Range');
-
-        if (rangeHeader) {
-          const rangeMatch = rangeHeader.match(/bytes=(\d+)-(\d+)?/);
-          if (rangeMatch) {
-            const start = parseInt(rangeMatch[1], 10);
-            const end = rangeMatch[2] ? parseInt(rangeMatch[2], 10) : undefined;
-
-            const r2Object = await env.AUDIO_BUCKET.get(r2Key, {
-              range: end !== undefined
-                ? { offset: start, length: end - start + 1 }
-                : { offset: start },
-            });
-
-            if (!r2Object) return new Response('Fichier audio non trouvé dans R2', { status: 404, headers: corsHeaders });
-
-            const headers = new Headers(corsHeaders);
-            r2Object.writeHttpMetadata(headers);
-            headers.set('Content-Type', 'audio/mpeg');
-            headers.set('Accept-Ranges', 'bytes');
-            headers.set('Cache-Control', 'private, max-age=3600');
-            headers.set('Content-Range', `bytes ${start}-${end ?? (r2Object.size - 1)}/${r2Object.size}`);
-
-            return new Response(r2Object.body, { status: 206, headers });
-          }
-        }
-
-        // Streaming complet sans Range
-        const r2Object = await env.AUDIO_BUCKET.get(r2Key);
-        if (r2Object) {
-          const headers = new Headers(corsHeaders);
-          r2Object.writeHttpMetadata(headers);
-          headers.set('Content-Type', 'audio/mpeg');
-          headers.set('Accept-Ranges', 'bytes');
-          headers.set('Cache-Control', 'private, max-age=3600');
-          return new Response(r2Object.body, { status: 200, headers });
-        }
-      }
-
-      // Fallback URL directe (mode démo sans R2 configuré)
-      return jsonResponse({
-        stream_url: 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3',
-        message: 'Streaming fallback (R2 non configuré localement)',
-      }, corsHeaders);
+    if (streamChapterMatch && (method === 'GET' || method === 'HEAD')) {
+      return handleChapterStream(request, env, corsHeaders, streamChapterMatch[1]);
     }
 
-    // ─── GET /api/audiobooks/:id/preview (Extrait gratuit R2) ────
+    // ─── GET / HEAD /api/audiobooks/:id/preview (Extrait R2 modulaire avec Range & HEAD) ───
     const previewMatch = path.match(/^\/audiobooks\/([a-zA-Z0-9_-]+)\/preview$/);
-    if (previewMatch && method === 'GET') {
-      const bookId = previewMatch[1];
-
-      if (env.DB) {
-        const book = await env.DB.prepare('SELECT preview_r2_key, preview_url FROM audiobooks WHERE id = ?').bind(bookId).first();
-        if (book?.preview_r2_key && env.AUDIO_BUCKET) {
-          const r2Object = await env.AUDIO_BUCKET.get(book.preview_r2_key);
-          if (r2Object) {
-            const headers = new Headers(corsHeaders);
-            r2Object.writeHttpMetadata(headers);
-            headers.set('Content-Type', 'audio/mpeg');
-            headers.set('Accept-Ranges', 'bytes');
-            headers.set('Cache-Control', 'public, max-age=7200');
-            return new Response(r2Object.body, { headers });
-          }
-        }
-        if (book?.preview_url) {
-          return Response.redirect(book.preview_url, 302);
-        }
-      }
-      return jsonResponse({ error: 'Extrait non disponible' }, corsHeaders, 404);
+    if (previewMatch && (method === 'GET' || method === 'HEAD')) {
+      return handleAudiobookPreview(request, env, corsHeaders, previewMatch[1]);
     }
 
     // ─── GET /api/user/profile (Profil utilisateur D1) ───────────
@@ -4219,89 +4118,7 @@ export async function onRequest(context) {
 
     // ─── GET / HEAD /api/r2/download (Téléchargement / Streaming direct depuis R2) ─
     if ((path === '/r2/download' || path.startsWith('/r2/download/')) && (method === 'GET' || method === 'HEAD')) {
-      const key = url.searchParams.get('key') || path.replace('/r2/download/', '');
-      if (!key) {
-        return new Response('Clé de fichier R2 manquante', { status: 400, headers: corsHeaders });
-      }
-
-      if (env.AUDIO_BUCKET) {
-        // Détecter automatiquement le Content-Type optimal selon l'extension
-        let inferredType = 'application/octet-stream';
-        const lowerKey = key.toLowerCase();
-        if (lowerKey.endsWith('.mp3')) inferredType = 'audio/mpeg';
-        else if (lowerKey.endsWith('.m4a')) inferredType = 'audio/mp4';
-        else if (lowerKey.endsWith('.wav')) inferredType = 'audio/wav';
-        else if (lowerKey.endsWith('.webm')) inferredType = 'audio/webm';
-        else if (lowerKey.endsWith('.aac')) inferredType = 'audio/aac';
-        else if (lowerKey.endsWith('.flac')) inferredType = 'audio/flac';
-        else if (lowerKey.endsWith('.ogg') || lowerKey.endsWith('.opus')) inferredType = 'audio/ogg';
-        else if (lowerKey.endsWith('.pdf')) inferredType = 'application/pdf';
-        else if (lowerKey.endsWith('.webp')) inferredType = 'image/webp';
-        else if (lowerKey.endsWith('.jpg') || lowerKey.endsWith('.jpeg')) inferredType = 'image/jpeg';
-        else if (lowerKey.endsWith('.png')) inferredType = 'image/png';
-
-        // ── Résolution de la clé avec fallbacks ────────────────────────────────────
-        const fileName = key.split('/').pop();
-        const keysToTry = [
-          key,                        // 1. Clé exacte
-          `audios/${fileName}`,       // 2. Préfixe audios/
-          `previews/${fileName}`,     // 3. Préfixe previews/
-          `audiobooks/${fileName}`,   // 4. Préfixe audiobooks/
-          fileName,                   // 5. Racine du bucket
-        ].filter((k, i, arr) => arr.indexOf(k) === i);
-
-        const rangeHeader = request.headers.get('Range');
-        const rangeMatch = rangeHeader ? rangeHeader.match(/bytes=(\d+)-(\d+)?/) : null;
-
-        for (const tryKey of keysToTry) {
-          if (rangeMatch) {
-            const start = parseInt(rangeMatch[1], 10);
-            const end = rangeMatch[2] ? parseInt(rangeMatch[2], 10) : undefined;
-            const obj = await env.AUDIO_BUCKET.get(tryKey, {
-              range: end !== undefined ? { offset: start, length: end - start + 1 } : { offset: start }
-            });
-            if (obj) {
-              const actualEnd = end !== undefined ? Math.min(end, obj.size - 1) : (obj.size - 1);
-              const chunkLen = actualEnd - start + 1;
-              const headers = new Headers(corsHeaders);
-              obj.writeHttpMetadata(headers);
-              if (!headers.get('Content-Type') || headers.get('Content-Type') === 'application/octet-stream') {
-                headers.set('Content-Type', inferredType);
-              }
-              headers.set('Accept-Ranges', 'bytes');
-              headers.set('Content-Length', String(chunkLen));
-              headers.set('Content-Range', `bytes ${start}-${actualEnd}/${obj.size}`);
-              headers.set('Cache-Control', 'public, max-age=31536000, immutable');
-              headers.set('ETag', obj.httpEtag || `"${obj.etag || key}"`);
-
-              return new Response(method === 'HEAD' ? null : obj.body, { status: 206, headers });
-            }
-          } else {
-            const obj = await env.AUDIO_BUCKET.get(tryKey);
-            if (obj) {
-              const headers = new Headers(corsHeaders);
-              obj.writeHttpMetadata(headers);
-              if (!headers.get('Content-Type') || headers.get('Content-Type') === 'application/octet-stream') {
-                headers.set('Content-Type', inferredType);
-              }
-              headers.set('Accept-Ranges', 'bytes');
-              headers.set('Content-Length', String(obj.size));
-              headers.set('Cache-Control', 'public, max-age=31536000, immutable');
-              headers.set('ETag', obj.httpEtag || `"${obj.etag || key}"`);
-
-              return new Response(method === 'HEAD' ? null : obj.body, { status: 200, headers });
-            }
-          }
-        }
-
-        // Toutes les tentatives ont échoué
-        console.error(`[R2] 404 après ${keysToTry.length} tentatives. Clé demandée: ${key}`);
-      }
-
-      return new Response(
-        JSON.stringify({ error: 'Fichier introuvable dans R2', key, bucket_configured: Boolean(env.AUDIO_BUCKET) }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return handleR2Stream(request, env, corsHeaders);
     }
 
     // ─── POST /api/push/subscribe (Enregistrement Push Notification) ─

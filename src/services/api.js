@@ -102,6 +102,31 @@ export const apiClient = {
         if (Array.isArray(data)) {
           // Filtrer immédiatement les livres supprimés
           books = data.filter(b => !deletedSet.has(b.id));
+
+          // Réconcilier avec les notes et téléchargements locaux pour garantir zéro régression
+          try {
+            books = books.map(b => {
+              const savedDl = Number(localStorage.getItem(`rg_book_downloads_${b.id}`)) || 0;
+              const savedAvg = Number(localStorage.getItem(`rg_rating_avg_${b.id}`)) || 0;
+              const savedCount = Number(localStorage.getItem(`rg_rating_count_${b.id}`)) || 0;
+              return {
+                ...b,
+                ...(savedDl > 0 ? {
+                  downloads_count: Math.max(savedDl, Number(b.downloads_count || b.display_plays_count || 0)),
+                  display_plays_count: Math.max(savedDl, Number(b.display_plays_count || b.downloads_count || 0)),
+                } : {}),
+                ...(savedAvg > 0 ? {
+                  rating: Math.min(5.0, Math.max(1.0, savedAvg)),
+                  display_rating: Math.min(5.0, Math.max(1.0, savedAvg)),
+                } : {}),
+                ...(savedCount > 0 ? {
+                  rating_count: Math.max(savedCount, Number(b.rating_count || b.display_reviews_count || 0)),
+                  display_reviews_count: Math.max(savedCount, Number(b.display_reviews_count || b.rating_count || 0)),
+                } : {}),
+              };
+            });
+          } catch (_) {}
+
           // Mettre en cache local pour mode hors-ligne (visiteurs publics uniquement)
           try {
             if (!admin && (!category || category === 'all') && !search && !featured && (!type || type === 'all')) {
@@ -1531,7 +1556,31 @@ export const apiClient = {
         }),
       });
       if (res.ok) {
-        return await res.json();
+        const resultData = await res.json();
+        try {
+          localStorage.setItem(`rg_rated_${bookId}`, String(rating));
+          const userRatings = JSON.parse(localStorage.getItem('rg_user_ratings') || '{}');
+          userRatings[bookId] = Number(rating);
+          localStorage.setItem('rg_user_ratings', JSON.stringify(userRatings));
+
+          const raw = localStorage.getItem('rg_cached_books');
+          if (raw) {
+            const list = JSON.parse(raw);
+            const newAvg = resultData.rating || resultData.average_rating;
+            const newTotal = resultData.total_reviews;
+            if (Array.isArray(list) && newAvg) {
+              const updated = list.map(b => b.id === bookId ? {
+                ...b,
+                rating: newAvg,
+                display_rating: newAvg,
+                rating_count: newTotal,
+                display_reviews_count: newTotal,
+              } : b);
+              localStorage.setItem('rg_cached_books', JSON.stringify(updated));
+            }
+          }
+        } catch (_) {}
+        return resultData;
       }
     } catch (e) {
       console.warn('[apiClient.addBookReview] Erreur:', e);

@@ -100,25 +100,32 @@ export const AudiobookCard = ({
   const isTrulyFree = (book.price === 0 || !book.price) && !(Number(book.unlock_points) > 0);
   const isAccessible = Boolean(isAlreadyOwned || isTrulyFree || book.is_free_for_members === 1 || book.is_free_for_members === true);
 
-  // ── Compteur de Téléchargements Dynamique & Synchronisé (Cloudflare D1) (Bug 1) ──
+  // ── Compteur de Téléchargements Dynamique & Synchronisé (Cloudflare D1 & Offline) ──
   const [localDownloads, setLocalDownloads] = useState(() => {
-    const val = Number(book.downloads_count || book.downloads || book.display_plays_count);
+    const savedDl = Number(localStorage.getItem(`rg_book_downloads_${book.id}`)) || 0;
+    const propVal = Number(book.downloads_count || book.downloads || book.display_plays_count || 0);
+    const val = Math.max(savedDl, propVal);
     if (val > 0) return val;
     const seed = book.id ? Math.abs(book.id.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) : 120;
     return (seed % 350) + 48;
   });
 
   useEffect(() => {
-    const val = Number(book.downloads_count || book.downloads || book.display_plays_count);
-    if (val > 0) {
-      setLocalDownloads(val);
+    const savedDl = Number(localStorage.getItem(`rg_book_downloads_${book.id}`)) || 0;
+    const propVal = Number(book.downloads_count || book.downloads || book.display_plays_count || 0);
+    const resolved = Math.max(savedDl, propVal);
+    if (resolved > 0) {
+      setLocalDownloads(prev => Math.max(prev, resolved));
     }
-  }, [book.downloads_count, book.downloads, book.display_plays_count]);
+  }, [book.id, book.downloads_count, book.downloads, book.display_plays_count]);
 
   useEffect(() => {
     const handleDlInc = (e) => {
       if (e.detail?.bookId === book.id && e.detail.downloadsCount) {
         setLocalDownloads(e.detail.downloadsCount);
+        try {
+          localStorage.setItem(`rg_book_downloads_${book.id}`, String(e.detail.downloadsCount));
+        } catch (_) {}
       }
     };
     window.addEventListener('rg:book-download-incremented', handleDlInc);
@@ -181,10 +188,13 @@ export const AudiobookCard = ({
       await downloadBookForOffline(book, (pct) => setDownloadProgress(Math.max(5, pct)));
       setIsOffline(true);
 
-      // 3. Incrémentation persistante du nombre de téléchargements D1 + live (Bug 1)
+      // 3. Incrémentation persistante du nombre de téléchargements D1 + live
       const incRes = await incrementBookDownloads(book.id);
-      const nextCount = incRes?.downloads_count || (localDownloads + 1);
+      const nextCount = incRes?.downloads_count || incRes?.display_plays_count || (localDownloads + 1);
       setLocalDownloads(nextCount);
+      try {
+        localStorage.setItem(`rg_book_downloads_${book.id}`, String(nextCount));
+      } catch (_) {}
       window.dispatchEvent(new CustomEvent('rg:book-download-incremented', {
         detail: { bookId: book.id, downloadsCount: nextCount }
       }));
@@ -208,6 +218,9 @@ export const AudiobookCard = ({
       const next = res?.downloads_count || res?.display_plays_count;
       if (next) {
         setLocalDownloads(next);
+        try {
+          localStorage.setItem(`rg_book_downloads_${book.id}`, String(next));
+        } catch (_) {}
         window.dispatchEvent(new CustomEvent('rg:book-download-incremented', {
           detail: { bookId: book.id, downloadsCount: next }
         }));
@@ -230,13 +243,37 @@ export const AudiobookCard = ({
   });
   const [myRatingFeedback, setMyRatingFeedback] = useState(null);
   const [currentRating, setCurrentRating] = useState(() => {
+    const savedAvg = Number(localStorage.getItem(`rg_rating_avg_${book.id}`));
     const r = Number(book.rating || book.display_rating);
-    return r > 0 ? r : 4.9;
+    const resolved = savedAvg > 0 ? savedAvg : (r > 0 ? r : 5.0);
+    return Math.min(5.0, Math.max(1.0, resolved));
   });
   const [currentReviews, setCurrentReviews] = useState(() => {
+    const savedCount = Number(localStorage.getItem(`rg_rating_count_${book.id}`));
     const c = Number(book.rating_count || book.display_reviews_count);
-    return c > 0 ? c : 0;
+    return Math.max(savedCount || 0, c > 0 ? c : 0);
   });
+
+  // Synchroniser la note et le nombre d'avis lorsque les props du livre sont mises à jour
+  useEffect(() => {
+    const savedAvg = Number(localStorage.getItem(`rg_rating_avg_${book.id}`));
+    const r = Number(book.rating || book.display_rating);
+    if (savedAvg > 0) {
+      setCurrentRating(Math.min(5.0, Math.max(1.0, savedAvg)));
+    } else if (r > 0) {
+      setCurrentRating(Math.min(5.0, Math.max(1.0, r)));
+    }
+
+    const savedCount = Number(localStorage.getItem(`rg_rating_count_${book.id}`));
+    const c = Number(book.rating_count || book.display_reviews_count);
+    const resolvedCount = Math.max(savedCount || 0, c > 0 ? c : 0);
+    setCurrentReviews(prev => Math.max(prev, resolvedCount));
+
+    try {
+      const saved = Number(localStorage.getItem(`rg_rated_${book.id}`));
+      if (saved) setUserRating(saved);
+    } catch (_) {}
+  }, [book.id, book.rating, book.display_rating, book.rating_count, book.display_reviews_count]);
 
   // Fermeture automatique de la bulle de notation au clic extérieur
   useEffect(() => {
@@ -255,8 +292,11 @@ export const AudiobookCard = ({
     const handleRated = (e) => {
       if (e.detail?.bookId === book.id) {
         if (e.detail.rating) setUserRating(e.detail.rating);
-        if (e.detail.newAvg) setCurrentRating(e.detail.newAvg);
-        if (e.detail.newCount) setCurrentReviews(e.detail.newCount);
+        if (e.detail.newAvg) {
+          const clampedAvg = Math.min(5.0, Math.max(1.0, Number(e.detail.newAvg)));
+          setCurrentRating(clampedAvg);
+        }
+        if (e.detail.newCount) setCurrentReviews(prev => Math.max(prev, Number(e.detail.newCount)));
       }
     };
     window.addEventListener('rg:book-rated', handleRated);
@@ -270,12 +310,19 @@ export const AudiobookCard = ({
       if (res && res.success) {
         if (res.userRating) {
           setUserRating(res.userRating);
+          try { localStorage.setItem(`rg_rated_${book.id}`, String(res.userRating)); } catch (_) {}
         }
         if (res.averageRating) {
-          setCurrentRating(res.averageRating);
+          const finalAvg = Math.min(5.0, Math.max(1.0, Number(res.averageRating)));
+          setCurrentRating(finalAvg);
+          try { localStorage.setItem(`rg_rating_avg_${book.id}`, String(finalAvg)); } catch (_) {}
         }
         if (typeof res.totalReviews === 'number') {
-          setCurrentReviews(res.totalReviews);
+          setCurrentReviews(prev => {
+            const nextVal = Math.max(prev, Number(res.totalReviews));
+            try { localStorage.setItem(`rg_rating_count_${book.id}`, String(nextVal)); } catch (_) {}
+            return nextVal;
+          });
         }
       }
     }).catch(() => {});
@@ -286,8 +333,20 @@ export const AudiobookCard = ({
 
     // Éviter de compter deux fois si l'utilisateur change son vote
     const isFirstRating = !userRating;
+    const prevRatingVal = userRating || 0;
     const nextReviews = currentReviews + (isFirstRating ? 1 : 0);
-    const nextAvg = Number(((currentRating * Math.max(1, currentReviews) + value) / Math.max(1, nextReviews)).toFixed(1));
+
+    let nextAvg;
+    if (currentReviews === 0) {
+      nextAvg = Number(value.toFixed(1));
+    } else if (isFirstRating) {
+      nextAvg = Number(((currentRating * currentReviews + value) / nextReviews).toFixed(1));
+    } else {
+      // Mise à jour d'un vote existant
+      nextAvg = Number(((currentRating * currentReviews - prevRatingVal + value) / currentReviews).toFixed(1));
+    }
+    // 🛡️ Plafonnement strict entre 1.0 et 5.0 étoiles (empêche tout bug 7.0)
+    nextAvg = Math.min(5.0, Math.max(1.0, nextAvg));
 
     setUserRating(value);
     setIsRatingOpen(false);
@@ -295,6 +354,21 @@ export const AudiobookCard = ({
     setCurrentReviews(nextReviews);
     setMyRatingFeedback(`✓ Noté ${value}/5 !`);
     setTimeout(() => setMyRatingFeedback(null), 3000);
+
+    // Persister immédiatement en localStorage pour mémorisation locale instantanée
+    try {
+      localStorage.setItem(`rg_rated_${book.id}`, String(value));
+      localStorage.setItem(`rg_rating_avg_${book.id}`, String(nextAvg));
+      localStorage.setItem(`rg_rating_count_${book.id}`, String(nextReviews));
+      const userRatings = JSON.parse(localStorage.getItem('rg_user_ratings') || '{}');
+      userRatings[book.id] = Number(value);
+      localStorage.setItem('rg_user_ratings', JSON.stringify(userRatings));
+    } catch (_) {}
+
+    // Dispatch immédiat pour DiscoverView, LibraryView et toutes les autres cartes
+    window.dispatchEvent(new CustomEvent('rg:book-rated', {
+      detail: { bookId: book.id, rating: value, newAvg: nextAvg, newCount: nextReviews }
+    }));
 
     // Récompenser l'utilisateur uniquement pour sa 1ère notation
     if (isFirstRating) {
@@ -310,9 +384,12 @@ export const AudiobookCard = ({
     // Persistance dans Cloudflare D1 avec mise à jour du cache local
     rateAudiobook(book.id, value).then(res => {
       if (res && res.total_reviews) {
-        setCurrentReviews(res.total_reviews);
+        setCurrentReviews(prev => Math.max(prev, Number(res.total_reviews)));
+        try { localStorage.setItem(`rg_rating_count_${book.id}`, String(res.total_reviews)); } catch (_) {}
         if (res.rating || res.average_rating) {
-          setCurrentRating(res.rating || res.average_rating);
+          const finalAvg = Math.min(5.0, Math.max(1.0, Number(res.rating || res.average_rating)));
+          setCurrentRating(finalAvg);
+          try { localStorage.setItem(`rg_rating_avg_${book.id}`, String(finalAvg)); } catch (_) {}
         }
       }
     }).catch(() => {});

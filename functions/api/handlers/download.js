@@ -71,12 +71,12 @@ export async function handleIncrementDownloads(request, env, corsHeaders, bookId
   }
 
   try {
-    // 1. Lire le nombre actuel pour préserver l'effet de masse si display_plays_count est 0/vide
+    // 1. Lire le nombre actuel pour préserver la valeur maximale enregistrée
     const row = await env.DB.prepare(
-      'SELECT id, display_plays_count FROM audiobooks WHERE id = ?'
+      'SELECT id, display_plays_count, downloads_count FROM audiobooks WHERE id = ?'
     ).bind(bookId).first();
 
-    let current = Number(row?.display_plays_count || 0);
+    let current = Math.max(Number(row?.downloads_count || 0), Number(row?.display_plays_count || 0));
     if (current <= 0) {
       // Calcul du seed de base pour éviter de repartir de 1
       const seed = bookId ? Math.abs(bookId.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) : 120;
@@ -84,26 +84,21 @@ export async function handleIncrementDownloads(request, env, corsHeaders, bookId
     }
     const nextCount = current + 1;
 
-    // 2. Mettre à jour dans Cloudflare D1 (display_plays_count ET downloads_count)
+    // 2. Mettre à jour dans Cloudflare D1 (display_plays_count ET downloads_count de manière synchrone)
     await env.DB.prepare(
-      'UPDATE audiobooks SET display_plays_count = ? WHERE id = ?'
-    ).bind(nextCount, bookId).run();
+      'UPDATE audiobooks SET display_plays_count = ?, downloads_count = ? WHERE id = ?'
+    ).bind(nextCount, nextCount, bookId).run().catch(async () => {
+      await env.DB.prepare('UPDATE audiobooks SET display_plays_count = ? WHERE id = ?').bind(nextCount, bookId).run().catch(() => {});
+      await env.DB.prepare('UPDATE audiobooks SET downloads_count = ? WHERE id = ?').bind(nextCount, bookId).run().catch(() => {});
+    });
 
-    try {
-      await env.DB.prepare(
-        'UPDATE audiobooks SET downloads_count = ? WHERE id = ?'
-      ).bind(nextCount, bookId).run().catch(async () => {
-        // Si la colonne n'existait pas, tenter de l'ajouter puis réappliquer
-        await env.DB.prepare('ALTER TABLE audiobooks ADD COLUMN downloads_count INTEGER DEFAULT 0').run().catch(() => {});
-        await env.DB.prepare('UPDATE audiobooks SET downloads_count = ? WHERE id = ?').bind(nextCount, bookId).run().catch(() => {});
-      });
-    } catch (_) {}
-
-    // 3. Invalider les caches KV
+    // 3. Invalider les caches KV complets (audiobooks, ebooks, podcasts)
     if (env.KV_BINDING) {
       const keys = [
         'books_all_all_false', 'books_all_all_true',
         'books_all_audiobook_false', 'books_all_audiobook_true',
+        'books_all_ebook_false', 'books_all_ebook_true',
+        'books_all_podcast_false', 'books_all_podcast_true',
         `book_${bookId}`
       ];
       for (const key of keys) {

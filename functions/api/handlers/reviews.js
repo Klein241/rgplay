@@ -92,19 +92,24 @@ export async function handleGetBookReviews(request, env, corsHeaders, bookId) {
     let avgRating = null;
     let totalReviews = revList.length;
 
+    // Lire aussi les métadonnées de la table audiobooks
+    const bookRow = await env.DB.prepare(`
+      SELECT rating, rating_count, display_rating, display_reviews_count 
+      FROM audiobooks WHERE id = ? LIMIT 1
+    `).bind(bookId).first().catch(() => null);
+
+    const baseCount = Math.max(Number(bookRow?.rating_count || 0), Number(bookRow?.display_reviews_count || 0));
+
     if (revList.length > 0) {
       const sum = revList.reduce((acc, r) => acc + (Number(r.rating) || 0), 0);
       avgRating = Number((sum / revList.length).toFixed(1));
-    } else {
-      // Fallback sur la table audiobooks si aucun avis individuel dans reviews
-      const bookRow = await env.DB.prepare(`
-        SELECT rating, rating_count, display_rating, display_reviews_count 
-        FROM audiobooks WHERE id = ? LIMIT 1
-      `).bind(bookId).first().catch(() => null);
-      if (bookRow) {
-        avgRating = Number(bookRow.rating || bookRow.display_rating || 5.0);
-        totalReviews = Number(bookRow.rating_count || bookRow.display_reviews_count || 0);
+      totalReviews = Math.max(revList.length, baseCount);
+      if (bookRow?.rating || bookRow?.display_rating) {
+        avgRating = Math.min(5.0, Math.max(1.0, Number(bookRow.rating || bookRow.display_rating)));
       }
+    } else if (bookRow) {
+      avgRating = Math.min(5.0, Math.max(1.0, Number(bookRow.rating || bookRow.display_rating || 5.0)));
+      totalReviews = baseCount;
     }
 
     return jsonResponse({
@@ -149,9 +154,23 @@ export async function handlePostBookReview(request, env, corsHeaders, bookId) {
   try {
     await ensureReviewsTable(env.DB);
 
+    // 🛡️ CRITIQUE : Garantir que l'utilisateur existe dans 'users' pour satisfaire la clé étrangère
+    // users.email et users.name sont NOT NULL dans le schéma SQLite D1
+    const cleanUserId = userId.replace(/[^a-zA-Z0-9_-]/g, '') || 'guest';
+    await env.DB.prepare(`
+      INSERT OR IGNORE INTO users (id, name, email, country, created_at)
+      VALUES (?, ?, ?, 'GA', CURRENT_TIMESTAMP)
+    `).bind(
+      userId,
+      userName || 'Auditeur RG Play',
+      `${cleanUserId}@rgplay.local`
+    ).run().catch((e) => {
+      console.warn('[handlePostBookReview] Auto-création utilisateur ignorée:', e.message);
+    });
+
     // Vérifier si cet utilisateur a déjà évalué ce livre
     const existing = await env.DB.prepare(`
-      SELECT id FROM reviews WHERE audiobook_id = ? AND user_id = ? LIMIT 1
+      SELECT id, rating FROM reviews WHERE audiobook_id = ? AND user_id = ? LIMIT 1
     `).bind(bookId, userId).first().catch(() => null);
 
     let reviewId;
@@ -170,34 +189,58 @@ export async function handlePostBookReview(request, env, corsHeaders, bookId) {
       `).bind(reviewId, bookId, userId, ratingVal, comment || `Note de ${ratingVal}/5`, userName).run();
     }
 
-    // Calculer la nouvelle moyenne et le total d'avis
+    // Récupérer les stats existantes du livre dans audiobooks
+    const bookRow = await env.DB.prepare(`
+      SELECT rating, rating_count, display_rating, display_reviews_count 
+      FROM audiobooks WHERE id = ? LIMIT 1
+    `).bind(bookId).first().catch(() => null);
+
+    // Compter les vrais avis dans la table reviews
     const stats = await env.DB.prepare(`
       SELECT COUNT(*) as total, AVG(rating) as avg_rating FROM reviews WHERE audiobook_id = ?
     `).bind(bookId).first().catch(() => null);
 
-    const newAvg = Number(Number(stats?.avg_rating || ratingVal).toFixed(1));
-    const newTotal = Number(stats?.total || 1);
+    const reviewsCountInDb = Number(stats?.total || 1);
+    const reviewsAvgInDb = Number(Number(stats?.avg_rating || ratingVal).toFixed(1));
 
-    // Mettre à jour la table audiobooks
+    let newTotal = reviewsCountInDb;
+    let newAvg = reviewsAvgInDb;
+
+    if (bookRow) {
+      const prevCount = Math.max(Number(bookRow.rating_count || 0), Number(bookRow.display_reviews_count || 0));
+      if (!existing && prevCount >= reviewsCountInDb) {
+        newTotal = prevCount + 1;
+        const prevAvg = Number(bookRow.rating || bookRow.display_rating || 5.0);
+        newAvg = Number(((prevAvg * prevCount + ratingVal) / newTotal).toFixed(1));
+      } else if (existing && prevCount > reviewsCountInDb) {
+        newTotal = prevCount;
+        const prevAvg = Number(bookRow.rating || bookRow.display_rating || 5.0);
+        const oldRating = Number(existing.rating || 5.0);
+        newAvg = Number(((prevAvg * prevCount - oldRating + ratingVal) / prevCount).toFixed(1));
+      }
+    }
+
+    newAvg = Math.min(5.0, Math.max(1.0, newAvg));
+
+    // Mettre à jour la table audiobooks de façon permanente
     try {
       await env.DB.prepare(`
         UPDATE audiobooks 
-        SET rating = ?, rating_count = ?
+        SET rating = ?, rating_count = ?, display_rating = ?, display_reviews_count = ?
         WHERE id = ?
-      `).bind(newAvg, newTotal, bookId).run();
-
-      // Mettre à jour aussi display_reviews_count et display_rating si les colonnes existent
-      await env.DB.prepare(`
-        UPDATE audiobooks 
-        SET display_rating = ?, display_reviews_count = ?
-        WHERE id = ?
-      `).bind(newAvg, newTotal, bookId).run().catch(() => {});
+      `).bind(newAvg, newTotal, newAvg, newTotal, bookId).run();
     } catch (_) {}
 
-    // Invalider le cache KV si présent
+    // Invalider les caches KV
     if (env.KV_BINDING) {
       await env.KV_BINDING.delete(`book_${bookId}`).catch(() => {});
-      for (const k of ['books_all_all_false', 'books_all_all_true']) {
+      const commonKeys = [
+        'books_all_all_false', 'books_all_all_true',
+        'books_all_audiobook_false', 'books_all_audiobook_true',
+        'books_all_ebook_false', 'books_all_ebook_true',
+        'books_all_podcast_false', 'books_all_podcast_true',
+      ];
+      for (const k of commonKeys) {
         await env.KV_BINDING.delete(k).catch(() => {});
       }
     }
