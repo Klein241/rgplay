@@ -53,7 +53,9 @@ export async function handleAudioDownload(request, env, corsHeaders) {
 
 /**
  * Incrémente le compteur de téléchargements d'un livre (persistant dans Cloudflare D1)
- * Conserve la base sociale / seed si le compteur initial était à 0.
+ * Sépare de manière étanche :
+ * 1. 'real_downloads_count' : VRAI compteur d'actions physiques d'utilisateurs (lu par l'admin)
+ * 2. 'display_plays_count' / 'downloads_count' : Compteur public ("Effet de masse")
  */
 export async function handleIncrementDownloads(request, env, corsHeaders, bookId) {
   if (!bookId) {
@@ -64,35 +66,57 @@ export async function handleIncrementDownloads(request, env, corsHeaders, bookId
   }
 
   if (!env.DB) {
-    return new Response(JSON.stringify({ success: true, id: bookId, incremented: 1, note: 'Simulation sans D1' }), {
+    return new Response(JSON.stringify({ 
+      success: true, 
+      id: bookId, 
+      downloads_count: 1, 
+      display_plays_count: 1,
+      real_downloads_count: 1,
+      note: 'Simulation sans D1' 
+    }), {
       status: 200,
       headers: { 'Content-Type': 'application/json', ...corsHeaders },
     });
   }
 
   try {
-    // 1. Lire le nombre actuel pour préserver la valeur maximale enregistrée
+    // 1. Garantir l'existence des colonnes nécessaires (idempotent, zéro crash)
+    await env.DB.prepare('ALTER TABLE audiobooks ADD COLUMN real_downloads_count INTEGER DEFAULT 0').run().catch(() => {});
+    await env.DB.prepare('ALTER TABLE audiobooks ADD COLUMN real_plays_count INTEGER DEFAULT 0').run().catch(() => {});
+    await env.DB.prepare('ALTER TABLE audiobooks ADD COLUMN downloads_count INTEGER DEFAULT 0').run().catch(() => {});
+
+    // 2. Lire l'état actuel de manière sécurisée
     const row = await env.DB.prepare(
-      'SELECT id, display_plays_count, downloads_count FROM audiobooks WHERE id = ?'
-    ).bind(bookId).first();
+      'SELECT id, display_plays_count, COALESCE(real_downloads_count, 0) as real_downloads_count FROM audiobooks WHERE id = ?'
+    ).bind(bookId).first().catch(() => null);
 
-    let current = Math.max(Number(row?.downloads_count || 0), Number(row?.display_plays_count || 0));
-    if (current <= 0) {
-      // Calcul du seed de base pour éviter de repartir de 1
+    // Vrai compteur (Admin)
+    const currentReal = Number(row?.real_downloads_count || 0);
+    const nextReal = currentReal + 1;
+
+    // Compteur public / Effet de masse
+    let currentDisplay = Number(row?.display_plays_count || 0);
+    if (currentDisplay <= 0) {
+      // Calcul du seed de base si non encore configuré pour conserver la crédibilité publique
       const seed = bookId ? Math.abs(bookId.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) : 120;
-      current = (seed % 350) + 48;
+      currentDisplay = (seed % 350) + 48;
     }
-    const nextCount = current + 1;
+    const nextDisplay = currentDisplay + 1;
 
-    // 2. Mettre à jour dans Cloudflare D1 (display_plays_count ET downloads_count de manière synchrone)
-    await env.DB.prepare(
-      'UPDATE audiobooks SET display_plays_count = ?, downloads_count = ? WHERE id = ?'
-    ).bind(nextCount, nextCount, bookId).run().catch(async () => {
-      await env.DB.prepare('UPDATE audiobooks SET display_plays_count = ? WHERE id = ?').bind(nextCount, bookId).run().catch(() => {});
-      await env.DB.prepare('UPDATE audiobooks SET downloads_count = ? WHERE id = ?').bind(nextCount, bookId).run().catch(() => {});
+    // 3. Mettre à jour de manière atomique dans Cloudflare D1
+    await env.DB.prepare(`
+      UPDATE audiobooks 
+      SET display_plays_count = ?, 
+          downloads_count = ?,
+          real_downloads_count = ?
+      WHERE id = ?
+    `).bind(nextDisplay, nextDisplay, nextReal, bookId).run().catch(async () => {
+      // Fallback au cas où une colonne spécifique poserait problème
+      await env.DB.prepare('UPDATE audiobooks SET display_plays_count = ? WHERE id = ?').bind(nextDisplay, bookId).run().catch(() => {});
+      await env.DB.prepare('UPDATE audiobooks SET real_downloads_count = ? WHERE id = ?').bind(nextReal, bookId).run().catch(() => {});
     });
 
-    // 3. Invalider les caches KV complets (audiobooks, ebooks, podcasts)
+    // 4. Invalider les caches KV complets (audiobooks, ebooks, podcasts, et par livre)
     if (env.KV_BINDING) {
       const keys = [
         'books_all_all_false', 'books_all_all_true',
@@ -109,13 +133,15 @@ export async function handleIncrementDownloads(request, env, corsHeaders, bookId
     return new Response(JSON.stringify({
       success: true,
       id: bookId,
-      downloads_count: nextCount,
-      display_plays_count: nextCount
+      downloads_count: nextDisplay,
+      display_plays_count: nextDisplay,
+      real_downloads_count: nextReal
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json', ...corsHeaders },
     });
   } catch (err) {
+    console.error('[handleIncrementDownloads] Erreur:', err.message);
     return new Response(JSON.stringify({ error: err.message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders },

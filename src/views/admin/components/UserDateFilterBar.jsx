@@ -8,6 +8,33 @@ export const USER_DATE_PRESETS = [
   { id: '30d',   label: '30 jours',      days: 30 },
 ];
 
+/**
+ * Parseur de date ultra-sécurisé compatible avec les timestamps SQLite Cloudflare D1
+ */
+export function parseDateSafe(raw) {
+  if (!raw) return null;
+  const str = String(raw).trim();
+  if (!str) return null;
+
+  // Si c'est un timestamp numérique
+  if (/^\d{10,13}$/.test(str)) {
+    const num = Number(str);
+    const d = new Date(num < 1e11 ? num * 1000 : num);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  // SQLite CURRENT_TIMESTAMP "YYYY-MM-DD HH:MM:SS" -> interpréter en UTC
+  let clean = str.replace(' ', 'T');
+  if (!clean.endsWith('Z') && !/[+-]\d{2}:?\d{2}$/.test(clean)) {
+    clean += 'Z';
+  }
+  const d = new Date(clean);
+  if (!isNaN(d.getTime())) return d;
+
+  const fallback = new Date(str);
+  return !isNaN(fallback.getTime()) ? fallback : null;
+}
+
 export function getUserPresetRange(preset) {
   const now = new Date();
   if (preset === 'today') {
@@ -30,19 +57,30 @@ export function getUserPresetRange(preset) {
   return null;
 }
 
+/**
+ * Vérifie si un utilisateur se trouve dans la plage temporelle demandée.
+ * Teste à la fois la date d'inscription et la dernière visite pour une flexibilité maximale.
+ */
 export function isUserInDateRange(user, dateRange) {
   if (!dateRange) return true;
-  const raw = user.ip_last_seen || user.created_at;
-  if (!raw) return true;
-  const d = new Date(raw);
-  if (isNaN(d.getTime())) return true;
-  if (dateRange.from && d < dateRange.from) return false;
-  if (dateRange.to && d > dateRange.to) return false;
-  return true;
+
+  const dateLastSeen = parseDateSafe(user.ip_last_seen);
+  const dateCreated = parseDateSafe(user.created_at);
+
+  if (!dateLastSeen && !dateCreated) return true;
+
+  const checkDate = (d) => {
+    if (!d) return false;
+    if (dateRange.from && d < dateRange.from) return false;
+    if (dateRange.to && d > dateRange.to) return false;
+    return true;
+  };
+
+  return checkDate(dateLastSeen) || checkDate(dateCreated);
 }
 
 /**
- * Composant de filtre temporel pour la rubrique Utilisateurs de l'Admin Studio
+ * Composant de filtre temporel haut de gamme pour l'Admin Studio
  */
 export const UserDateFilterBar = ({
   datePreset = 'all',
@@ -65,7 +103,7 @@ export const UserDateFilterBar = ({
   };
 
   return (
-    <div className="rounded-2xl border border-purple-500/20 bg-gradient-to-r from-purple-950/40 via-indigo-950/30 to-slate-900/40 p-3 space-y-2.5">
+    <div className="rounded-2xl border border-purple-500/20 bg-linear-to-r from-purple-950/40 via-indigo-950/30 to-slate-900/40 p-3 space-y-2.5">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         {/* Intitulé & Badge */}
         <div className="flex items-center gap-2 text-xs font-bold text-purple-300">

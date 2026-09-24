@@ -12,7 +12,7 @@ const R2_S3_ENDPOINT = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
 const R2_BUCKET = 'rg-play-audio';
 
 // Handlers modulaires thématiques (Architecture AGENTS.md)
-import { handleLinkWhatsApp, handleRecoverWhatsApp, handleGetAdminUsers } from './handlers/users.js';
+import { handleLinkWhatsApp, handleRecoverWhatsApp, handleGetAdminUsers, handleCreditUserPoints } from './handlers/users.js';
 import { handleGetVisitorsVsUsers } from './handlers/analytics.js';
 import { handleAudioDownload, handleIncrementDownloads } from './handlers/download.js';
 import { handleGetBookReviews, handlePostBookReview } from './handlers/reviews.js';
@@ -685,6 +685,11 @@ export async function onRequest(context) {
     }
     if (path === '/admin/users' && method === 'GET') {
       return await handleGetAdminUsers(request, env, corsHeaders);
+    }
+    const adminUserCreditMatch = path.match(/^\/admin\/users\/([^\/]+)\/points\/?$/);
+    if ((path === '/admin/users/credit-points' || path === '/admin/users/points' || adminUserCreditMatch) && method === 'POST') {
+      const routeId = adminUserCreditMatch ? decodeURIComponent(adminUserCreditMatch[1]) : null;
+      return await handleCreditUserPoints(request, env, corsHeaders, routeId);
     }
     if (path === '/admin/analytics/visitors-vs-users' && method === 'GET') {
       return await handleGetVisitorsVsUsers(request, env, corsHeaders);
@@ -1502,6 +1507,54 @@ export async function onRequest(context) {
           rawResults = res.results || [];
         }
 
+        // Si l'utilisateur est admin, enrichir avec les métriques RÉELLES (étanches de l'effet de masse)
+        if (isAdmin) {
+          try {
+            // 1. Vrais avis et vraie note moyenne depuis la table 'reviews'
+            const { results: reviewStats } = await env.DB.prepare(`
+              SELECT audiobook_id, COUNT(*) as rev_cnt, ROUND(AVG(rating), 1) as avg_rating
+              FROM reviews
+              GROUP BY audiobook_id
+            `).all().catch(() => ({ results: [] }));
+            const revMap = {};
+            for (const r of (reviewStats || [])) {
+              revMap[r.audiobook_id] = { count: Number(r.rev_cnt || 0), rating: Number(r.avg_rating || 5.0) };
+            }
+
+            // 2. Vraies écoutes distinctes d'auditeurs depuis 'user_progress'
+            const { results: playStats } = await env.DB.prepare(`
+              SELECT audiobook_id, COUNT(DISTINCT user_id) as play_cnt
+              FROM user_progress
+              GROUP BY audiobook_id
+            `).all().catch(() => ({ results: [] }));
+            const playMap = {};
+            for (const p of (playStats || [])) {
+              playMap[p.audiobook_id] = Number(p.play_cnt || 0);
+            }
+
+            // 3. Vraies lectures distinctes de lecteurs PDF depuis 'ebook_progress'
+            const { results: ebookStats } = await env.DB.prepare(`
+              SELECT book_id, COUNT(DISTINCT user_id) as ebook_cnt
+              FROM ebook_progress
+              GROUP BY book_id
+            `).all().catch(() => ({ results: [] }));
+            for (const e of (ebookStats || [])) {
+              playMap[e.book_id] = Math.max(playMap[e.book_id] || 0, Number(e.ebook_cnt || 0));
+            }
+
+            // 4. Injecter les métriques réelles dans chaque livre
+            for (const b of rawResults) {
+              const rData = revMap[b.id];
+              b.real_reviews_count = rData ? rData.count : 0;
+              b.real_rating = rData ? rData.rating : null;
+              b.real_plays_count = Math.max(Number(b.real_plays_count || 0), playMap[b.id] || 0);
+              b.real_downloads_count = Number(b.real_downloads_count || 0);
+            }
+          } catch (adminStatsErr) {
+            console.warn('[audiobooks admin metrics error]:', adminStatsErr);
+          }
+        }
+
         // Récupérer les chapitres
         let chaptersByBook = {};
         try {
@@ -1586,6 +1639,10 @@ export async function onRequest(context) {
               format: companionEbook.format || 'pdf',
             } : null,
             is_pinned: Boolean(book.is_pinned),
+            real_downloads_count: Number(book.real_downloads_count || 0),
+            real_plays_count: Number(book.real_plays_count || 0),
+            real_reviews_count: Number(book.real_reviews_count || 0),
+            real_rating: book.real_rating != null ? Number(book.real_rating) : null,
             display_plays_count: Number(book.display_plays_count || book.downloads_count || 0),
             downloads_count: Number(book.downloads_count || book.display_plays_count || 0),
             display_reviews_count: Number(book.display_reviews_count || book.rating_count || 0),

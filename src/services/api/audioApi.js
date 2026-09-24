@@ -66,6 +66,7 @@ function updateBookInLocalCache(bookId, patchData) {
  */
 export async function incrementBookDownloads(bookId) {
   if (!bookId) return null;
+  let nextCount = null;
   try {
     const res = await fetch(`${API_BASE}/audiobooks/${encodeURIComponent(bookId)}/increment-downloads`, {
       method: 'POST',
@@ -73,19 +74,48 @@ export async function incrementBookDownloads(bookId) {
     });
     if (res.ok) {
       const data = await res.json();
-      const count = data.downloads_count || data.display_plays_count;
-      if (count) {
+      nextCount = data.downloads_count || data.display_plays_count;
+      if (nextCount) {
+        try {
+          localStorage.setItem(`rg_book_downloads_${bookId}`, String(nextCount));
+        } catch (_) {}
         updateBookInLocalCache(bookId, {
-          downloads_count: count,
-          display_plays_count: count,
+          downloads_count: nextCount,
+          display_plays_count: nextCount,
         });
+        window.dispatchEvent(new CustomEvent('rg:book-download-incremented', {
+          detail: { bookId, downloadsCount: nextCount }
+        }));
       }
       return data;
     }
   } catch (err) {
     console.warn('[incrementBookDownloads] Network error:', err);
   }
-  return null;
+
+  // Fallback si hors-ligne ou erreur réseau : incrémentation locale dans le cache
+  try {
+    const raw = localStorage.getItem('rg_cached_books');
+    if (raw) {
+      const list = JSON.parse(raw);
+      const b = list.find(x => x.id === bookId);
+      const savedDl = Number(localStorage.getItem(`rg_book_downloads_${bookId}`)) || 0;
+      const base = Math.max(savedDl, Number(b?.downloads_count || b?.display_plays_count) || 0);
+      nextCount = base + 1;
+      try {
+        localStorage.setItem(`rg_book_downloads_${bookId}`, String(nextCount));
+      } catch (_) {}
+      updateBookInLocalCache(bookId, {
+        downloads_count: nextCount,
+        display_plays_count: nextCount,
+      });
+      window.dispatchEvent(new CustomEvent('rg:book-download-incremented', {
+        detail: { bookId, downloadsCount: nextCount }
+      }));
+    }
+  } catch (_) {}
+
+  return nextCount ? { success: true, downloads_count: nextCount } : null;
 }
 
 /**
@@ -196,10 +226,14 @@ export async function rateAudiobook(bookId, rating, comment = '') {
         localStorage.setItem('rg_user_ratings', JSON.stringify(userRatings));
       } catch (_) {}
 
-      // Mettre à jour immédiatement le cache du catalogue
+      // Mettre à jour immédiatement le cache du catalogue et les clés de persistance
       const newAvg = data.rating || data.average_rating;
       const newTotal = data.total_reviews;
       if (newAvg) {
+        try {
+          localStorage.setItem(`rg_rating_avg_${bookId}`, String(newAvg));
+          if (newTotal) localStorage.setItem(`rg_rating_count_${bookId}`, String(newTotal));
+        } catch (_) {}
         updateBookInLocalCache(bookId, {
           rating: newAvg,
           display_rating: newAvg,

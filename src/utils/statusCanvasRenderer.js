@@ -31,30 +31,80 @@ export function wrapText(ctx, text, maxWidth) {
 }
 
 /**
- * Charge une image avec CORS strict pour eviter la contamination du Canvas (Tainted Canvas).
+ * Charge une image de façon 100% sécurisée pour le Canvas (zéro Tainted Canvas).
  *
- * RÈGLE CRITIQUE : Ne jamais charger une image sans crossOrigin='anonymous' sur un Canvas
- * destine a WebCodecs (VideoFrame). Un canvas souille declenche une SecurityError
- * qui fait planter WebCodecs et force le repli sur MediaRecorder (WebM).
+ * RÈGLE ARCHITECTURALE CRITIQUE :
+ * Un canvas souillé (tainted) déclenche immédiatement une SecurityError sur VideoFrame(canvas)
+ * ce qui fait planter l'encodeur matériel WebCodecs H.264 et forçait le repli vers MediaRecorder (WebM).
  *
- * Si l image CORS echoue (serveur sans Access-Control-Allow-Origin), on retourne null
- * plutot que de souiller le canvas. Le rendu continuera sans pochette (fond degrade).
+ * En téléchargeant l'image sous forme de Blob binaire en mémoire puis en créant
+ * un ImageBitmap (ou Image sur ObjectURL), l'image est garantie 100% même-origine (Same-Origin).
+ * Le Canvas ne peut JAMAIS être contaminé.
+ *
+ * @param {string} url - URL de la pochette
+ * @param {string|null} r2Key - Clé R2 optionnelle pour utiliser le proxy interne
+ * @returns {Promise<ImageBitmap|HTMLImageElement|null>}
  */
-export async function loadSafeImage(url) {
+export async function loadSafeImage(url, r2Key = null) {
   if (!url) return null;
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
-    // En cas d echec CORS : retourner null (canvas propre), PAS de fallback sans crossOrigin
-    img.onerror = () => {
-      console.warn('[StatusCanvas] Image non chargeable en CORS, rendu sans pochette:', url);
-      resolve(null);
-    };
-    // Ajouter un timestamp pour eviter le cache navigateur sans CORS
-    img.src = url.includes('?') ? `${url}&_cors=1` : `${url}?_cors=1`;
-  });
+
+  // 1. Résolution de l'URL cible (proxy R2 si disponible)
+  let targetUrl = url;
+  if (url.includes('r2.cloudflarestorage.com') && r2Key) {
+    targetUrl = `/api/r2/download?key=${encodeURIComponent(r2Key)}`;
+  } else if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('data:') && !url.startsWith('blob:')) {
+    targetUrl = `/api/r2/download?key=${encodeURIComponent(url)}`;
+  }
+
+  // 2. Stratégie prioritaire : fetch en Blob + createImageBitmap
+  // Un ImageBitmap créé depuis un Blob local ne souille JAMAIS un canvas.
+  try {
+    const fetchUrl = targetUrl.includes('?') ? `${targetUrl}&_cors=1` : `${targetUrl}?_cors=1`;
+    const res = await fetch(fetchUrl, { mode: 'cors', credentials: 'omit' });
+    if (res.ok) {
+      const blob = await res.blob();
+      if (blob && blob.size > 0) {
+        if (typeof createImageBitmap === 'function') {
+          return await createImageBitmap(blob);
+        }
+        // Fallback sans createImageBitmap (anciens navigateurs)
+        return await new Promise((resolve) => {
+          const blobUrl = URL.createObjectURL(blob);
+          const img = new Image();
+          img.onload = () => {
+            // Nettoyage après chargement
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+            resolve(img);
+          };
+          img.onerror = () => {
+            URL.revokeObjectURL(blobUrl);
+            resolve(null);
+          };
+          img.src = blobUrl;
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('[StatusCanvas] Fetch Blob image échoué, essai direct CORS:', err?.message || err);
+  }
+
+  // 3. Repli : Chargement via <img> avec crossOrigin strict
+  try {
+    return await new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = () => {
+        console.warn('[StatusCanvas] Pochette inaccessible en CORS, rendu élégant avec dégradé sans image.');
+        resolve(null);
+      };
+      img.src = targetUrl.includes('?') ? `${targetUrl}&_cors=2` : `${targetUrl}?_cors=2`;
+    });
+  } catch (_) {
+    return null;
+  }
 }
+
 
 /**
  * Rendu graphique d'une frame du statut WhatsApp

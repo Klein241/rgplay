@@ -3,9 +3,9 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { viteApiPlugin } from './server/apiPlugin.js';
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [
-    viteApiPlugin(),
+    ...(command === 'serve' ? [viteApiPlugin()] : []),
     tailwindcss(),
     react(),
   ],
@@ -18,5 +18,5 @@ export default defineConfig({
     sourcemap: false,
     chunkSizeWarningLimit: 1000,
   },
-});
+}));
 

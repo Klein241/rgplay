@@ -1558,7 +1558,11 @@ export const apiClient = {
       if (res.ok) {
         const resultData = await res.json();
         try {
+          const newAvg = resultData.rating || resultData.average_rating;
+          const newTotal = resultData.total_reviews;
           localStorage.setItem(`rg_rated_${bookId}`, String(rating));
+          if (newAvg) localStorage.setItem(`rg_rating_avg_${bookId}`, String(newAvg));
+          if (newTotal) localStorage.setItem(`rg_rating_count_${bookId}`, String(newTotal));
           const userRatings = JSON.parse(localStorage.getItem('rg_user_ratings') || '{}');
           userRatings[bookId] = Number(rating);
           localStorage.setItem('rg_user_ratings', JSON.stringify(userRatings));
@@ -1566,8 +1570,6 @@ export const apiClient = {
           const raw = localStorage.getItem('rg_cached_books');
           if (raw) {
             const list = JSON.parse(raw);
-            const newAvg = resultData.rating || resultData.average_rating;
-            const newTotal = resultData.total_reviews;
             if (Array.isArray(list) && newAvg) {
               const updated = list.map(b => b.id === bookId ? {
                 ...b,
@@ -1579,6 +1581,15 @@ export const apiClient = {
               localStorage.setItem('rg_cached_books', JSON.stringify(updated));
             }
           }
+
+          window.dispatchEvent(new CustomEvent('rg:book-rated', {
+            detail: {
+              bookId,
+              rating: Number(rating),
+              newAvg,
+              newCount: newTotal,
+            }
+          }));
         } catch (_) {}
         return resultData;
       }

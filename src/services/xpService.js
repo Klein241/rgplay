@@ -98,9 +98,6 @@ export const REWARD_RULES = {
   READING_INTERVAL_MINUTES: 5,         // Toutes les 5 minutes
   READING_INTERVAL_XP: 5,
   READING_INTERVAL_POINTS: 2,          // 2 points par 5 min de lecture
-  LISTENING_INTERVAL_MINUTES: 5,       // Toutes les 5 minutes
-  LISTENING_INTERVAL_XP: 5,
-  LISTENING_INTERVAL_POINTS: 2,        // 2 points par 5 min d'écoute
   SPONSOR_AD_POINTS: 10,               // 10 points par visionnage sponsorisé
   SPONSOR_AD_XP: 15,
   REFERRAL_POINTS: 500,          // 500 points pour le parrain + 500 points pour le filleul

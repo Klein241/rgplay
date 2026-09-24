@@ -46,7 +46,6 @@ export const XpProvider = ({ children }) => {
 
   const [activeRewardNotification, setActiveRewardNotification] = useState(null);
   const readingIntervalRef = useRef(null);
-  const listeningIntervalRef = useRef(null);
 
   // Sauvegarde locale instantanée et synchronisation serveur D1
   const saveState = (newState) => {
@@ -239,27 +238,6 @@ export const XpProvider = ({ children }) => {
     });
   }, [awardPointsAndXp]);
 
-  // ── ENREGISTRER DU TEMPS D'ÉCOUTE (AUDIOBOOK) ─────────────────────────────
-  const recordListeningTime = useCallback((minutes = 1) => {
-    setGamification(prev => {
-      const totalMinutes = (prev.listeningMinutes || 0) + minutes;
-      const newState = { ...prev, listeningMinutes: totalMinutes };
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(newState)); } catch {}
-
-      // Si palier de 5 minutes atteint
-      if (totalMinutes > 0 && totalMinutes % REWARD_RULES.LISTENING_INTERVAL_MINUTES === 0) {
-        awardPointsAndXp({
-          xp: REWARD_RULES.LISTENING_INTERVAL_XP,
-          points: REWARD_RULES.LISTENING_INTERVAL_POINTS,
-          type: 'listening_time',
-          description: `Temps d’écoute (${totalMinutes} min)`,
-        });
-      }
-
-      return newState;
-    });
-  }, [awardPointsAndXp]);
-
   // ── DÉBLOQUER UN LIVRE AVEC DES POINTS ────────────────────────────────────
   const unlockBookWithPoints = useCallback(async (book, pointsCost = REWARD_RULES.POINTS_TO_UNLOCK_STANDARD_BOOK) => {
     if (gamification.points < pointsCost) {
@@ -352,7 +330,6 @@ export const XpProvider = ({ children }) => {
         awardPointsAndXp,
         claimDailyReward,
         recordReadingTime,
-        recordListeningTime,
         unlockBookWithPoints,
         spendPoints,
       }}

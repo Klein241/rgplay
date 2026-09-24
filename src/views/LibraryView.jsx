@@ -10,6 +10,7 @@ import { AdBanner } from '../components/AdBanner';
 import { useAudio } from '../context/AudioContext';
 import { useXp } from '../context/XpContext';
 import { getOfflineBooks, removeOfflineAudio, downloadBookForOffline } from '../utils/offlineAudioCache';
+import { incrementBookDownloads } from '../services/api/audioApi';
 
 const SUB_TABS = [
   { id: 'ebooks', label: '📖 Catalogue PDF' },
@@ -65,17 +66,59 @@ export const LibraryView = ({ onSelectBook, onGoToDiscover }) => {
         if (saved) setFavoriteIds(JSON.parse(saved));
       } catch (_) {}
     };
+
+    // ── Synchronisation live de la note moyenne + compteur d avis ───────────
+    const handleBookRated = (e) => {
+      const { bookId, newAvg, newCount } = e.detail || {};
+      if (!bookId) return;
+      const patchBook = (b) => {
+        if (b.id !== bookId) return b;
+        return {
+          ...b,
+          ...(newAvg != null ? { rating: newAvg, display_rating: newAvg } : {}),
+          ...(newCount != null ? { rating_count: newCount, display_reviews_count: newCount } : {}),
+        };
+      };
+      setAllCatalog(prev => {
+        const next = prev.map(patchBook);
+        try { localStorage.setItem('rg_cached_books', JSON.stringify(next)); } catch (_) {}
+        return next;
+      });
+      setLibraryBooks(prev => prev.map(patchBook));
+    };
+
+    // ── Synchronisation live du compteur de téléchargements offline ──────────
+    const handleBookDownloaded = (e) => {
+      const { bookId, downloadsCount } = e.detail || {};
+      if (!bookId || !downloadsCount) return;
+      const patchBook = (b) => {
+        if (b.id !== bookId) return b;
+        return { ...b, downloads_count: downloadsCount, display_plays_count: downloadsCount };
+      };
+      setAllCatalog(prev => {
+        const next = prev.map(patchBook);
+        try { localStorage.setItem('rg_cached_books', JSON.stringify(next)); } catch (_) {}
+        return next;
+      });
+      setLibraryBooks(prev => prev.map(patchBook));
+    };
+
     window.addEventListener('rg:library-updated', loadData);
     window.addEventListener('rg:book-deleted', loadData);
     window.addEventListener('rg:favorite-toggled', handleFavUpdate);
     window.addEventListener('rg_offline_cache_updated', handleOfflineUpdate);
+    window.addEventListener('rg:book-rated', handleBookRated);
+    window.addEventListener('rg:book-download-incremented', handleBookDownloaded);
     return () => {
       window.removeEventListener('rg:library-updated', loadData);
       window.removeEventListener('rg:book-deleted', loadData);
       window.removeEventListener('rg:favorite-toggled', handleFavUpdate);
       window.removeEventListener('rg_offline_cache_updated', handleOfflineUpdate);
+      window.removeEventListener('rg:book-rated', handleBookRated);
+      window.removeEventListener('rg:book-download-incremented', handleBookDownloaded);
     };
   }, []);
+
 
   const toggleFavorite = (bookId, e) => {
     if (e) e.stopPropagation();
@@ -343,6 +386,7 @@ export const LibraryView = ({ onSelectBook, onGoToDiscover }) => {
                           setDownloadingBookId(book.id);
                           try {
                             await downloadBookForOffline(book);
+                            incrementBookDownloads(book.id).catch(() => {});
                             setOfflineBooks(getOfflineBooks());
                           } catch (err) {
                             console.warn('Erreur téléchargement offline:', err);

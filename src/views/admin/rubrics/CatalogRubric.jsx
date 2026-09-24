@@ -675,13 +675,34 @@ export const CatalogRubric = ({
                     </div>
 
                     <div className="pt-2 mt-auto">
-                      <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center justify-between mb-1.5">
                         <span className="text-xs text-emerald-400 font-extrabold">
                           {book.discount_price || book.price} FCFA
                         </span>
                         <span className="text-[10px] text-slate-400">
                           {book.chapters?.length || 1} ch.
                         </span>
+                      </div>
+
+                      {/* Comparatif Réel vs Effet de masse pour l'admin */}
+                      <div className="mb-2 p-1.5 rounded-xl bg-black/40 border border-white/5 space-y-1 text-[10px]">
+                        <div className="flex items-center justify-between text-emerald-400 font-bold" title="Vraies actions utilisateurs (téléchargements réels, avis déposés, écoutes réelles)">
+                          <span className="flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></span>
+                            <span>Réel:</span>
+                          </span>
+                          <span className="font-mono text-emerald-300">
+                            {book.real_downloads_count || 0} dl • {book.real_reviews_count || 0} av.{book.real_rating ? ` (${book.real_rating}★)` : ''} • {book.real_plays_count || 0} éc.
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-amber-300/80 text-[9px]" title="Chiffres affichés aux visiteurs (effet de masse)">
+                          <span className="flex items-center gap-1">
+                            <span>🎭 Public:</span>
+                          </span>
+                          <span className="font-mono text-amber-200/90">
+                            {Number(book.display_plays_count || book.downloads_count || 0).toLocaleString()} dl • {Number(book.display_reviews_count || book.rating_count || 0).toLocaleString()} av. ({book.display_rating || book.rating || 4.9}★)
+                          </span>
+                        </div>
                       </div>
 
                       {/* Bouton Publication Immédiate si le livre est programmé */}
@@ -833,6 +854,17 @@ export const CatalogRubric = ({
                       <p className="text-xs text-slate-400 truncate">
                         Par <span className="text-slate-200 font-semibold">{book.author}</span> • {book.chapters?.length || 1} chapitre(s) • <span className="text-emerald-400 font-bold">{book.discount_price || book.price} FCFA</span>
                       </p>
+
+                      {/* Comparatif Réel vs Effet de masse pour l'admin (Vue Liste) */}
+                      <div className="flex items-center gap-2 pt-1 flex-wrap text-[11px]">
+                        <span className="px-2.5 py-1 rounded-lg bg-emerald-950/60 border border-emerald-500/30 text-emerald-300 font-bold flex items-center gap-1.5 shadow-sm" title="Vraies actions physiques d'utilisateurs">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></span>
+                          <span>Réel : <strong>{book.real_downloads_count || 0}</strong> téléch. • <strong>{book.real_reviews_count || 0}</strong> avis{book.real_rating ? ` (${book.real_rating}★)` : ''} • <strong>{book.real_plays_count || 0}</strong> écoute(s)</span>
+                        </span>
+                        <span className="px-2.5 py-1 rounded-lg bg-amber-950/40 border border-amber-500/30 text-amber-300/90 font-medium flex items-center gap-1" title="Chiffres affichés aux visiteurs publics">
+                          <span>🎭 Public : {Number(book.display_plays_count || book.downloads_count || 0).toLocaleString()} téléch. • {Number(book.display_reviews_count || book.rating_count || 0).toLocaleString()} avis ({book.display_rating || book.rating || 5.0}★)</span>
+                        </span>
+                      </div>
                     </div>
                   </div>
 

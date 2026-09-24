@@ -40,6 +40,11 @@ export const AudioProvider = ({ children }) => {
   const hasCachedChaptersRef = useRef(new Set());
   // Compteur de tentatives de reprise (évite la boucle infinie du garde-fou)
   const endedRetryCountRef = useRef(0);
+  // Position sauvegardée avant un 'ended' prématuré pour la reprise exacte
+  const stallSavedTimeRef = useRef(0);
+  // Timer anti-stall : si l'audio est en lecture mais ne progresse pas pendant X secondes
+  const stallWatchdogRef = useRef(null);
+  const lastTimeUpdateRef = useRef(0);
 
   useEffect(() => { currentBookRef.current = currentBook; }, [currentBook]);
   useEffect(() => { currentChapterIndexRef.current = currentChapterIndex; }, [currentChapterIndex]);
@@ -108,6 +113,7 @@ export const AudioProvider = ({ children }) => {
 
     const onTimeUpdate = () => {
       setCurrentTime(audio.currentTime);
+      lastTimeUpdateRef.current = Date.now();
       if (audio.duration && !isNaN(audio.duration)) {
         setDuration(audio.duration);
       }
@@ -127,6 +133,14 @@ export const AudioProvider = ({ children }) => {
     };
 
     const onWaiting = () => setIsLoading(true);
+    const onStalled = () => {
+      // 🛡️ L'événement 'stalled' indique que le navigateur a temporairement mis en pause
+      // le téléchargement réseau car son buffer initial est déjà rempli (typiquement 15 à 25s).
+      // Ne JAMAIS réaffecter audio.src ici, ce qui détruirait le buffer décodé !
+      if (audio.paused && isPlaying) {
+        audio.play().catch(() => {});
+      }
+    };
     const onPlaying = () => {
       setIsLoading(false);
       setIsPlaying(true);
@@ -159,41 +173,48 @@ export const AudioProvider = ({ children }) => {
     const onEnded = () => {
       const book = currentBookRef.current;
       const chap = book?.chapters?.[currentChapterIndexRef.current];
-      const realOrEstimatedDuration = (audio.duration && isFinite(audio.duration) && audio.duration > 0)
+      const declaredDuration = Number(chap?.duration_seconds || 0);
+      const audioDuration = (audio.duration && isFinite(audio.duration) && audio.duration > 0)
         ? audio.duration
-        : Number(chap?.duration_seconds || 0);
+        : 0;
 
-      // 🛡️ Garde-fou Anti-Coupure : Si la piste s'arrête alors qu'on est loin de la fin
-      // (coupure réseau, buffer vide, appel entrant), NE PAS sauter au chapitre suivant !
-      if (
-        realOrEstimatedDuration > 10 &&
-        audio.currentTime < (realOrEstimatedDuration - 6) &&
-        endedRetryCountRef.current < 3
-      ) {
-        endedRetryCountRef.current += 1;
-        console.warn(`[AudioContext] 'ended' prématuré à ${audio.currentTime.toFixed(1)}s / ${realOrEstimatedDuration.toFixed(1)}s. Tentative de reprise (${endedRetryCountRef.current}/3)...`);
-        setTimeout(() => {
-          audio.play().catch(() => {
-            console.warn('[AudioContext] Reprise différée...');
-          });
-        }, 500);
-        return;
-      }
+      // Durée de référence prioritaire : si le chapitre déclare une durée > 10s, elle prime
+      const totalDuration = declaredDuration > 10 ? declaredDuration : audioDuration;
 
-      // Si on a dépassé les 3 tentatives et qu'on est encore au milieu de l'audio,
-      // on met en pause propre au lieu de sauter brutalement au prochain livre/chapitre
-      if (realOrEstimatedDuration > 10 && audio.currentTime < (realOrEstimatedDuration - 6)) {
-        console.warn(`[AudioContext] Flux interrompu à ${audio.currentTime.toFixed(1)}s. Mise en pause sécurisée.`);
+      // 🛡️ Garde-fou Anti-Coupure Ultime :
+      // Si l'événement 'ended' survient alors qu'on est loin de la fin réelle du fichier
+      // (ex: interruption socket réseau à 15s/25s sur un chapitre de 3 minutes),
+      // il s'agit d'une interruption réseau prématurée et EN AUCUN CAS de la fin du chapitre.
+      if (totalDuration > 15 && audio.currentTime < (totalDuration - 5)) {
+        console.warn(`[AudioContext] 'ended' prématuré intercepté à ${audio.currentTime.toFixed(1)}s / ${totalDuration}s. Refus absolu de sauter au chapitre suivant.`);
+
+        if (endedRetryCountRef.current < 3) {
+          endedRetryCountRef.current += 1;
+          setIsLoading(true);
+          setTimeout(() => {
+            audio.play().then(() => {
+              setIsLoading(false);
+              setIsPlaying(true);
+            }).catch(() => {
+              setIsLoading(false);
+            });
+          }, 600);
+          return;
+        }
+
+        // Si le réseau est totalement indisponible après 3 reprises, pause propre à la position actuelle
+        console.warn(`[AudioContext] Réseau indisponible à ${audio.currentTime.toFixed(1)}s. Mise en pause sécurisée sans saut de chapitre.`);
         setIsPlaying(false);
+        setIsLoading(false);
         endedRetryCountRef.current = 0;
         return;
       }
 
-      // Réinitialiser le compteur de tentatives pour le prochain chapitre
+      // La piste est VRAIMENT terminée
       endedRetryCountRef.current = 0;
 
       if (book) {
-        trackAudioPlay(book, chap, realOrEstimatedDuration || audio.currentTime);
+        trackAudioPlay(book, chap, totalDuration || audio.currentTime);
         cacheAudioForOffline(book, chap);
       }
 
@@ -211,6 +232,7 @@ export const AudioProvider = ({ children }) => {
     audio.addEventListener('canplay', onCanPlay);
     audio.addEventListener('loadeddata', onLoadedData);
     audio.addEventListener('waiting', onWaiting);
+    audio.addEventListener('stalled', onStalled);
     audio.addEventListener('playing', onPlaying);
     audio.addEventListener('pause', onPause);
     audio.addEventListener('ended', onEnded);
@@ -222,10 +244,12 @@ export const AudioProvider = ({ children }) => {
       audio.removeEventListener('canplay', onCanPlay);
       audio.removeEventListener('loadeddata', onLoadedData);
       audio.removeEventListener('waiting', onWaiting);
+      audio.removeEventListener('stalled', onStalled);
       audio.removeEventListener('playing', onPlaying);
       audio.removeEventListener('pause', onPause);
       audio.removeEventListener('ended', onEnded);
       audio.removeEventListener('error', onError);
+      clearTimeout(stallWatchdogRef.current);
     };
   }, []); // Montage uniquement
 

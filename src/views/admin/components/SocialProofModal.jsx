@@ -56,24 +56,54 @@ export const SocialProofModal = ({
         {/* Comparatif : Métriques Réelles vs Affichées */}
         <div className="grid grid-cols-2 gap-3">
           {/* 1. Réel (Admin Only) */}
-          <div className="p-3 rounded-2xl bg-white/4 border border-white/6 space-y-1.5">
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block flex items-center gap-1">
-              <ShieldCheck className="w-3 h-3 text-slate-400" /> Réel (Admin Seul)
+          <div className="p-3.5 rounded-2xl bg-emerald-950/30 border border-emerald-500/30 space-y-2">
+            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Réel (Actions Utilisateurs)
             </span>
-            <div className="text-xs space-y-1 text-slate-300">
-              <p className="flex justify-between"><span>Vrais avis:</span> <strong className="text-white">{socialModalBook.rating_count || 0}</strong></p>
-              <p className="flex justify-between"><span>Vraie note:</span> <strong className="text-amber-400">{socialModalBook.rating || 5.0}★</strong></p>
+            <div className="text-xs space-y-1.5 text-slate-300">
+              <p className="flex justify-between items-center">
+                <span className="text-slate-400">Vrais téléchargements:</span> 
+                <strong className="text-white font-mono">{socialModalBook.real_downloads_count || 0}</strong>
+              </p>
+              <p className="flex justify-between items-center">
+                <span className="text-slate-400">Vrais avis déposés:</span> 
+                <strong className="text-white font-mono">{socialModalBook.real_reviews_count || 0}</strong>
+              </p>
+              <p className="flex justify-between items-center">
+                <span className="text-slate-400">Vraies écoutes / lectures:</span> 
+                <strong className="text-white font-mono">{socialModalBook.real_plays_count || 0}</strong>
+              </p>
+              <p className="flex justify-between items-center pt-1 border-t border-white/5">
+                <span className="text-slate-400">Vraie note moyenne:</span> 
+                <strong className="text-amber-400 font-mono">
+                  {socialModalBook.real_rating ? `${socialModalBook.real_rating}★` : 'Pas encore noté'}
+                </strong>
+              </p>
             </div>
           </div>
 
           {/* 2. Public (Effet de masse) */}
-          <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-1.5">
-            <span className="text-[10px] font-black uppercase tracking-wider text-amber-300 block flex items-center gap-1">
-              <Sparkles className="w-3 h-3 text-amber-400" /> Affiché aux Clients
+          <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-2">
+            <span className="text-[10px] font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Affiché aux Visiteurs
             </span>
-            <div className="text-xs space-y-1 text-slate-200">
-              <p className="flex justify-between"><span>Écoutes:</span> <strong className="text-amber-300">{Number(socialPlays).toLocaleString()}</strong></p>
-              <p className="flex justify-between"><span>Avis:</span> <strong className="text-amber-300">{Number(socialReviews).toLocaleString()}</strong></p>
+            <div className="text-xs space-y-1.5 text-slate-200">
+              <p className="flex justify-between items-center">
+                <span className="text-slate-400">Téléchargements affichés:</span> 
+                <strong className="text-amber-300 font-mono">{Number(socialPlays).toLocaleString()}</strong>
+              </p>
+              <p className="flex justify-between items-center">
+                <span className="text-slate-400">Avis affichés:</span> 
+                <strong className="text-amber-300 font-mono">{Number(socialReviews).toLocaleString()}</strong>
+              </p>
+              <p className="flex justify-between items-center">
+                <span className="text-slate-400">Écoutes affichées:</span> 
+                <strong className="text-amber-300 font-mono">{Number(socialPlays).toLocaleString()}</strong>
+              </p>
+              <p className="flex justify-between items-center pt-1 border-t border-amber-500/20">
+                <span className="text-slate-400">Note affichée:</span> 
+                <strong className="text-amber-300 font-mono">{socialRating}★</strong>
+              </p>
             </div>
           </div>
         </div>

@@ -72,17 +72,62 @@ export const DiscoverView = ({ onSelectBook, onBuyBook, searchQuery }) => {
         setPurchasedIds(new Set(lib.map(b => b.id)));
       } catch {}
     };
+
+    // ── Synchronisation live des notes (étoiles + compteur d avis) ──────────
+    // Sans cet écouteur, la note reste figée en localStorage apres un vote.
+    // Le state audiobooks React est patche a chaud sans rechargement reseau.
+    const handleBookRated = (e) => {
+      const { bookId, newAvg, newCount } = e.detail || {};
+      if (!bookId) return;
+      setAudiobooks(prev => {
+        const next = prev.map(b => {
+          if (b.id !== bookId) return b;
+          return {
+            ...b,
+            ...(newAvg != null ? { rating: newAvg, display_rating: newAvg } : {}),
+            ...(newCount != null ? { rating_count: newCount, display_reviews_count: newCount } : {}),
+          };
+        });
+        try { localStorage.setItem('rg_cached_books', JSON.stringify(next)); } catch (_) {}
+        return next;
+      });
+    };
+
+    // ── Synchronisation live du compteur de téléchargements offline ──────────
+    // Sans cet écouteur, le badge "X téléch." reste figé en localStorage.
+    const handleBookDownloaded = (e) => {
+      const { bookId, downloadsCount } = e.detail || {};
+      if (!bookId || !downloadsCount) return;
+      setAudiobooks(prev => {
+        const next = prev.map(b => {
+          if (b.id !== bookId) return b;
+          return {
+            ...b,
+            downloads_count: downloadsCount,
+            display_plays_count: downloadsCount,
+          };
+        });
+        try { localStorage.setItem('rg_cached_books', JSON.stringify(next)); } catch (_) {}
+        return next;
+      });
+    };
+
     window.addEventListener('rg:book-created', loadData);
     window.addEventListener('rg:book-deleted', loadData);
     window.addEventListener('rg:book-purchased', handleSyncPurchases);
     window.addEventListener('storage', handleSyncPurchases);
+    window.addEventListener('rg:book-rated', handleBookRated);
+    window.addEventListener('rg:book-download-incremented', handleBookDownloaded);
     return () => {
       window.removeEventListener('rg:book-created', loadData);
       window.removeEventListener('rg:book-deleted', loadData);
       window.removeEventListener('rg:book-purchased', handleSyncPurchases);
       window.removeEventListener('storage', handleSyncPurchases);
+      window.removeEventListener('rg:book-rated', handleBookRated);
+      window.removeEventListener('rg:book-download-incremented', handleBookDownloaded);
     };
   }, []);
+
 
   useEffect(() => {
     const handleClickOutside = (e) => {

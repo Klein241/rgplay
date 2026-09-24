@@ -90,7 +90,7 @@ export const WhatsAppStatusModal = ({ isOpen, onClose, book, chapter }) => {
     } catch (err) {
       if (err?.name !== 'AbortError') {
         console.error('[WhatsAppStatus] Erreur génération:', err);
-        setFeedbackToast('❌ Erreur lors de la génération vidéo');
+        setFeedbackToast(err?.message || '❌ Erreur lors de la génération vidéo');
       }
     } finally {
       setIsGenerating(false);
@@ -106,15 +106,6 @@ export const WhatsAppStatusModal = ({ isOpen, onClose, book, chapter }) => {
   const handleShareWhatsApp = async () => {
     if (!generatedVideo?.file) return;
     const file = generatedVideo.file;
-    const isWebmFallback = generatedVideo.isWebmFallback === true;
-
-    // Avertissement si le navigateur a produit du WebM (impossible de le renommer en MP4)
-    if (isWebmFallback) {
-      setFeedbackToast('⚠️ Fichier WebM : WhatsApp peut refuser. Utilisez Chrome/Edge sur PC.');
-      setTimeout(() => setFeedbackToast(''), 5000);
-      handleDownload();
-      return;
-    }
 
     const playUrl = `${window.location.origin}/?book=${encodeURIComponent(book.id || '')}&play=1`;
     const shareText = `🎧 Écoutez "${book.title}" par ${book.author} sur RG Play\n👉 Écoutez gratuitement ici : ${playUrl}\n📚 Bibliothèque READ'S GREAT`;

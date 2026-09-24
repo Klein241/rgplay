@@ -7,6 +7,7 @@ import {
 import { useAudio } from '../context/AudioContext';
 import { useXp } from '../context/XpContext';
 import { downloadAudioMp3, downloadBookForOffline, isAudioOffline, removeOfflineAudio } from '../utils/offlineAudioCache';
+import { incrementBookDownloads } from '../services/api/audioApi';
 import { trackAction } from '../services/tracker';
 import { BookChatModal } from './BookChatModal';
 import { PdfReaderModal } from './PdfReaderModal';
@@ -68,6 +69,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
         await downloadBookForOffline(book, (pct) => setDownloadProgress(pct));
         setIsDownloaded(true);
         setDownloadStatus({ type: 'success', text: '✓ Disponible hors-ligne — Écoutez sans connexion !' });
+        incrementBookDownloads(book.id).catch(() => {});
       }
     } catch (e) {
       console.error('[Offline] Erreur:', e);
@@ -85,6 +87,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
     setIsDownloading(true);
     setDownloadStatus(null);
     trackAction('download_mp3', book.id);
+    incrementBookDownloads(book.id).catch(() => {});
     const res = await downloadAudioMp3(book, null, isPurchased);
     if (res === 'ok') {
       setDownloadStatus({ type: 'success', text: '✓ Téléchargement MP3 démarré' });
@@ -192,14 +195,32 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
     setReviewSubmitted(true);
     setUserReviewText('');
 
-    // Persister dans Cloudflare D1
-    await apiClient.addBookReview(book.id, {
+    // Sauvegarder la note dans localStorage
+    try {
+      localStorage.setItem(`rg_rated_${book.id}`, String(userRating));
+      const userRatings = JSON.parse(localStorage.getItem('rg_user_ratings') || '{}');
+      userRatings[book.id] = Number(userRating);
+      localStorage.setItem('rg_user_ratings', JSON.stringify(userRatings));
+    } catch (_) {}
+
+    // Persister dans Cloudflare D1 et recuperer les valeurs serveur
+    const rateRes = await apiClient.addBookReview(book.id, {
       rating: userRating,
       comment: newRev.comment,
       author: userName,
     });
 
-    window.dispatchEvent(new CustomEvent('rg:book-rated', { detail: { bookId: book.id, rating: userRating } }));
+    // Calcul de la nouvelle moyenne : utiliser la reponse serveur si disponible, sinon calcul local
+    const newCount = rateRes?.total_reviews ?? (reviews.length + 1);
+    const newAvg = rateRes?.average_rating ?? rateRes?.rating ?? (() => {
+      const allRatings = [...reviews.map(r => r.rating || 0), userRating];
+      return Number((allRatings.reduce((s, v) => s + v, 0) / allRatings.length).toFixed(1));
+    })();
+
+    // Propagation vers DiscoverView, LibraryView et toutes les cartes AudiobookCard
+    window.dispatchEvent(new CustomEvent('rg:book-rated', {
+      detail: { bookId: book.id, rating: userRating, newAvg, newCount },
+    }));
   };
 
   // NOTE: All handler functions must be declared BEFORE the early return below

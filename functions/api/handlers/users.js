@@ -185,50 +185,47 @@ export async function handleRecoverWhatsApp(request, env, corsHeaders) {
 }
 
 /**
+ * Calcule dynamiquement le niveau et titre selon les seuils d'XP RG Play
+ */
+export function computeUserLevel(xp = 0) {
+  const numXp = Math.max(0, Number(xp) || 0);
+  if (numXp >= 3000) return { level: 6, title: "Sage de Read's Great", color: '#00f5d4' };
+  if (numXp >= 1500) return { level: 5, title: 'Maître du Savoir', color: '#ffbe0b' };
+  if (numXp >= 700)  return { level: 4, title: 'Érudit Émérite', color: '#fb5607' };
+  if (numXp >= 300)  return { level: 3, title: 'Lecteur Passionné', color: '#ff006e' };
+  if (numXp >= 100)  return { level: 2, title: 'Apprenti Lecteur', color: '#3a86ff' };
+  return { level: 1, title: 'Novice Curieux', color: '#9d4edd' };
+}
+
+/**
  * GET /api/admin/users
- * Liste assainie des utilisateurs réels (exclut les simples visiteurs passifs à 0 action).
+ * Liste assainie des utilisateurs réels (exclut les bots et rebonds passifs à 0s d'écoute).
  */
 export async function handleGetAdminUsers(request, env, corsHeaders) {
-  if (!env.DB) {
-    return jsonResponse([], corsHeaders);
-  }
+  if (!env.DB) return jsonResponse([], corsHeaders);
 
   try {
-    // 1. Récupérer tous les utilisateurs enregistrés dans la table users
+    // 1. Utilisateurs enregistrés de la table users
     const { results: dbUsers } = await env.DB.prepare(`
       SELECT 
-        u.id,
-        COALESCE(NULLIF(u.name, ''), 'Auditeur RG Play') AS name,
-        u.email,
-        u.phone,
-        u.avatar_url,
+        u.id, COALESCE(NULLIF(u.name, ''), 'Auditeur RG Play') AS name,
+        u.email, u.phone, u.avatar_url,
         COALESCE(u.plan, 'free') AS plan,
         COALESCE(u.wallet_balance, 0) AS wallet_balance,
-        u.created_at,
-        u.referred_by,
-        u.referral_code,
+        u.created_at, u.referred_by, u.referral_code,
         (SELECT COUNT(*) FROM users u2 WHERE u2.referred_by = u.id) AS referral_count,
-        CASE 
-          WHEN g.points IS NULL OR g.points = 0 THEN 1000
-          ELSE g.points
-        END AS points,
-        CASE 
-          WHEN g.xp IS NULL OR g.xp = 0 THEN 1000
-          ELSE g.xp
-        END AS xp,
+        COALESCE(g.points, 0) AS points,
+        COALESCE(g.xp, 0) AS xp,
         COALESCE(g.level, 1) AS level,
         COALESCE(g.reading_minutes, 0) AS reading_minutes,
         COALESCE(g.listening_minutes, 0) AS listening_minutes,
         COALESCE(g.books_completed, 0) AS books_completed,
         g.last_daily_reward_date,
-        COALESCE(
-          NULLIF(NULLIF((SELECT vs.country FROM visitor_sessions vs WHERE vs.user_id = u.id OR vs.visitor_id = u.id ORDER BY vs.last_active_at DESC LIMIT 1), 'XX'), ''),
-          'GA'
-        ) AS country,
-        CASE WHEN u.phone IS NOT NULL AND u.phone != '' THEN 1 ELSE 0 END AS has_whatsapp,
-        1 AS is_real_user,
+        COALESCE(NULLIF(NULLIF((SELECT vs.country FROM visitor_sessions vs WHERE vs.user_id = u.id OR vs.visitor_id = u.id ORDER BY vs.last_active_at DESC LIMIT 1), 'XX'), ''), 'GA') AS country,
+        CASE WHEN u.phone IS NOT NULL AND TRIM(u.phone) != '' THEN 1 ELSE 0 END AS has_whatsapp,
+        1 AS is_registered, 'registered' AS user_type,
         COALESCE(ipd.ip, (SELECT vs.ip FROM visitor_sessions vs WHERE vs.user_id = u.id OR vs.visitor_id = u.id ORDER BY vs.last_active_at DESC LIMIT 1)) AS ip_address,
-        COALESCE(ipd.last_seen_at, (SELECT vs.last_active_at FROM visitor_sessions vs WHERE vs.user_id = u.id OR vs.visitor_id = u.id ORDER BY vs.last_active_at DESC LIMIT 1)) AS ip_last_seen
+        COALESCE(ipd.last_seen_at, (SELECT vs.last_active_at FROM visitor_sessions vs WHERE vs.user_id = u.id OR vs.visitor_id = u.id ORDER BY vs.last_active_at DESC LIMIT 1), u.updated_at) AS ip_last_seen
       FROM users u
       LEFT JOIN user_gamification g ON u.id = g.user_id
       LEFT JOIN ip_devices ipd ON ipd.primary_user_id = u.id
@@ -236,37 +233,22 @@ export async function handleGetAdminUsers(request, env, corsHeaders) {
       ORDER BY u.created_at DESC
     `).all().catch(() => ({ results: [] }));
 
-    // 2. Récupérer UNIQUEMENT les visiteurs anonymes qui sont de VRAIS utilisateurs engagés :
-    // - Soit ils ont accumulé des points > 0
-    // - Soit ils ont écouté au moins un audio (total_duration_seconds > 10 ou présence d'événements)
+    // 2. Auditeurs invités avec écoute réelle (> 30s) — BOTS à 0s formellement exclus
     const { results: activeVisitors } = await env.DB.prepare(`
       SELECT 
         vs.visitor_id AS id,
-        COALESCE(NULLIF(MAX(vs.user_name), ''), 'Utilisateur #' || substr(vs.visitor_id, -6)) AS name,
-        MAX(vs.user_email) AS email,
-        NULL AS phone,
-        NULL AS avatar_url,
-        'free' AS plan,
-        0 AS wallet_balance,
-        MIN(vs.started_at) AS created_at,
-        CASE 
-          WHEN MAX(g.points) IS NULL OR MAX(g.points) = 0
-          THEN CASE WHEN MAX(vs.points) IS NULL OR MAX(vs.points) = 0 THEN 1000 ELSE MAX(vs.points) END
-          ELSE MAX(g.points)
-        END AS points,
-        CASE 
-          WHEN MAX(g.xp) IS NULL OR MAX(g.xp) = 0
-          THEN CASE WHEN MAX(vs.points) IS NULL OR MAX(vs.points) = 0 THEN 1000 ELSE MAX(vs.points * 2) END
-          ELSE MAX(g.xp)
-        END AS xp,
+        COALESCE(NULLIF(MAX(vs.user_name), ''), 'Auditeur Invité #' || substr(vs.visitor_id, -6)) AS name,
+        MAX(vs.user_email) AS email, NULL AS phone, NULL AS avatar_url,
+        'free' AS plan, 0 AS wallet_balance, MIN(vs.started_at) AS created_at,
+        COALESCE(MAX(g.points), MAX(vs.points), 0) AS points,
+        COALESCE(MAX(g.xp), MAX(vs.points), 0) AS xp,
         COALESCE(MAX(g.level), 1) AS level,
         COALESCE(MAX(g.reading_minutes), 0) AS reading_minutes,
         ROUND(MAX(COALESCE(vs.total_duration_seconds, 0)) / 60) AS listening_minutes,
         COALESCE(MAX(g.books_completed), 0) AS books_completed,
         MAX(g.last_daily_reward_date) AS last_daily_reward_date,
         COALESCE(NULLIF(NULLIF(MAX(vs.country), 'XX'), ''), 'GA') AS country,
-        0 AS has_whatsapp,
-        1 AS is_real_user,
+        0 AS has_whatsapp, 0 AS is_registered, 'guest' AS user_type,
         COALESCE(MAX(ipd.ip), MAX(vs.ip)) AS ip_address,
         COALESCE(MAX(ipd.last_seen_at), MAX(vs.last_active_at)) AS ip_last_seen
       FROM visitor_sessions vs
@@ -275,8 +257,9 @@ export async function handleGetAdminUsers(request, env, corsHeaders) {
       LEFT JOIN ip_devices ipd ON vs.visitor_id = ipd.primary_user_id
       WHERE u.id IS NULL 
         AND (
-          vs.points > 0 
-          OR vs.total_duration_seconds >= 10
+          COALESCE(vs.total_duration_seconds, 0) >= 30
+          OR COALESCE(g.listening_minutes, 0) > 0
+          OR (COALESCE(g.points, 0) > 0 AND g.user_id IS NOT NULL)
           OR EXISTS (SELECT 1 FROM analytics_events ae WHERE ae.visitor_id = vs.visitor_id AND ae.action IN ('audio_play', 'audio_listen', 'download_offline', 'buy_click', 'rating_submit'))
         )
       GROUP BY vs.visitor_id
@@ -286,7 +269,6 @@ export async function handleGetAdminUsers(request, env, corsHeaders) {
 
     const combined = [...(dbUsers || [])];
     const existingIds = new Set(combined.map(u => u.id));
-
     for (const v of (activeVisitors || [])) {
       if (!existingIds.has(v.id)) {
         combined.push(v);
@@ -294,20 +276,113 @@ export async function handleGetAdminUsers(request, env, corsHeaders) {
       }
     }
 
-    // Tri chronologique strict
-    combined.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    // Tri chronologique
+    combined.sort((a, b) => {
+      const timeA = a.created_at ? new Date(String(a.created_at).replace(' ', 'T')).getTime() || 0 : 0;
+      const timeB = b.created_at ? new Date(String(b.created_at).replace(' ', 'T')).getTime() || 0 : 0;
+      return timeB - timeA;
+    });
 
-    // Post-processing : garantie — aucun utilisateur ne peut afficher 0 pts (bonus bienvenue = 1000 par défaut)
-    const finalUsers = combined.map(u => ({
-      ...u,
-      points: (u.points !== null && u.points !== undefined && Number(u.points) > 0) ? Number(u.points) : 1000,
-      xp: (u.xp !== null && u.xp !== undefined && Number(u.xp) > 0) ? Number(u.xp) : 1000,
-      level: Number(u.level) || 1,
-    }));
+    const finalUsers = combined.map(u => {
+      const realPoints = Math.max(0, Number(u.points) || 0);
+      const realXp = Math.max(0, Number(u.xp) || realPoints);
+      const lvlInfo = computeUserLevel(realXp);
+      return {
+        ...u,
+        points: realPoints,
+        xp: realXp,
+        level: lvlInfo.level,
+        level_title: lvlInfo.title,
+        level_color: lvlInfo.color,
+      };
+    });
 
     return jsonResponse(finalUsers, corsHeaders);
   } catch (err) {
     console.error('Erreur getAdminUsers:', err);
     return jsonResponse([], corsHeaders, 500);
+  }
+}
+
+/**
+ * POST /api/admin/users/credit-points ou /api/admin/users/:id/points
+ * Crédite ou débite des Sky Points / XP de manière atomique et auditée.
+ */
+export async function handleCreditUserPoints(request, env, corsHeaders, routeUserId = null) {
+  if (!env.DB) return jsonResponse({ success: false, error: 'Base D1 non disponible' }, corsHeaders, 500);
+
+  try {
+    const body = await request.json().catch(() => ({}));
+    const userId = routeUserId || body.user_id || body.userId;
+    const pointsDelta = Number(body.points !== undefined ? body.points : (body.sky_points !== undefined ? body.sky_points : body.amount));
+    const reason = body.reason || body.description || "Crédit Sky Points par l'Admin";
+
+    if (!userId) return jsonResponse({ success: false, error: 'Identifiant utilisateur requis' }, corsHeaders, 400);
+    if (isNaN(pointsDelta) || pointsDelta === 0) {
+      return jsonResponse({ success: false, error: 'Montant de points invalide (différent de 0 requis)' }, corsHeaders, 400);
+    }
+
+    // 1. S'assurer que le user existe
+    await env.DB.prepare(`
+      INSERT OR IGNORE INTO users (id, name, created_at, updated_at)
+      VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `).bind(userId, body.user_name || 'Auditeur RG Play').run().catch(() => {});
+
+    // 2. Mettre à jour user_gamification
+    const xpDelta = pointsDelta > 0 ? pointsDelta : 0;
+    const initialPts = Math.max(0, pointsDelta);
+
+    await env.DB.prepare(`
+      INSERT INTO user_gamification (
+        user_id, xp, points, level, reading_minutes, listening_minutes, 
+        books_completed, daily_streak, updated_at
+      ) VALUES (?, ?, ?, 1, 0, 0, 0, 1, CURRENT_TIMESTAMP)
+      ON CONFLICT(user_id) DO UPDATE SET
+        points = MAX(0, user_gamification.points + ?),
+        xp = MAX(0, user_gamification.xp + ?),
+        updated_at = CURRENT_TIMESTAMP
+    `).bind(userId, initialPts, initialPts, pointsDelta, xpDelta).run();
+
+    // 3. Enregistrer la transaction
+    const txId = `tx-admin-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const txType = pointsDelta > 0 ? 'admin_credit' : 'admin_debit';
+    await env.DB.prepare(`
+      INSERT INTO point_transactions (id, user_id, amount, type, description, created_at)
+      VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `).bind(txId, userId, pointsDelta, txType, reason).run().catch(() => {});
+
+    // 4. Mettre à jour visitor_sessions
+    await env.DB.prepare(`
+      UPDATE visitor_sessions SET points = MAX(0, points + ?) WHERE user_id = ? OR visitor_id = ?
+    `).bind(pointsDelta, userId, userId).run().catch(() => {});
+
+    // 5. Récupérer le solde mis à jour
+    const updated = await env.DB.prepare(
+      'SELECT user_id, points, xp, level FROM user_gamification WHERE user_id = ?'
+    ).bind(userId).first();
+
+    const finalPoints = updated ? Number(updated.points) : initialPts;
+    const finalXp = updated ? Number(updated.xp) : initialPts;
+    const levelInfo = computeUserLevel(finalXp);
+
+    if (updated && updated.level !== levelInfo.level) {
+      await env.DB.prepare('UPDATE user_gamification SET level = ? WHERE user_id = ?')
+        .bind(levelInfo.level, userId).run().catch(() => {});
+    }
+
+    return jsonResponse({
+      success: true,
+      user_id: userId,
+      points_added: pointsDelta,
+      new_points: finalPoints,
+      new_xp: finalXp,
+      level: levelInfo.level,
+      level_title: levelInfo.title,
+      transaction_id: txId,
+      message: `${pointsDelta > 0 ? `+${pointsDelta}` : pointsDelta} Sky Points enregistrés avec succès !`
+    }, corsHeaders);
+  } catch (err) {
+    console.error('Erreur handleCreditUserPoints:', err);
+    return jsonResponse({ success: false, error: err.message || 'Erreur serveur' }, corsHeaders, 500);
   }
 }
