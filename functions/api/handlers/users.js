@@ -264,7 +264,7 @@ export async function handleGetAdminUsers(request, env, corsHeaders) {
         )
       GROUP BY vs.visitor_id
       ORDER BY MAX(vs.last_active_at) DESC
-      LIMIT 100
+      LIMIT 500
     `).all().catch(() => ({ results: [] }));
 
     const combined = [...(dbUsers || [])];

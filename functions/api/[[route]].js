@@ -1050,6 +1050,18 @@ export async function onRequest(context) {
             body.seconds_listened || 0,
             body.extra_data ? JSON.stringify(body.extra_data) : null
           ).run().catch(() => {});
+
+          // Incrémenter real_plays_count sur audiobooks pour chaque écoute réelle (jamais display_plays_count)
+          const isRealPlay = (eventType === 'audio_play' || body.action === 'audio_play' || body.action === 'audio_listen' || body.action === 'play_full');
+          const hasRealSeconds = (body.seconds_listened || 0) > 0;
+          if (isRealPlay && hasRealSeconds && (body.audiobook_id || body.ad_id)) {
+            const bookId = body.audiobook_id || body.ad_id;
+            await env.DB.prepare(`
+              UPDATE audiobooks 
+              SET real_plays_count = COALESCE(real_plays_count, 0) + 1
+              WHERE id = ?
+            `).bind(bookId).run().catch(() => {});
+          }
         }
       } catch (_) {}
       return jsonResponse({ ok: true }, corsHeaders);

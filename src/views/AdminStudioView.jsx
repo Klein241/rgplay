@@ -527,20 +527,24 @@ export const AdminStudioView = ({ onBookCreated }) => {
           pct: Math.round((s.count / totalMergedSources) * 100)
         })).sort((a, b) => b.count - a.count);
 
-        // ── 3. Fusion des Audios les Plus Écoutés (SOMME des écoutes réelles) ──
-        const audioMap = {};
-        [...(serverData.topAudios || []), ...(localData.topAudios || [])].forEach(a => {
-          const aId = a.id || a.audiobook_id;
-          if (!aId) return;
-          if (!audioMap[aId]) {
-            audioMap[aId] = { ...a, id: aId, plays: Number(a.plays) || 0, total_seconds: Number(a.total_seconds || a.seconds) || 0 };
-          } else {
-            // ✅ SOMME des écoutes réelles (server + local), pas Math.max
-            audioMap[aId].plays = (Number(audioMap[aId].plays) || 0) + (Number(a.plays) || 0);
-            audioMap[aId].total_seconds = (Number(audioMap[aId].total_seconds) || 0) + (Number(a.total_seconds || a.seconds) || 0);
-          }
-        });
-        const mergedTopAudios = Object.values(audioMap).sort((a, b) => (Number(b.plays) || 0) - (Number(a.plays) || 0)).slice(0, 15);
+        // ── 3. Top Audios — D1 est SOURCE DE VÉRITÉ unique (écoutes réelles analytics_events)
+        // Le localStorage ne complète QUE si D1 ne renvoie aucun résultat (première session admin)
+        let mergedTopAudios = [];
+        const serverTopAudios = (serverData.topAudios || []).filter(a => (a.id || a.audiobook_id) && (Number(a.plays) || 0) > 0);
+        if (serverTopAudios.length > 0) {
+          // D1 a des données → on utilise uniquement D1, pas de SOMME avec le local
+          mergedTopAudios = serverTopAudios
+            .map(a => ({ ...a, id: a.id || a.audiobook_id, plays: Number(a.plays) || 0, total_seconds: Number(a.total_seconds || a.seconds) || 0 }))
+            .sort((a, b) => b.plays - a.plays)
+            .slice(0, 15);
+        } else {
+          // Aucune donnée D1 → fallback local uniquement (jamais de SOMME pour éviter doublons)
+          const localAudios = (localData.topAudios || []).filter(a => (a.id || a.audiobook_id) && (Number(a.plays) || 0) > 0);
+          mergedTopAudios = localAudios
+            .map(a => ({ ...a, id: a.id || a.audiobook_id, plays: Number(a.plays) || 0, total_seconds: Number(a.total_seconds || a.seconds) || 0 }))
+            .sort((a, b) => b.plays - a.plays)
+            .slice(0, 15);
+        }
 
         // ── 4. Fusion des Statistiques Publicitaires (Facebook Ads) ──
         const sAds = serverData.adStats || {};

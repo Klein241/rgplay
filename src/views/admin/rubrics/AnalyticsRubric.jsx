@@ -104,12 +104,12 @@ export const AnalyticsRubric = ({
       return {
         id: aId,
         title: aud.title || aud.audiobook_title || matched?.title || 'Livre Audio',
-        author: aud.author || matched?.author || 'Auteur Read’s Great',
+        author: aud.author || matched?.author || "Auteur Read's Great",
         cover_url: aud.cover_url || matched?.cover_url,
-        plays: Number(aud.plays) || 1,
-        total_seconds: aud.total_seconds || aud.seconds || (matched?.duration_seconds ? Math.round(matched.duration_seconds * 0.4) : 1800),
+        plays: Number(aud.plays) || 0,  // 0 si pas d'écoutes réelles — honnête
+        total_seconds: aud.total_seconds || aud.seconds || 0,
       };
-    });
+    }).filter(a => a.plays > 0);  // exclure les entrées sans écoute réelle
 
     if (enrichedFromEvents.length > 0) return enrichedFromEvents;
 
@@ -128,17 +128,16 @@ export const AnalyticsRubric = ({
     });
 
     return audioBooksOnly
-      .map(b => {
-        const plays = Number(b.display_plays_count) || (b.rating_count ? Number(b.rating_count) * 7 : 0) || 18;
-        return {
-          id: b.id,
-          title: b.title,
-          author: b.author || 'Auteur Read’s Great',
-          cover_url: b.cover_url,
-          plays,
-          total_seconds: plays * 210,
-        };
-      })
+      .map(b => ({
+        id: b.id,
+        title: b.title,
+        author: b.author || "Auteur Read's Great",
+        cover_url: b.cover_url,
+        // UNIQUEMENT real_plays_count (vraies écoutes) — jamais display_plays_count (Social Proof fictif)
+        plays: Number(b.real_plays_count) || 0,
+        total_seconds: 0,
+      }))
+      .filter(b => b.plays > 0)  // n'afficher que ceux avec de vraies écoutes enregistrées
       .sort((a, b) => b.plays - a.plays)
       .slice(0, 15);
   }, [topAudios, books]);
