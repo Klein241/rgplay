@@ -125,7 +125,7 @@ export async function handleRecoverWhatsApp(request, env, corsHeaders) {
       FROM users u
       LEFT JOIN user_gamification g ON u.id = g.user_id
       WHERE u.phone = ? OR u.phone = ?
-      ORDER BY u.updated_at DESC
+      ORDER BY u.created_at DESC
       LIMIT 1
     `).bind(phone, rawPhone.trim()).first();
 
@@ -225,7 +225,7 @@ export async function handleGetAdminUsers(request, env, corsHeaders) {
         CASE WHEN u.phone IS NOT NULL AND TRIM(u.phone) != '' THEN 1 ELSE 0 END AS has_whatsapp,
         1 AS is_registered, 'registered' AS user_type,
         COALESCE(ipd.ip, (SELECT vs.ip FROM visitor_sessions vs WHERE vs.user_id = u.id OR vs.visitor_id = u.id ORDER BY vs.last_active_at DESC LIMIT 1)) AS ip_address,
-        COALESCE(ipd.last_seen_at, (SELECT vs.last_active_at FROM visitor_sessions vs WHERE vs.user_id = u.id OR vs.visitor_id = u.id ORDER BY vs.last_active_at DESC LIMIT 1), u.updated_at) AS ip_last_seen
+        COALESCE(ipd.last_seen_at, (SELECT vs.last_active_at FROM visitor_sessions vs WHERE vs.user_id = u.id OR vs.visitor_id = u.id ORDER BY vs.last_active_at DESC LIMIT 1), u.created_at) AS ip_last_seen
       FROM users u
       LEFT JOIN user_gamification g ON u.id = g.user_id
       LEFT JOIN ip_devices ipd ON ipd.primary_user_id = u.id
