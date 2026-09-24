@@ -1136,7 +1136,7 @@ export async function onRequest(context) {
         };
       });
 
-      // 5. Top audios réellement écoutés
+      // 5. Top audios réellement écoutés — UNIQUEMENT écoutes réelles D1, pas display_plays_count (Social Proof)
       const { results: audioRes } = await env.DB.prepare(
         `SELECT 
            e.audiobook_id AS id,
@@ -1147,35 +1147,42 @@ export async function onRequest(context) {
            SUM(COALESCE(e.seconds_listened, 0)) AS total_seconds
          FROM analytics_events e
          LEFT JOIN audiobooks b ON e.audiobook_id = b.id
-         WHERE (e.event_type IN ('audio_play', 'play') OR e.action IN ('audio_play', 'play', 'preview_click', 'play_full', 'audio_listen')) AND e.audiobook_id IS NOT NULL
+         WHERE (e.event_type IN ('audio_play', 'play') OR e.action IN ('audio_play', 'play', 'play_full', 'audio_listen'))
+           AND e.audiobook_id IS NOT NULL
+           AND e.seconds_listened > 0
          GROUP BY e.audiobook_id
          ORDER BY plays DESC LIMIT 15`
       ).all().catch(() => ({ results: [] }));
 
-      // Compléter avec les livres du catalogue ayant des lectures/écoutes enregistrées si besoin
-      const { results: fallbackAudioBooks } = await env.DB.prepare(
-        `SELECT id, title, author, cover_url, 
-                COALESCE(display_plays_count, downloads_count, 0) AS plays,
-                (COALESCE(duration_seconds, 1800) * 0.4) AS total_seconds
-         FROM audiobooks
-         WHERE (display_plays_count > 0 OR downloads_count > 0)
-         ORDER BY display_plays_count DESC LIMIT 15`
-      ).all().catch(() => ({ results: [] }));
+      // Compléter avec preview_clicks (écoute d'extrait) uniquement si peu de données réelles
+      let finalTopAudios = (audioRes || []).filter(a => a.id);
 
-      const mergedAudioMap = {};
-      (audioRes || []).forEach(a => {
-        if (a.id) mergedAudioMap[a.id] = { ...a };
-      });
-      (fallbackAudioBooks || []).forEach(f => {
-        if (f.id) {
-          if (!mergedAudioMap[f.id]) {
-            mergedAudioMap[f.id] = { ...f };
-          } else {
-            mergedAudioMap[f.id].plays = Math.max(Number(mergedAudioMap[f.id].plays) || 0, Number(f.plays) || 0);
+      if (finalTopAudios.length < 5) {
+        const { results: previewRes } = await env.DB.prepare(
+          `SELECT 
+             e.audiobook_id AS id,
+             COALESCE(b.title, e.audiobook_title, 'Livre Audio') AS title,
+             b.author,
+             b.cover_url,
+             COUNT(*) AS plays,
+             SUM(COALESCE(e.seconds_listened, 0)) AS total_seconds
+           FROM analytics_events e
+           LEFT JOIN audiobooks b ON e.audiobook_id = b.id
+           WHERE (e.event_type IN ('audio_play', 'play') OR e.action IN ('audio_play', 'play', 'play_full', 'audio_listen', 'preview_click'))
+             AND e.audiobook_id IS NOT NULL
+           GROUP BY e.audiobook_id
+           ORDER BY plays DESC LIMIT 15`
+        ).all().catch(() => ({ results: [] }));
+        const existingIds = new Set(finalTopAudios.map(a => a.id));
+        for (const p of (previewRes || [])) {
+          if (p.id && !existingIds.has(p.id)) {
+            finalTopAudios.push(p);
+            existingIds.add(p.id);
           }
         }
-      });
-      const finalTopAudios = Object.values(mergedAudioMap)
+      }
+
+      finalTopAudios = finalTopAudios
         .sort((a, b) => (Number(b.plays) || 0) - (Number(a.plays) || 0))
         .slice(0, 15);
 
