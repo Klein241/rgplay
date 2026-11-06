@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { sendFcmMessage } from './fcm.js';
 
 /**
  * Gestionnaire Web Push Notification VAPID (RFC 8291 & RFC 8292)
@@ -230,6 +231,27 @@ export async function handlePushBroadcast(request, env, corsHeaders) {
     await Promise.all(
       batch.map(async (sub) => {
         try {
+          // A. Envoi prioritaire Firebase Cloud Messaging HTTP v1
+          if (sub.endpoint.startsWith('fcm:')) {
+            const token = sub.endpoint.slice(4);
+            const res = await sendFcmMessage(token, {
+              title: notifTitle,
+              body: notifMessage,
+              url,
+              bookId,
+            });
+            if (res.ok) {
+              sent++;
+            } else if (res.isUnregistered) {
+              deadEndpoints.push(sub.endpoint);
+              purged++;
+            } else {
+              failed++;
+            }
+            return;
+          }
+
+          // B. Envoi standard Web Push VAPID RFC 8291
           const subscriptionObj = {
             endpoint: sub.endpoint,
             keys: { auth: sub.auth, p256dh: sub.p256dh },
