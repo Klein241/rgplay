@@ -18,18 +18,7 @@ export const BottomNav = ({ activeTab, setActiveTab, onOpenStore, onOpenAgentSky
   return (
     <nav className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 w-[94%] max-w-md">
       <div
-        className="flex items-center justify-between px-3 py-2 rounded-full"
-        style={{
-          background: 'linear-gradient(180deg, rgba(32, 16, 58, 0.94) 0%, rgba(14, 6, 26, 0.97) 100%)',
-          backdropFilter: 'blur(36px) saturate(220%)',
-          WebkitBackdropFilter: 'blur(36px) saturate(220%)',
-          border: '1px solid rgba(168, 85, 247, 0.30)',
-          boxShadow: `
-            0 20px 50px rgba(0,0,0,0.80),
-            0 0 30px rgba(168, 85, 247, 0.20),
-            0 1px 0 rgba(255,255,255,0.10) inset
-          `,
-        }}
+        className="flex items-center justify-between px-3 py-2 rounded-full glass-pill border border-white/20 shadow-2xl"
       >
         {/* 1. DÉCOUVRIR */}
         <button

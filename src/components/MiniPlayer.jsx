@@ -42,19 +42,7 @@ export const MiniPlayer = () => {
       />
 
       <div
-        className="relative rounded-2xl overflow-hidden transition-all duration-300 group-hover:-translate-y-1"
-        style={{
-          background: 'linear-gradient(145deg, rgba(20, 15, 45, 0.96) 0%, rgba(12, 9, 30, 0.98) 100%)',
-          backdropFilter: 'blur(32px) saturate(200%)',
-          WebkitBackdropFilter: 'blur(32px) saturate(200%)',
-          border: '1px solid rgba(168, 85, 247, 0.32)',
-          boxShadow: `
-            0 24px 60px rgba(0,0,0,0.70),
-            0 8px 24px rgba(0,0,0,0.50),
-            0 0 0 1px rgba(168, 85, 247, 0.12),
-            0 1px 0 rgba(255,255,255,0.07) inset
-          `,
-        }}
+        className="relative rounded-2xl overflow-hidden transition-all duration-300 group-hover:-translate-y-1 glass-pill border border-white/20 shadow-2xl"
       >
         {/* Barre de progression PREMIUM — plus épaisse avec glow */}
         <div className="absolute top-0 left-0 right-0 h-1.5 rounded-t-2xl overflow-hidden">

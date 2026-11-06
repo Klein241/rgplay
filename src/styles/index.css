@@ -179,33 +179,48 @@ input, textarea, select {
 }
 
 /* ════════════════════════════════════════════════════════════
-   GLASSMORPHISM — SURFACES PREMIUM
+   AURA GLASSMORPHISM DE LUXE (STYLE AXOLOTL PUR)
+   Surfaces dépolies translucides, reflets cristallins & légèreté
    ════════════════════════════════════════════════════════════ */
 
-/* Header & Navigation bar */
-.glass-panel {
-  background: rgba(8, 5, 22, 0.85);
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
-  border-color: rgba(168, 85, 247, 0.14);
-  /* Micro-highlight en haut */
-  box-shadow:
-    0 1px 0 0 rgba(255, 255, 255, 0.06) inset,
-    0 -1px 0 0 rgba(0, 0, 0, 0.3) inset;
+/* Capsule de verre flottante (Header, filtres, tags, badges) */
+.glass-pill {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.35), inset 0 1px 0 0 rgba(255, 255, 255, 0.25);
+  transition: all 300ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Carte principale */
-.glass-card {
-  background: linear-gradient(160deg,
-    rgba(24, 19, 53, 0.85) 0%,
-    rgba(17, 14, 42, 0.90) 100%
-  );
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  border: 1px solid var(--color-border-default);
-  box-shadow: var(--shadow-card);
-  /* Micro-highlight haut de carte */
+.glass-pill:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 12px 36px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 0 rgba(255, 255, 255, 0.40);
+  transform: translateY(-1px);
+}
+
+/* Grand panneau dépoli translucide */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(32px) saturate(190%);
+  -webkit-backdrop-filter: blur(32px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 1.75rem;
+  box-shadow: 0 20px 50px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 0 rgba(255, 255, 255, 0.20);
   position: relative;
+}
+
+/* Carte de livre audio flottante */
+.glass-card {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 1.5rem;
+  box-shadow: 0 10px 30px 0 rgba(0, 0, 0, 0.30), inset 0 1px 0 0 rgba(255, 255, 255, 0.15);
+  position: relative;
+  transition: all 350ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .glass-card::before {
@@ -214,70 +229,66 @@ input, textarea, select {
   inset: 0;
   border-radius: inherit;
   background: linear-gradient(180deg,
-    rgba(255, 255, 255, 0.05) 0%,
-    transparent 40%
+    rgba(255, 255, 255, 0.08) 0%,
+    transparent 50%
   );
   pointer-events: none;
 }
 
 .glass-card:hover {
-  box-shadow: var(--shadow-card-hover);
-  border-color: var(--color-border-strong);
-  transform: translateY(-2px);
-  transition: all 280ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.32);
+  box-shadow: 0 20px 48px -8px rgba(0, 0, 0, 0.55), 0 0 32px rgba(168, 85, 247, 0.25), inset 0 1px 0 0 rgba(255, 255, 255, 0.35);
+  transform: translateY(-3px);
+}
+
+/* Badge vertical / capsule style Axolotl */
+.glass-badge-pill {
+  background: rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 1rem;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.20), 0 8px 24px rgba(0, 0, 0, 0.30);
 }
 
 /* ════════════════════════════════════════════════════════════
-   CARDS SYSTÈME — 3 NIVEAUX
+   CARDS SYSTÈME DÉPOLIES & LÉGÈRES (FIN DU TOUFFU SOMBRE)
    ════════════════════════════════════════════════════════════ */
 .card-sm {
-  background: linear-gradient(145deg, rgba(24, 19, 53, 0.70), rgba(17, 14, 42, 0.80));
-  border: 1px solid var(--color-border-subtle);
-  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 1.25rem;
   padding: 1rem;
   position: relative;
   overflow: hidden;
-}
-.card-sm::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(168, 85, 247, 0.35), transparent);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
 .card-md {
-  background: linear-gradient(145deg, rgba(24, 19, 53, 0.80), rgba(17, 14, 42, 0.88));
-  border: 1px solid var(--color-border-default);
-  border-radius: 1.25rem;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 1.5rem;
   padding: 1.25rem;
-  box-shadow: var(--shadow-card);
   position: relative;
   overflow: hidden;
-}
-.card-md::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(168, 85, 247, 0.40), transparent);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 
 .card-lg {
-  background: linear-gradient(145deg, rgba(24, 19, 53, 0.85), rgba(17, 14, 42, 0.92));
-  border: 1px solid var(--color-border-default);
-  border-radius: 1.5rem;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 1.75rem;
   padding: 1.5rem;
-  box-shadow: var(--shadow-card);
   position: relative;
   overflow: hidden;
-}
-.card-lg::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(168, 85, 247, 0.45), rgba(232, 121, 249, 0.30), transparent);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.20);
 }
 
 /* ════════════════════════════════════════════════════════════
