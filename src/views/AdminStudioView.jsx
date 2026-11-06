@@ -944,6 +944,16 @@ export const AdminStudioView = ({ onBookCreated }) => {
     // Déclencher la notification push réelle pour les utilisateurs si publié immédiatement
     if (!isScheduled) {
       window.dispatchEvent(new CustomEvent('rg_new_content_published', { detail: newBook }));
+      fetch('/api/admin/push/broadcast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: `✨ Nouveau contenu sur RG Play !`,
+          body: `"${newBook.title}" par ${newBook.author || 'RG Play'} est maintenant disponible.`,
+          url: `/?type=${newBook.content_type || 'audiobook'}`,
+          bookId: newBook.id,
+        }),
+      }).catch(err => console.warn('[Admin] Échec broadcast push automatique:', err));
     }
 
     if (onBookCreated) onBookCreated(newBook);
