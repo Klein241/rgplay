@@ -492,16 +492,18 @@ export function App() {
                 onAdminLogout={null}
               />
 
-              <div className="flex-1 flex max-w-screen-2xl w-full mx-auto">
-                {/* Sidebar Desktop */}
-                <Sidebar
-                  activeTab={activeTab}
-                  setActiveTab={handleTabChange}
-                  onOpenInstallModal={() => setIsInstallModalOpen(true)}
-                />
+              <div className="flex-1 flex max-w-7xl w-full mx-auto">
+                {/* Sidebar Desktop (sur les onglets secondaires) */}
+                {activeTab !== 'discover' && (
+                  <Sidebar
+                    activeTab={activeTab}
+                    setActiveTab={handleTabChange}
+                    onOpenInstallModal={() => setIsInstallModalOpen(true)}
+                  />
+                )}
 
                 {/* Zone de Contenu avec marge de scroll sécurisée au-dessus du BottomNav et du MiniPlayer */}
-                <main className="flex-1 px-4 sm:px-6 lg:px-8 pt-6 pb-48 sm:pb-56 md:pb-44 min-w-0">
+                <main className="flex-1 px-3 sm:px-6 lg:px-8 pt-4 pb-48 sm:pb-56 md:pb-44 min-w-0">
                   {activeTab === 'discover' && (
                     <DiscoverView
                       searchQuery={searchQuery}

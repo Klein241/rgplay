@@ -1,84 +1,90 @@
 import React from 'react';
-import { Headphones, Download, Sparkles, ChevronRight } from 'lucide-react';
+import { Zap, ShieldCheck, Sparkles, ArrowRight } from 'lucide-react';
 
 /**
- * GlassFeaturesRow — Les 3 Piliers de l'Expérience RG Play (Style Axolotl 3 Cards)
+ * GlassFeaturesRow — Les 3 Piliers de Verre Verticaux Style Axolotl
  * ─────────────────────────────────────────────────────────────────────────────
- * 3 dalles de verre givré avec icône dans un cercle dépoli, texte d'accroche
- * et bouton en capsule de verre.
+ * Copie 100% fidèle des 3 cartes (NATURAL ENERGY, CLEAN INGREDIENTS, MIND & BODY BALANCE)
+ * avec icône dans un cercle dépoli, titre en majuscules, descriptif et bouton pill.
  */
 
 export const GlassFeaturesRow = ({ onExplore, onOpenOffline, onOpenRewards }) => {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 my-6 sm:my-8">
-      {/* Carte 1 : Audio HD */}
-      <div className="glass-card p-6 flex flex-col justify-between text-left group">
-        <div className="space-y-3">
-          <div className="w-12 h-12 rounded-2xl glass-pill flex items-center justify-center text-purple-300 group-hover:scale-110 group-hover:border-purple-400/50 transition-all">
-            <Headphones size={22} />
+    <section className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8 my-8 sm:my-10">
+      {/* 1. ÉNERGIE & INSPIRATION (Carte 1) */}
+      <div className="glass-panel p-6 sm:p-8 rounded-3xl flex flex-col justify-between space-y-6 hover:scale-102 transition-all border border-white/20 shadow-2xl">
+        <div className="space-y-4">
+          <div className="w-14 h-14 rounded-2xl bg-emerald-500/15 border border-emerald-400/30 flex items-center justify-center text-emerald-400 shadow-lg">
+            <Zap size={26} />
           </div>
-          <h3 className="text-base sm:text-lg font-black text-white uppercase tracking-wider font-['Outfit']">
-            Son Haute Fidélité
+
+          <h3 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tight font-['Outfit']">
+            AUDIO HAUTE <br /> DÉFINITION
           </h3>
-          <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-            Narrations d'acteurs professionnels et masters audio cristallins pour une absorption maximale des connaissances.
+
+          <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
+            Enregistrements de qualité studio, voix d'orateurs reconnus et ambiances sonores immersives pour nourrir votre esprit chaque jour.
           </p>
         </div>
 
         <button
           onClick={onExplore}
-          className="mt-6 self-start px-4 py-2 rounded-full glass-pill text-xs font-bold text-purple-200 hover:text-white flex items-center gap-1.5 cursor-pointer"
+          className="w-full py-3 rounded-full glass-pill text-xs font-black uppercase tracking-wider text-white hover:text-emerald-300 flex items-center justify-center gap-2 border border-white/20 transition-all cursor-pointer"
         >
-          <span>Découvrir</span>
-          <ChevronRight size={14} />
+          <span>DÉCOUVRIR LE SON</span>
+          <ArrowRight size={14} />
         </button>
       </div>
 
-      {/* Carte 2 : Hors-ligne */}
-      <div className="glass-card p-6 flex flex-col justify-between text-left group">
-        <div className="space-y-3">
-          <div className="w-12 h-12 rounded-2xl glass-pill flex items-center justify-center text-emerald-300 group-hover:scale-110 group-hover:border-emerald-400/50 transition-all">
-            <Download size={22} />
+      {/* 2. CONTENUS PURS & CERTIFIÉS (Carte 2) */}
+      <div className="glass-panel p-6 sm:p-8 rounded-3xl flex flex-col justify-between space-y-6 hover:scale-102 transition-all border border-white/20 shadow-2xl">
+        <div className="space-y-4">
+          <div className="w-14 h-14 rounded-2xl bg-teal-500/15 border border-teal-400/30 flex items-center justify-center text-teal-300 shadow-lg">
+            <ShieldCheck size={26} />
           </div>
-          <h3 className="text-base sm:text-lg font-black text-white uppercase tracking-wider font-['Outfit']">
-            Mode Hors-Ligne Pur
+
+          <h3 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tight font-['Outfit']">
+            LECTURE 100% <br /> HORS-LIGNE
           </h3>
-          <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-            Téléchargez vos livres dans l'application et écoutez vos chapitres en voyage sans consommer votre forfait data.
+
+          <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
+            Téléchargez vos livres et audios une seule fois. Écoutez où que vous soyez en avion, en voyage ou au village sans connexion Internet.
           </p>
         </div>
 
         <button
           onClick={onOpenOffline}
-          className="mt-6 self-start px-4 py-2 rounded-full glass-pill text-xs font-bold text-emerald-200 hover:text-white flex items-center gap-1.5 cursor-pointer"
+          className="w-full py-3 rounded-full glass-pill text-xs font-black uppercase tracking-wider text-white hover:text-teal-300 flex items-center justify-center gap-2 border border-white/20 transition-all cursor-pointer"
         >
-          <span>Ma Bibliothèque</span>
-          <ChevronRight size={14} />
+          <span>MA BIBLIOTHÈQUE</span>
+          <ArrowRight size={14} />
         </button>
       </div>
 
-      {/* Carte 3 : Sky Points */}
-      <div className="glass-card p-6 flex flex-col justify-between text-left group">
-        <div className="space-y-3">
-          <div className="w-12 h-12 rounded-2xl glass-pill flex items-center justify-center text-amber-300 group-hover:scale-110 group-hover:border-amber-400/50 transition-all">
-            <Sparkles size={22} />
+      {/* 3. ÉLÉVATION & RÉCOMPENSES (Carte 3) */}
+      <div className="glass-panel p-6 sm:p-8 rounded-3xl flex flex-col justify-between space-y-6 hover:scale-102 transition-all border border-white/20 shadow-2xl">
+        <div className="space-y-4">
+          <div className="w-14 h-14 rounded-2xl bg-amber-500/15 border border-amber-400/30 flex items-center justify-center text-amber-300 shadow-lg">
+            <Sparkles size={26} />
           </div>
-          <h3 className="text-base sm:text-lg font-black text-white uppercase tracking-wider font-['Outfit']">
-            Points &amp; Déblocage
+
+          <h3 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tight font-['Outfit']">
+            SKY POINTS &amp; <br /> RÉCOMPENSES
           </h3>
-          <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-            Gagnez des Sky Points en écoutant chaque jour ou via nos partenaires et débloquez vos œuvres sans carte bancaire.
+
+          <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
+            Chaque minute d'écoute et de lecture vous rapporte des Sky Points. Débloquez des œuvres gratuites sans débourser un centime.
           </p>
         </div>
 
         <button
           onClick={onOpenRewards}
-          className="mt-6 self-start px-4 py-2 rounded-full glass-pill text-xs font-bold text-amber-200 hover:text-white flex items-center gap-1.5 cursor-pointer"
+          className="w-full py-3 rounded-full glass-pill text-xs font-black uppercase tracking-wider text-white hover:text-amber-300 flex items-center justify-center gap-2 border border-white/20 transition-all cursor-pointer"
         >
-          <span>Gagner des points</span>
-          <ChevronRight size={14} />
+          <span>GAGNER DES POINTS</span>
+          <ArrowRight size={14} />
         </button>
       </div>
-    </div>
+    </section>
   );
 };

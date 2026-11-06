@@ -49,8 +49,8 @@ export const SquareCard = ({
       <div
         className={`relative w-full aspect-square rounded-2xl overflow-hidden glass-card transition-all duration-300 ${
           isCurrentPlaying
-            ? 'border-purple-400 shadow-[0_0_28px_rgba(168,85,247,0.50)] scale-[1.02]'
-            : 'border-white/15 group-hover:border-white/35 group-hover:shadow-[0_16px_36px_rgba(0,0,0,0.55)] group-hover:scale-[1.03]'
+            ? 'border-emerald-400 shadow-[0_0_28px_rgba(52,211,153,0.50)] scale-[1.02]'
+            : 'border-white/15 group-hover:border-emerald-400/40 group-hover:shadow-[0_16px_36px_rgba(0,0,0,0.55)] group-hover:scale-[1.03]'
         }`}
       >
         <img
@@ -71,13 +71,13 @@ export const SquareCard = ({
             <button
               type="button"
               onClick={handleQuickPlay}
-              className="w-12 h-12 rounded-full glass-pill border border-white/40 text-white flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95 transition-all"
+              className="w-12 h-12 rounded-full btn-emerald-pill flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95 transition-all text-slate-950 cursor-pointer"
               title="Écouter"
             >
               {isCurrentPlaying ? (
-                <Pause className="w-5 h-5 text-cyan-300" />
+                <Pause className="w-5 h-5 fill-current" />
               ) : (
-                <Play className="w-5 h-5 text-white ml-0.5 fill-white" />
+                <Play className="w-5 h-5 fill-current ml-0.5" />
               )}
             </button>
           </div>

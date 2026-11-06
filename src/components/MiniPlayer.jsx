@@ -53,8 +53,8 @@ export const MiniPlayer = () => {
             className="absolute top-0 left-0 h-full rounded-full transition-all duration-150"
             style={{
               width: `${progressPercent}%`,
-              background: 'linear-gradient(90deg, #7c3aed, #a855f7, #e879f9, #f43f8b)',
-              boxShadow: '0 0 10px rgba(168, 85, 247, 0.80), 0 0 24px rgba(168, 85, 247, 0.35)',
+              background: 'linear-gradient(90deg, #059669, #10b981, #34d399, #6ee7b7)',
+              boxShadow: '0 0 10px rgba(16, 185, 129, 0.80), 0 0 24px rgba(16, 185, 129, 0.35)',
             }}
           />
           {/* Curseur lumineux en bout de progression */}
@@ -64,7 +64,7 @@ export const MiniPlayer = () => {
               style={{
                 left: `calc(${progressPercent}% - 5px)`,
                 background: '#ffffff',
-                boxShadow: '0 0 8px rgba(208, 143, 255, 1), 0 0 16px rgba(168, 85, 247, 0.80)',
+                boxShadow: '0 0 8px rgba(52, 211, 153, 1), 0 0 16px rgba(16, 185, 129, 0.80)',
               }}
             />
           )}
@@ -179,21 +179,17 @@ export const MiniPlayer = () => {
             {/* Play / Pause PRINCIPAL */}
             <button
               onClick={togglePlay}
-              className="flex items-center justify-center rounded-full transition-all duration-200 hover:scale-110 active:scale-90"
+              className="flex items-center justify-center rounded-full transition-all duration-200 hover:scale-110 active:scale-90 btn-emerald-pill"
               style={{
                 width: '44px',
                 height: '44px',
-                background: 'linear-gradient(135deg, #7c3aed, #a855f7, #c026d3)',
-                boxShadow: isPlaying
-                  ? '0 0 20px rgba(168, 85, 247, 0.70), 0 4px 16px rgba(0,0,0,0.50)'
-                  : '0 4px 20px rgba(168, 85, 247, 0.50), 0 2px 8px rgba(0,0,0,0.40)',
-                border: '1px solid rgba(255,255,255,0.15)',
+                border: '1px solid rgba(255,255,255,0.35)',
               }}
             >
               {isPlaying ? (
-                <Pause className="w-4 h-4 fill-white text-white" />
+                <Pause className="w-4 h-4 fill-current text-slate-950" />
               ) : (
-                <Play className="w-4 h-4 fill-white text-white ml-0.5" />
+                <Play className="w-4 h-4 fill-current text-slate-950 ml-0.5" />
               )}
             </button>
 

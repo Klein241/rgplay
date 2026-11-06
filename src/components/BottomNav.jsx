@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, BookOpen, ShoppingBag, User, Sparkles, Disc } from 'lucide-react';
+import { Search, BookOpen, ShoppingBag, User, Sparkles } from 'lucide-react';
 import { useAudio } from '../context/AudioContext';
 
 export const BottomNav = ({ activeTab, setActiveTab, onOpenStore, onOpenAgentSky }) => {
@@ -15,24 +15,29 @@ export const BottomNav = ({ activeTab, setActiveTab, onOpenStore, onOpenAgentSky
     }
   };
 
+  const navItems = [
+    { id: 'discover', label: 'DÉCOUVRIR', icon: Search },
+    { id: 'library', label: 'E-BOOKS & PDF', icon: BookOpen },
+    { id: 'store', label: 'BOUTIQUE', icon: ShoppingBag, onClick: onOpenStore },
+    { id: 'profile', label: 'COMPTE', icon: User },
+  ];
+
   return (
     <nav className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 w-[94%] max-w-md">
-      <div
-        className="flex items-center justify-between px-3 py-2 rounded-full glass-pill border border-white/20 shadow-2xl"
-      >
+      <div className="flex items-center justify-between px-3 py-2 rounded-full glass-pill border border-white/20 shadow-2xl">
         {/* 1. DÉCOUVRIR */}
         <button
           onClick={() => setActiveTab('discover')}
           className={`flex-1 flex flex-col items-center gap-1 py-1 px-1 transition-all duration-200 cursor-pointer ${
-            activeTab === 'discover' ? 'text-[#e9d5ff] scale-105' : 'text-[#8b75b2] hover:text-[#c4b0e8]'
+            activeTab === 'discover' ? 'text-emerald-300 scale-105' : 'text-slate-400 hover:text-white'
           }`}
         >
-          <Search className={`w-5 h-5 transition-transform ${activeTab === 'discover' ? 'stroke-[2.5] drop-shadow-[0_0_8px_rgba(216,180,254,0.7)]' : 'stroke-[1.8]'}`} />
+          <Search className={`w-5 h-5 transition-transform ${activeTab === 'discover' ? 'stroke-[2.5] drop-shadow-[0_0_8px_rgba(52,211,153,0.7)]' : 'stroke-[1.8]'}`} />
           <span className={`text-[9.5px] tracking-wider uppercase font-heading ${activeTab === 'discover' ? 'font-black text-white' : 'font-bold'}`}>
             DÉCOUVRIR
           </span>
           {activeTab === 'discover' && (
-            <span className="w-1.5 h-1.5 rounded-full bg-rg-violet shadow-[0_0_8px_#d8b4fe] -mt-0.5" />
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399] -mt-0.5" />
           )}
         </button>
 
@@ -40,31 +45,31 @@ export const BottomNav = ({ activeTab, setActiveTab, onOpenStore, onOpenAgentSky
         <button
           onClick={() => setActiveTab('library')}
           className={`flex-1 flex flex-col items-center gap-1 py-1 px-1 transition-all duration-200 cursor-pointer ${
-            activeTab === 'library' ? 'text-[#e9d5ff] scale-105' : 'text-[#8b75b2] hover:text-[#c4b0e8]'
+            activeTab === 'library' ? 'text-emerald-300 scale-105' : 'text-slate-400 hover:text-white'
           }`}
           title="Liseuse & Bibliothèque E-Books et PDF Read's Great"
         >
-          <BookOpen className={`w-5 h-5 transition-transform ${activeTab === 'library' ? 'stroke-[2.5] drop-shadow-[0_0_8px_rgba(216,180,254,0.7)]' : 'stroke-[1.8]'}`} />
+          <BookOpen className={`w-5 h-5 transition-transform ${activeTab === 'library' ? 'stroke-[2.5] drop-shadow-[0_0_8px_rgba(52,211,153,0.7)]' : 'stroke-[1.8]'}`} />
           <span className={`text-[9.5px] tracking-wider uppercase font-heading ${activeTab === 'library' ? 'font-black text-white' : 'font-bold'}`}>
             E-BOOKS & PDF
           </span>
           {activeTab === 'library' && (
-            <span className="w-1.5 h-1.5 rounded-full bg-rg-violet shadow-[0_0_8px_#d8b4fe] -mt-0.5" />
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399] -mt-0.5" />
           )}
         </button>
 
-        {/* 3. HERO CENTRAL BUTTON (Agent SKY / Disque en lecture @iSalmanArt) */}
+        {/* 3. HERO CENTRAL BUTTON (Agent SKY / Disque en lecture) */}
         <div className="relative -mt-6 px-1 shrink-0">
           <button
             onClick={handleCenterClick}
             className="group relative w-13 h-13 rounded-full p-0.5 flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95 cursor-pointer"
             style={{
-              background: 'linear-gradient(135deg, #c084fc, #9333ea, #3b82f6)',
-              boxShadow: '0 0 25px rgba(168, 85, 247, 0.65), 0 8px 20px rgba(0,0,0,0.6)',
+              background: 'linear-gradient(135deg, #10b981, #059669, #0d9488)',
+              boxShadow: '0 0 25px rgba(16, 185, 129, 0.65), 0 8px 20px rgba(0,0,0,0.6)',
             }}
             title={currentBook ? "Ouvrir le Lecteur Audio" : "Agent SKY"}
           >
-            <div className="w-full h-full rounded-full bg-[#180b30] flex items-center justify-center overflow-hidden border border-white/25">
+            <div className="w-full h-full rounded-full bg-[#031510] flex items-center justify-center overflow-hidden border border-white/25">
               {currentBook?.cover_url ? (
                 <img
                   src={currentBook.cover_url}
@@ -72,15 +77,14 @@ export const BottomNav = ({ activeTab, setActiveTab, onOpenStore, onOpenAgentSky
                   className={`w-full h-full object-cover ${isPlaying ? 'animate-[spin_8s_linear_infinite]' : ''}`}
                 />
               ) : (
-                <div className="flex flex-col items-center justify-center text-cyan-300">
-                  <Sparkles className="w-5 h-5 text-rg-violet animate-pulse" />
+                <div className="flex flex-col items-center justify-center text-emerald-300">
+                  <Sparkles className="w-5 h-5 text-emerald-400 animate-pulse" />
                 </div>
               )}
             </div>
 
-            {/* Glowing active audio pulse ring */}
             {isPlaying && (
-              <span className="absolute -inset-1 rounded-full border-2 border-purple-400/60 animate-ping pointer-events-none" />
+              <span className="absolute -inset-1 rounded-full border-2 border-emerald-400/60 animate-ping pointer-events-none" />
             )}
           </button>
         </div>
@@ -89,15 +93,15 @@ export const BottomNav = ({ activeTab, setActiveTab, onOpenStore, onOpenAgentSky
         <button
           onClick={() => onOpenStore ? onOpenStore() : setActiveTab('store')}
           className={`flex-1 flex flex-col items-center gap-1 py-1 px-1 transition-all duration-200 cursor-pointer ${
-            activeTab === 'store' ? 'text-[#e9d5ff] scale-105' : 'text-[#8b75b2] hover:text-[#c4b0e8]'
+            activeTab === 'store' ? 'text-emerald-300 scale-105' : 'text-slate-400 hover:text-white'
           }`}
         >
-          <ShoppingBag className={`w-5 h-5 transition-transform ${activeTab === 'store' ? 'stroke-[2.5] drop-shadow-[0_0_8px_rgba(216,180,254,0.7)]' : 'stroke-[1.8]'}`} />
+          <ShoppingBag className={`w-5 h-5 transition-transform ${activeTab === 'store' ? 'stroke-[2.5] drop-shadow-[0_0_8px_rgba(52,211,153,0.7)]' : 'stroke-[1.8]'}`} />
           <span className={`text-[9.5px] tracking-wider uppercase font-heading ${activeTab === 'store' ? 'font-black text-white' : 'font-bold'}`}>
             BOUTIQUE
           </span>
           {activeTab === 'store' && (
-            <span className="w-1.5 h-1.5 rounded-full bg-rg-violet shadow-[0_0_8px_#d8b4fe] -mt-0.5" />
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399] -mt-0.5" />
           )}
         </button>
 
@@ -105,15 +109,15 @@ export const BottomNav = ({ activeTab, setActiveTab, onOpenStore, onOpenAgentSky
         <button
           onClick={() => setActiveTab('profile')}
           className={`flex-1 flex flex-col items-center gap-1 py-1 px-1 transition-all duration-200 cursor-pointer ${
-            activeTab === 'profile' ? 'text-[#e9d5ff] scale-105' : 'text-[#8b75b2] hover:text-[#c4b0e8]'
+            activeTab === 'profile' ? 'text-emerald-300 scale-105' : 'text-slate-400 hover:text-white'
           }`}
         >
-          <User className={`w-5 h-5 transition-transform ${activeTab === 'profile' ? 'stroke-[2.5] drop-shadow-[0_0_8px_rgba(216,180,254,0.7)]' : 'stroke-[1.8]'}`} />
+          <User className={`w-5 h-5 transition-transform ${activeTab === 'profile' ? 'stroke-[2.5] drop-shadow-[0_0_8px_rgba(52,211,153,0.7)]' : 'stroke-[1.8]'}`} />
           <span className={`text-[9.5px] tracking-wider uppercase font-heading ${activeTab === 'profile' ? 'font-black text-white' : 'font-bold'}`}>
             COMPTE
           </span>
           {activeTab === 'profile' && (
-            <span className="w-1.5 h-1.5 rounded-full bg-rg-violet shadow-[0_0_8px_#d8b4fe] -mt-0.5" />
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399] -mt-0.5" />
           )}
         </button>
       </div>
