@@ -9,6 +9,7 @@ import { useXp } from '../context/XpContext';
 import { downloadAudioMp3, downloadBookForOffline, isAudioOffline, removeOfflineAudio } from '../utils/offlineAudioCache';
 import { incrementBookDownloads } from '../services/api/audioApi';
 import { trackAction } from '../services/tracker';
+import { notifySocialAction } from '../utils/socialNotifier';
 import { BookChatModal } from './BookChatModal';
 import { PdfReaderModal } from './PdfReaderModal';
 import { AdBanner } from './AdBanner';
@@ -70,6 +71,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
         setIsDownloaded(true);
         setDownloadStatus({ type: 'success', text: '✓ Disponible hors-ligne — Écoutez sans connexion !' });
         incrementBookDownloads(book.id).catch(() => {});
+        notifySocialAction({ type: 'download', bookId: book.id, bookTitle: book.title });
       }
     } catch (e) {
       console.error('[Offline] Erreur:', e);
@@ -91,6 +93,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
     const res = await downloadAudioMp3(book, null, isPurchased);
     if (res === 'ok') {
       setDownloadStatus({ type: 'success', text: '✓ Téléchargement MP3 démarré' });
+      notifySocialAction({ type: 'download', bookId: book.id, bookTitle: book.title });
     } else if (res === 'not_purchased') {
       setDownloadStatus({ type: 'error', text: 'Achetez ce livre pour télécharger le MP3' });
     } else {
@@ -209,6 +212,7 @@ export const AudiobookDetailModal = ({ book, isOpen, onClose, onBuy, isPurchased
       comment: newRev.comment,
       author: userName,
     });
+    notifySocialAction({ type: 'review', bookId: book.id, bookTitle: book.title, rating: userRating });
 
     // Calcul de la nouvelle moyenne : utiliser la reponse serveur si disponible, sinon calcul local
     const newCount = rateRes?.total_reviews ?? (reviews.length + 1);

@@ -774,6 +774,32 @@ export const apiClient = {
     return [];
   },
 
+  // ── Activités Sociales & Preuve Sociale en Temps Réel ───────────────
+  async recordSocialAction(actionData) {
+    try {
+      const res = await fetch(`${API_BASE}/social/action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(actionData),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (_) {}
+    return { success: false };
+  },
+
+  async getSocialFeed() {
+    try {
+      const res = await fetch(`${API_BASE}/social/feed`);
+      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
+        const data = await res.json();
+        return data.activities || [];
+      }
+    } catch (_) {}
+    return [];
+  },
+
   // ──────────────────────────────────────────────────────────────────────
   // PAIEMENT MOBILE MONEY PRODUCTION — CamerPay
   // ──────────────────────────────────────────────────────────────────────

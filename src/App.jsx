@@ -8,6 +8,7 @@ import { AudiobookDetailModal } from './components/AudiobookDetailModal';
 import { CheckoutModal } from './components/CheckoutModal';
 import { InstallAppModal } from './components/InstallAppModal';
 import { PushPermissionBanner } from './components/PushPermissionBanner';
+import { SocialActivityToast } from './components/SocialActivityToast';
 import { NotificationCenterModal } from './components/NotificationCenterModal';
 import { DiscoverView } from './views/DiscoverView';
 import { LibraryView } from './views/LibraryView';
@@ -553,8 +554,11 @@ export function App() {
                 onClose={() => setIsSkyChatOpen(false)}
               />
 
-              {/* Bandeau d'activation Push Notification Persistant */}
+              {/* Modale d'activation Push Notification Persistante */}
               <PushPermissionBanner />
+
+              {/* Toasts de Preuve Sociale & Activités en Direct */}
+              <SocialActivityToast />
 
               {/* Offre de bienvenue -40% (15 min countdown) */}
               <WelcomeOfferBanner

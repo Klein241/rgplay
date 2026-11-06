@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { apiClient } from '../services/api';
 import { cacheAudioForOffline, getOfflineAudioUrl, getOfflineBooks, isAudioOffline } from '../utils/offlineAudioCache';
 import { trackAudioPlay } from '../services/tracker';
+import { notifySocialAction } from '../utils/socialNotifier';
 
 const AudioContext = createContext();
 
@@ -317,8 +318,9 @@ export const AudioProvider = ({ children }) => {
     const chapter = book.chapters?.[chapterIdx];
     const rawAudioSrc = chapter?.audio_url || book.preview_url || 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3';
 
-    // Enregistrer immédiatement l'écoute pour les statistiques temps réel
+    // Enregistrer immédiatement l'écoute pour les statistiques temps réel et les notifications sociales
     trackAudioPlay(book, chapter, startTime || 0);
+    notifySocialAction({ type: 'listen', bookId: book.id, bookTitle: book.title });
 
     const audio = audioRef.current;
     audio.preload = 'auto';

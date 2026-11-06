@@ -17,6 +17,7 @@ import { handleGetVisitorsVsUsers } from './handlers/analytics.js';
 import { handleAudioDownload, handleIncrementDownloads } from './handlers/download.js';
 import { handleGetBookReviews, handlePostBookReview } from './handlers/reviews.js';
 import { handlePushBroadcast, handlePushSubscribe, handlePushUnsubscribe } from './handlers/push.js';
+import { handleRecordSocialAction, handleGetSocialFeed } from './handlers/social.js';
 import { handleGetGamification, handleSyncGamification, handleRegisterReferral } from './handlers/antiFraud.js';
 import { handleGetSettings, handleSaveSettings } from './handlers/settings.js';
 import { handleR2Stream, handleChapterStream, handleAudiobookPreview } from './handlers/audiobooks.js';
@@ -4210,6 +4211,16 @@ export async function onRequest(context) {
     // ─── POST /api/admin/push/broadcast (Envoi de notification Push aux abonnés via VAPID RFC 8291) ─
     if (path === '/admin/push/broadcast' && method === 'POST') {
       return handlePushBroadcast(request, env, corsHeaders);
+    }
+
+    // ─── POST /api/social/action (Preuve sociale, actions en direct & push) ─
+    if (path === '/social/action' && method === 'POST') {
+      return handleRecordSocialAction(request, env, corsHeaders);
+    }
+
+    // ─── GET /api/social/feed (Flux en direct des activités utilisateurs) ─
+    if (path === '/social/feed' && method === 'GET') {
+      return handleGetSocialFeed(request, env, corsHeaders);
     }
 
     // ─── POST /api/ai/enrich (Synthèse, Key Takeaways & Tags DeepSeek pour Admin) ─
