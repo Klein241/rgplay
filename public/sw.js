@@ -197,7 +197,7 @@ self.addEventListener('fetch', (event) => {
 
 
 // ════════════════════════════════════════════════════════════════════════════
-//  PUSH NOTIFICATIONS
+//  PUSH NOTIFICATIONS (Compatible Firebase FCM & Web Push VAPID)
 // ════════════════════════════════════════════════════════════════════════════
 self.addEventListener('push', (event) => {
   let data = {
@@ -205,11 +205,26 @@ self.addEventListener('push', (event) => {
     body: 'Nouveau contenu audio disponible !',
     icon: '/icon-192.png',
     badge: '/icon-192.png',
+    url: '/',
   };
 
   if (event.data) {
-    try { data = { ...data, ...event.data.json() }; }
-    catch { data.body = event.data.text(); }
+    try {
+      const parsed = event.data.json();
+      data = { ...data, ...parsed };
+      // Déballage spécifique Firebase FCM (notification & data payloads)
+      if (parsed.notification) {
+        data.title = parsed.notification.title || data.title;
+        data.body = parsed.notification.body || data.body;
+        data.icon = parsed.notification.icon || data.icon;
+      }
+      if (parsed.data) {
+        data.url = parsed.data.url || parsed.data.click_action || data.url;
+        data.bookId = parsed.data.bookId || data.bookId;
+      }
+    } catch {
+      data.body = event.data.text();
+    }
   }
 
   const options = {

@@ -44,11 +44,11 @@ export const WhatsAppStatusModal = ({ isOpen, onClose, book, chapter }) => {
 
   if (!isOpen || !book) return null;
 
-  // Calcul de la durée effective en secondes
-  const maxPossibleDuration = Math.max(10, Math.floor((totalAudioDuration || 600) - startTime));
-  const effectiveDuration = durationOption === 'all'
-    ? maxPossibleDuration
-    : Math.min(Number(durationOption), maxPossibleDuration);
+  // Calcul de la durée effective en secondes (Strictement bornée pour Statut WhatsApp : 30s standard, 60s max)
+  const MAX_STATUS_DURATION = 60;
+  const remainingAudio = Math.max(5, Math.floor((totalAudioDuration || 60) - startTime));
+  const requestedDuration = Math.min(MAX_STATUS_DURATION, Math.max(10, Number(durationOption) || 30));
+  const effectiveDuration = Math.min(requestedDuration, remainingAudio);
 
   // Écouter l'extrait choisi
   const handlePreviewAudio = () => {
@@ -256,29 +256,35 @@ export const WhatsAppStatusModal = ({ isOpen, onClose, book, chapter }) => {
                 </div>
               </div>
 
-              {/* 2. Durée étendue */}
+              {/* 2. Durée adaptée WhatsApp Status (Max 60s) */}
               <div className="space-y-1.5">
-                <label className="text-[10.5px] font-bold text-purple-200 uppercase tracking-wider block">
-                  Durée de l'enregistrement
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-[10.5px] font-bold text-purple-200 uppercase tracking-wider block">
+                    Durée de l'enregistrement
+                  </label>
+                  <span className="text-[10px] text-emerald-400 font-semibold">
+                    Format Statut WhatsApp (max 60s)
+                  </span>
+                </div>
                 <div className="grid grid-cols-4 gap-1.5">
                   {[
-                    { id: '15', label: '15s' },
-                    { id: '30', label: '30s' },
-                    { id: '60', label: '1 min' },
-                    { id: 'all', label: 'Complet' },
+                    { id: '15', label: '15s', desc: 'Story' },
+                    { id: '30', label: '30s', desc: 'WhatsApp ⭐' },
+                    { id: '45', label: '45s', desc: 'Étendu' },
+                    { id: '60', label: '60s', desc: 'Max 1 min' },
                   ].map((item) => (
                     <button
                       key={item.id}
                       type="button"
                       onClick={() => setDurationOption(item.id)}
-                      className={`py-1.5 px-2 rounded-xl border text-xs font-black transition-all cursor-pointer ${
+                      className={`py-2 px-1 rounded-xl border text-center transition-all cursor-pointer ${
                         durationOption === item.id
                           ? 'bg-emerald-500/25 border-emerald-400 text-emerald-300 shadow-md shadow-emerald-500/20'
                           : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'
                       }`}
                     >
-                      {item.label}
+                      <div className="text-xs font-black">{item.label}</div>
+                      <div className="text-[8.5px] opacity-75 font-medium mt-0.5">{item.desc}</div>
                     </button>
                   ))}
                 </div>

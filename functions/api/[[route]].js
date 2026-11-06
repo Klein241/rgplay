@@ -16,7 +16,7 @@ import { handleLinkWhatsApp, handleRecoverWhatsApp, handleGetAdminUsers, handleC
 import { handleGetVisitorsVsUsers } from './handlers/analytics.js';
 import { handleAudioDownload, handleIncrementDownloads } from './handlers/download.js';
 import { handleGetBookReviews, handlePostBookReview } from './handlers/reviews.js';
-import { handlePushBroadcast } from './handlers/push.js';
+import { handlePushBroadcast, handlePushSubscribe, handlePushUnsubscribe } from './handlers/push.js';
 import { handleGetGamification, handleSyncGamification, handleRegisterReferral } from './handlers/antiFraud.js';
 import { handleGetSettings, handleSaveSettings } from './handlers/settings.js';
 import { handleR2Stream, handleChapterStream, handleAudiobookPreview } from './handlers/audiobooks.js';
@@ -4197,51 +4197,14 @@ export async function onRequest(context) {
       return handleR2Stream(request, env, corsHeaders);
     }
 
-    // ─── POST /api/push/subscribe (Enregistrement Push Notification) ─
+    // ─── POST /api/push/subscribe (Enregistrement Push Notification - FCM & Web Push) ─
     if (path === '/push/subscribe' && method === 'POST') {
-      const body = await request.json();
-      const { subscription, userId, device } = body;
-      const subId = `sub_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-
-      if (env.KV_BINDING && subscription?.endpoint) {
-        // Enregistrer la souscription dans KV
-        await env.KV_BINDING.put(`push_${subscription.endpoint}`, JSON.stringify({
-          subId,
-          subscription,
-          userId: userId || 'anonymous',
-          device: device || 'mobile',
-          subscribedAt: new Date().toISOString(),
-        }), { expirationTtl: 86400 * 90 });
-      }
-
-      if (env.DB && subscription?.endpoint) {
-        try {
-          await env.DB.prepare(`
-            INSERT OR REPLACE INTO push_subscriptions (endpoint, auth, p256dh, user_id, device, created_at)
-            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-          `).bind(
-            subscription.endpoint,
-            subscription.keys?.auth || '',
-            subscription.keys?.p256dh || '',
-            userId || 'user-demo',
-            device || 'mobile'
-          ).run();
-        } catch (_) {}
-      }
-
-      return jsonResponse({ success: true, message: 'Souscription Push enregistrée' }, corsHeaders);
+      return handlePushSubscribe(request, env, corsHeaders);
     }
 
     // ─── POST /api/push/unsubscribe ───────────────────────────────
     if (path === '/push/unsubscribe' && method === 'POST') {
-      const body = await request.json();
-      const { endpoint } = body;
-
-      if (env.KV_BINDING && endpoint) {
-        await env.KV_BINDING.delete(`push_${endpoint}`);
-      }
-
-      return jsonResponse({ success: true, message: 'Désinscription Push effectuée' }, corsHeaders);
+      return handlePushUnsubscribe(request, env, corsHeaders);
     }
 
     // ─── POST /api/admin/push/broadcast (Envoi de notification Push aux abonnés via VAPID RFC 8291) ─

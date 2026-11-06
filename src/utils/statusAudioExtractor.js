@@ -138,6 +138,9 @@ export async function extractAudioSlice({ book, chapter, audioElement, startTime
       ch1 = srcCh1.slice(startSample, startSample + sliceSamples);
     }
 
+    // Libérer immédiatement la mémoire vive de l'AudioBuffer complet
+    audioBuffer = null;
+
     // Compléter avec du silence si la tranche disponible est plus courte que la durée demandée
     let finalCh0 = ch0;
     let finalCh1 = ch1;

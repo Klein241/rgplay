@@ -119,6 +119,17 @@ export function drawStatusFrame(ctx, {
   quoteText,
   hasQuote,
 }) {
+  const canvasW = ctx.canvas?.width || CANVAS_WIDTH;
+  const canvasH = ctx.canvas?.height || CANVAS_HEIGHT;
+  const scaleX = canvasW / CANVAS_WIDTH;
+  const scaleY = canvasH / CANVAS_HEIGHT;
+  const needScale = Math.abs(scaleX - 1) > 0.01 || Math.abs(scaleY - 1) > 0.01;
+
+  if (needScale) {
+    ctx.save();
+    ctx.scale(scaleX, scaleY);
+  }
+
   const progressRatio = Math.min(elapsedMs / targetDurationMs, 1);
 
   // 1. Fond d'ambiance
@@ -292,4 +303,8 @@ export function drawStatusFrame(ctx, {
   ctx.fillStyle = '#38bdf8';
   ctx.font = '600 14px sans-serif';
   ctx.fillText("🎧 Écoutez l'œuvre complète sur RG Play", CANVAS_WIDTH / 2, CANVAS_HEIGHT - 54);
+
+  if (needScale) {
+    ctx.restore();
+  }
 }

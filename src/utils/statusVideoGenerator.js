@@ -40,7 +40,7 @@ const CANDIDATE_H264_CODECS = [
 /**
  * Détecte la configuration optimale pour VideoEncoder H.264 (720p avec repli 540p)
  */
-async function detectVideoEncoderConfig() {
+async function detectVideoEncoderConfig(isMobile = false) {
   if (
     typeof window === 'undefined' ||
     typeof window.VideoEncoder !== 'function' ||
@@ -49,10 +49,17 @@ async function detectVideoEncoderConfig() {
     return null;
   }
 
-  const RESOLUTIONS = [
-    { width: CANVAS_WIDTH, height: CANVAS_HEIGHT, bitrate: 2_200_000 },
-    { width: 540, height: 960, bitrate: 1_400_000 }, // Repli qHD si le processeur mobile bloque le 720p portrait
-  ];
+  // Sur smartphone, préférer 540x960 (qHD 9:16) en priorité :
+  // utilise 2x moins de RAM, s'encode 3x plus vite et évite tout crash du navigateur
+  const RESOLUTIONS = isMobile
+    ? [
+        { width: 540, height: 960, bitrate: 1_400_000 },
+        { width: CANVAS_WIDTH, height: CANVAS_HEIGHT, bitrate: 2_000_000 },
+      ]
+    : [
+        { width: CANVAS_WIDTH, height: CANVAS_HEIGHT, bitrate: 2_200_000 },
+        { width: 540, height: 960, bitrate: 1_400_000 },
+      ];
 
   for (const res of RESOLUTIONS) {
     for (const codec of CANDIDATE_H264_CODECS) {
@@ -100,8 +107,14 @@ export async function generateWhatsAppStatusVideo({
 }) {
   if (!book) throw new Error('Aucun livre spécifié pour la génération');
 
+  // Détection smartphone / tactile pour adapter la résolution et économiser la RAM
+  const isMobile = typeof navigator !== 'undefined' && (
+    /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
+    (navigator.maxTouchPoints && navigator.maxTouchPoints > 1)
+  );
+
   // 1. Détection du support H.264 WebCodecs
-  const videoConfig = await detectVideoEncoderConfig();
+  const videoConfig = await detectVideoEncoderConfig(isMobile);
 
   // 2. Préparation du canvas frais (zéro contamination)
   const width = videoConfig?.width || CANVAS_WIDTH;
@@ -246,10 +259,20 @@ async function recordWithWebCodecs({
     hardwareAcceleration: videoConfig.hardwareAcceleration,
   });
 
-  // Rendu et encodage image par image
+  // Rendu et encodage image par image avec régulation de flux (Backpressure RAM)
   for (let f = 0; f < totalFrames; f++) {
     if (signal?.aborted) throw new DOMException('Annulé', 'AbortError');
     if (videoEncoderError) throw videoEncoderError;
+
+    // 🛡️ CRITIQUE : Régulation de la file d'attente WebCodecs (Backpressure mobile)
+    // Si la file d'attente matérielle contient plus de 2 frames, on attend que le CPU/GPU
+    // encode les frames en cours avant d'en créer une nouvelle.
+    // Cela empêche l'accumulation de gigaoctets en mémoire RAM (cause du crash du navigateur) !
+    while (videoEncoder.encodeQueueSize > 2) {
+      if (signal?.aborted) throw new DOMException('Annulé', 'AbortError');
+      if (videoEncoderError) throw videoEncoderError;
+      await new Promise((r) => setTimeout(r, 8));
+    }
 
     const elapsedMs = f * (1000 / FPS);
     drawStatusFrame(ctx, {
@@ -275,7 +298,10 @@ async function recordWithWebCodecs({
     const pct = Math.round((f / totalFrames) * 85);
     onProgress(pct, Math.min(elapsedMs / 1000, duration));
 
-    if (f % 12 === 0) await new Promise((r) => setTimeout(r, 0));
+    // Céder la main au navigateur toutes les 3 frames pour maintenir l'interface réactive
+    if (f % 3 === 0) {
+      await new Promise((r) => setTimeout(r, 4));
+    }
   }
 
   if (videoEncoderError) throw videoEncoderError;

@@ -6,7 +6,7 @@ import crypto from 'node:crypto';
  */
 
 export const DEFAULT_VAPID_KEYS = {
-  publicKey: 'BBr2HgFOQCrVt45uP7DfTjfYcS2zaxXwcnQ8IAx1w5u1L8JDJ29UuX6-WB2pfIvk_hMTwmpvlodg_q3V6C5GZWc',
+  publicKey: 'BMPsHIXGEB0Ah1IBApkTCcA_sWZScSKWTokYJfFijPIfyOmWxV3M-7v9PLA5qGA2W412uYvh-_KK6QWj6tEwgNI',
   privateKey: 'QY-ywvf9PAMZ4TFqyqzil4u66ONGtPZWdXRnjfNrMfg',
   subject: 'mailto:admin@readsgreat.com',
 };
@@ -288,3 +288,84 @@ export async function handlePushBroadcast(request, env, corsHeaders) {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 }
+
+/**
+ * Enregistrement d'une souscription Push (FCM ou Web Push natif)
+ */
+export async function handlePushSubscribe(request, env, corsHeaders) {
+  try {
+    const body = await request.json().catch(() => ({}));
+    const { subscription, fcmToken, provider, userId, device } = body;
+    const subId = `sub_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const effectiveEndpoint = subscription?.endpoint || (fcmToken ? `fcm:${fcmToken}` : null);
+
+    if (env.KV_BINDING && effectiveEndpoint) {
+      await env.KV_BINDING.put(`push_${effectiveEndpoint}`, JSON.stringify({
+        subId,
+        subscription: subscription || { endpoint: effectiveEndpoint, keys: {} },
+        fcmToken: fcmToken || null,
+        provider: provider || 'firebase',
+        userId: userId || 'anonymous',
+        device: device || 'mobile',
+        subscribedAt: new Date().toISOString(),
+      }), { expirationTtl: 86400 * 90 });
+    }
+
+    if (env.DB && effectiveEndpoint) {
+      try {
+        await env.DB.prepare(`
+          INSERT OR REPLACE INTO push_subscriptions (endpoint, auth, p256dh, user_id, device, created_at)
+          VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        `).bind(
+          effectiveEndpoint,
+          subscription?.keys?.auth || '',
+          subscription?.keys?.p256dh || '',
+          userId || 'user-demo',
+          device || 'mobile'
+        ).run();
+      } catch (_) {}
+    }
+
+    return new Response(JSON.stringify({
+      success: true,
+      message: 'Souscription Push enregistrée avec succès (FCM / Web Push)',
+      provider: provider || 'firebase',
+    }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  } catch (err) {
+    return new Response(JSON.stringify({ success: false, error: err.message }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+/**
+ * Désinscription Push
+ */
+export async function handlePushUnsubscribe(request, env, corsHeaders) {
+  try {
+    const body = await request.json().catch(() => ({}));
+    const { endpoint } = body;
+
+    if (env.KV_BINDING && endpoint) {
+      await env.KV_BINDING.delete(`push_${endpoint}`).catch(() => {});
+    }
+    if (env.DB && endpoint) {
+      await env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').bind(endpoint).run().catch(() => {});
+    }
+
+    return new Response(JSON.stringify({ success: true, message: 'Désinscription Push effectuée' }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  } catch (err) {
+    return new Response(JSON.stringify({ success: false, error: err.message }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+}
+

@@ -1,10 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { apiClient, getUserId } from '../services/api';
+import {
+  FIREBASE_VAPID_KEY,
+  getFirebaseAnalytics,
+  requestFCMToken,
+  onFCMForegroundMessage
+} from '../services/firebase';
 
 const PushContext = createContext(null);
-
-// Clé publique VAPID réelle pour Web Push PWA (P-256)
-const VAPID_PUBLIC_KEY = 'BBr2HgFOQCrVt45uP7DfTjfYcS2zaxXwcnQ8IAx1w5u1L8JDJ29UuX6-WB2pfIvk_hMTwmpvlodg_q3V6C5GZWc';
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -32,10 +35,13 @@ export function PushProvider({ children }) {
     return typeof Notification !== 'undefined' ? Notification.permission : 'default';
   });
   const [subscription, setSubscription] = useState(null);
+  const [fcmToken, setFcmToken] = useState(() => {
+    return typeof localStorage !== 'undefined' ? localStorage.getItem('rg_fcm_token') : null;
+  });
   const [swRegistration, setSwRegistration] = useState(null);
   const [isSupported, setIsSupported] = useState(false);
   const [isBannerDismissed, setIsBannerDismissed] = useState(() => {
-    return localStorage.getItem('rg_push_banner_dismissed') === 'true';
+    return typeof localStorage !== 'undefined' && localStorage.getItem('rg_push_banner_dismissed') === 'true';
   });
 
   // Centre de notifications persistant (D1 + Local)
@@ -47,6 +53,11 @@ export function PushProvider({ children }) {
       return INITIAL_NOTIFICATIONS;
     }
   });
+
+  // Initialisation silencieuse de Firebase Analytics
+  useEffect(() => {
+    getFirebaseAnalytics().catch(() => {});
+  }, []);
 
   // Charger l'historique des notifications depuis Cloudflare D1
   useEffect(() => {
@@ -73,7 +84,7 @@ export function PushProvider({ children }) {
     }).catch(() => {});
   }, []);
 
-  // Sauvegarder l'historique
+  // Sauvegarder l'historique localement
   useEffect(() => {
     try {
       localStorage.setItem('rg_notifications_history', JSON.stringify(notifications));
@@ -82,7 +93,7 @@ export function PushProvider({ children }) {
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  // ── Enregistrement du Service Worker ───────────────────────────────────────
+  // ── Enregistrement du Service Worker PWA & FCM ────────────────────────────
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -132,10 +143,8 @@ export function PushProvider({ children }) {
 
     setNotifications(prev => [newNotif, ...prev.slice(0, 49)]);
 
-    // Si permission accordée, afficher notification native système
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
       try {
-        // 1. Essai via ServiceWorker (méthode standard et obligatoire sur Android Chrome / iOS PWA)
         if ('serviceWorker' in navigator) {
           try {
             const reg = swRegistration || await navigator.serviceWorker.ready;
@@ -156,7 +165,6 @@ export function PushProvider({ children }) {
           }
         }
 
-        // 2. Repli direct pour Desktop si le constructeur est disponible
         if (typeof Notification === 'function' && Notification.prototype && typeof Notification.prototype.close === 'function') {
           try {
             const n = new Notification(notifTitle, {
@@ -172,83 +180,127 @@ export function PushProvider({ children }) {
     }
   }, [swRegistration]);
 
-  // ── Demander la permission Push ───────────────────────────────────────────
-  const requestPermission = useCallback(async () => {
-    if (typeof Notification === 'undefined') {
-      console.warn('[Push] Notification API non supportée sur cet environnement');
-      return false;
-    }
+  // ── Écouteur de notifications Firebase en premier plan (Foreground) ───────
+  useEffect(() => {
+    let unsubscribe = () => {};
+    onFCMForegroundMessage((payload) => {
+      const title = payload.notification?.title || payload.data?.title || '🎧 RG Play';
+      const body = payload.notification?.body || payload.data?.body || 'Nouveau contenu audio disponible !';
+      const icon = payload.notification?.icon || payload.data?.icon || '/icon-192.png';
+      const url = payload.data?.url || payload.notification?.click_action || '/';
+      const bookId = payload.data?.bookId || null;
 
-    try {
-      // Supporte la syntaxe Callback pour anciens navigateurs mobiles
-      let perm = Notification.permission;
-      if (typeof Notification.requestPermission === 'function') {
-        const result = Notification.requestPermission();
-        perm = result instanceof Promise ? await result : await new Promise(r => Notification.requestPermission(r));
-      }
-      setPermission(perm);
+      sendLocalNotification({ title, body, icon, url, type: 'firebase', bookId });
+    }).then(unsub => {
+      if (typeof unsub === 'function') unsubscribe = unsub;
+    }).catch(() => {});
 
-      if (perm === 'granted') {
-        setIsBannerDismissed(true);
-        localStorage.setItem('rg_push_banner_dismissed', 'true');
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [sendLocalNotification]);
 
-        // Récupérer le service worker enregistré
-        const reg = swRegistration || ('serviceWorker' in navigator ? await navigator.serviceWorker.ready.catch(() => null) : null);
-        if (reg) setSwRegistration(reg);
-
-        // Envoyer la notification de bienvenue
-        setTimeout(() => {
-          sendLocalNotification({
-            title: '🔔 Notifications activées !',
-            body: 'Vous recevrez des alertes instantanées lors des sorties et événements RG Play.',
-            type: 'system',
-            url: '/',
-          });
-        }, 500);
-
-        if (reg && 'pushManager' in reg) {
-          try {
-            const sub = await reg.pushManager.subscribe({
-              userVisibleOnly: true,
-              applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-            });
-            setSubscription(sub);
-
-            fetch('/api/push/subscribe', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                subscription: sub.toJSON(),
-                userId: getUserId(),
-                device: navigator.userAgent.includes('Mobile') ? 'mobile' : 'desktop',
-              }),
-            }).catch(() => {});
-          } catch (subErr) {
-            console.warn('[Push] Échec subscribe VAPID:', subErr);
-          }
+  // ── Synchronisation automatique du Token FCM si déjà autorisé ─────────────
+  useEffect(() => {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && swRegistration) {
+      requestFCMToken(swRegistration).then(token => {
+        if (token) {
+          setFcmToken(token);
+          localStorage.setItem('rg_fcm_token', token);
         }
-        return true;
-      }
-      return false;
-    } catch (e) {
-      console.warn('[Push] Erreur requestPermission:', e);
-      return false;
+      }).catch(() => {});
     }
+  }, [swRegistration]);
+
+  // ── Demander la permission Push (Firebase FCM en priorité absolue) ────────
+  const requestPermission = useCallback(async () => {
+    if (typeof Notification !== 'undefined') {
+      try {
+        let perm = Notification.permission;
+        if (typeof Notification.requestPermission === 'function') {
+          const result = Notification.requestPermission();
+          perm = result instanceof Promise ? await result : await new Promise(r => Notification.requestPermission(r));
+        }
+        setPermission(perm);
+
+        if (perm === 'granted') {
+          setIsBannerDismissed(true);
+          localStorage.setItem('rg_push_banner_dismissed', 'true');
+
+          const reg = swRegistration || ('serviceWorker' in navigator ? await navigator.serviceWorker.ready.catch(() => null) : null);
+          if (reg) setSwRegistration(reg);
+
+          setTimeout(() => {
+            sendLocalNotification({
+              title: '🔔 Notifications activées !',
+              body: 'Vous recevrez des alertes instantanées lors des sorties et événements RG Play.',
+              type: 'system',
+              url: '/',
+            });
+          }, 500);
+
+          // 1. PRIORITÉ ABSOLUE : Récupération du Token Firebase Cloud Messaging
+          let currentFcmToken = null;
+          try {
+            currentFcmToken = await requestFCMToken(reg);
+            if (currentFcmToken) {
+              setFcmToken(currentFcmToken);
+              localStorage.setItem('rg_fcm_token', currentFcmToken);
+            }
+          } catch (fcmErr) {
+            console.warn('[Push] Erreur récupération token FCM:', fcmErr);
+          }
+
+          // 2. Enregistrement Web Push standard (avec la clé VAPID Firebase)
+          let sub = null;
+          if (reg && 'pushManager' in reg) {
+            try {
+              sub = await reg.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(FIREBASE_VAPID_KEY),
+              });
+              setSubscription(sub);
+            } catch (subErr) {
+              console.warn('[Push] Échec subscribe VAPID:', subErr);
+            }
+          }
+
+          // 3. Envoi au serveur Cloudflare D1
+          fetch('/api/push/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              provider: 'firebase',
+              fcmToken: currentFcmToken || localStorage.getItem('rg_fcm_token'),
+              subscription: sub ? sub.toJSON() : null,
+              userId: getUserId(),
+              device: navigator.userAgent.includes('Mobile') ? 'mobile' : 'desktop',
+            }),
+          }).catch(() => {});
+
+          return true;
+        }
+        return false;
+      } catch (e) {
+        console.warn('[Push] Erreur requestPermission:', e);
+        return false;
+      }
+    }
+    return false;
   }, [swRegistration, sendLocalNotification]);
 
   // ── Envoyer une Notification de Test ──────────────────────────────────────
   const sendTestNotification = useCallback(async ({ title, body, url }) => {
     return sendLocalNotification({
-      title: title || '🎧 Test Notification RG Play',
-      body: body || 'Le système de notifications fonctionne parfaitement sur votre appareil !',
+      title: title || '🎧 Test Firebase RG Play',
+      body: body || 'Le système de notifications Firebase fonctionne parfaitement sur votre appareil !',
       type: 'system',
       url: url || '/',
     });
   }, [sendLocalNotification]);
 
-  // ── Écoute d'événements réels pour les notifications (Pas de spam récurrent) ──
+  // ── Écoute d'événements réels pour les notifications ──────────────────────
   useEffect(() => {
-    // 1. Écouter la publication d'un nouveau livre réel depuis Admin Studio
     const onNewContent = (e) => {
       const book = e.detail;
       if (book?.title) {
@@ -292,6 +344,7 @@ export function PushProvider({ children }) {
     <PushContext.Provider value={{
       permission,
       subscription,
+      fcmToken,
       isSubscribed: permission === 'granted',
       isSupported,
       isBannerVisible: !isBannerDismissed && permission !== 'granted',
