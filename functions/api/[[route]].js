@@ -21,6 +21,7 @@ import { handleRecordSocialAction, handleGetSocialFeed } from './handlers/social
 import { handleGetGamification, handleSyncGamification, handleRegisterReferral } from './handlers/antiFraud.js';
 import { handleGetSettings, handleSaveSettings } from './handlers/settings.js';
 import { handleR2Stream, handleChapterStream, handleAudiobookPreview } from './handlers/audiobooks.js';
+import { handleGetArtists, handleSaveArtist, handleDeleteArtist } from './handlers/artists.js';
 
 // MOTEUR MCP CLOUDFLARE NATIF (Model Context Protocol pour Manus IA, Claude, etc.)
 // ════════════════════════════════════════════════════════════════════════════════
@@ -714,6 +715,21 @@ export async function onRequest(context) {
     }
     if (path === '/settings' && method === 'POST') {
       return await handleSaveSettings(request, env, corsHeaders);
+    }
+
+    // ─── GESTIONNAIRE PAGES ARTISTES & ALBUMS ─────────────────────────────────
+    const artistMatch = path.match(/^\/artists(?:\/([^\/]+))?\/?$/);
+    if (artistMatch) {
+      const slugOrId = artistMatch[1] ? decodeURIComponent(artistMatch[1]) : null;
+      if (method === 'GET') {
+        return await handleGetArtists(request, env, corsHeaders, slugOrId);
+      }
+      if (method === 'POST') {
+        return await handleSaveArtist(request, env, corsHeaders);
+      }
+      if (method === 'DELETE') {
+        return await handleDeleteArtist(request, env, corsHeaders, slugOrId);
+      }
     }
 
     // ─── ROUTAGE MCP POUR MANUS IA, CLAUDE & AGENTS EXTERNES (HTTP & SSE) ──────

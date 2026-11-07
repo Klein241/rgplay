@@ -30,6 +30,7 @@ import { BulkEbooksRubric } from './admin/rubrics/BulkEbooksRubric';
 import { CatalogRubric } from './admin/rubrics/CatalogRubric';
 import { PublishEbookRubric } from './admin/rubrics/PublishEbookRubric';
 import { PublishAudioRubric } from './admin/rubrics/PublishAudioRubric';
+import { ArtistsRubric } from './admin/rubrics/ArtistsRubric';
 import { SocialProofModal } from './admin/components/SocialProofModal';
 import { ChapterAiModal } from './admin/components/ChapterAiModal';
 
@@ -1165,6 +1166,7 @@ export const AdminStudioView = ({ onBookCreated }) => {
     { id: 'publish-ebook', label: '📖 Publier E-Book & PDF', icon: FileText, badge: ebooksList.length > 0 ? `${ebooksList.length}` : "Read's Great" },
     { id: 'bulk-ebooks', label: '📦 Import en Masse (500+)', icon: FolderPlus, badge: 'Nouveau' },
     { id: 'publish', label: '🎙️ Publier Audio & Masterclass', icon: UploadCloud },
+    { id: 'artists', label: '🎨 Pages Artistes & Albums', icon: Mic, badge: 'Nouveau' },
     { id: 'users', label: '👥 Utilisateurs & Sky Points', icon: Users, badge: '⭐ Points' },
     { id: 'categories', label: 'Catalogues & Catégories', icon: Grid, badge: categories.length },
     { id: 'gamification', label: '⭐ Gamification & Points', icon: Sparkles, badge: 'Read\'s Great' },
@@ -1477,6 +1479,13 @@ export const AdminStudioView = ({ onBookCreated }) => {
             setChapterTtsAudioUrl={setChapterTtsAudioUrl}
             setChapterTtsText={setChapterTtsText}
           />
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════
+            RUBRIQUE : PAGES ARTISTES & ALBUMS
+            ══════════════════════════════════════════════════════════════════ */}
+        {activeRubric === 'artists' && (
+          <ArtistsRubric books={books} />
         )}
 
         {/* ══════════════════════════════════════════════════════════════════

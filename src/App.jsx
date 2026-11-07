@@ -27,10 +27,12 @@ import { WelcomeOfferBanner } from './components/WelcomeOfferBanner';
 import { StreakModal } from './components/StreakSystem';
 import { RewardedAdModal } from './components/RewardedAdModal';
 import { PdfReaderModal } from './components/PdfReaderModal';
+import { ArtistPageView } from './views/ArtistPageView';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 export function App() {
   const [activeTab, setActiveTab] = useState('discover');
+  const [activeArtistSlug, setActiveArtistSlug] = useState('victoireK');
   const [searchQuery, setSearchQuery] = useState('');
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
@@ -219,6 +221,18 @@ export function App() {
             if (book) setSelectedBookForDetail(book);
           });
         });
+      }
+
+      // Détection de la page Artiste : /artiste/:slug ou #artiste/:slug ou ?artiste=slug
+      const artistPathMatch = path.match(/^\/artiste(?:\/([^\/]+))?\/?$/i);
+      const artistHashMatch = hash.match(/^artiste(?:\/([^\/]+))?\/?$/i);
+      const artistParam = searchParams.get('artiste');
+      const detectedArtist = (artistPathMatch && artistPathMatch[1]) || (artistHashMatch && artistHashMatch[1]) || artistParam;
+
+      if (detectedArtist || path.startsWith('/artiste') || hash.startsWith('artiste')) {
+        setActiveArtistSlug(decodeURIComponent(detectedArtist || 'victoireK'));
+        setActiveTab('artiste');
+        return;
       }
 
       if (path.startsWith('/login/admin') || hash === 'login/admin' || hash === 'admin') {
@@ -413,6 +427,33 @@ export function App() {
       }
     }
   };
+
+  // ════════════════════════════════════════════════
+  // Layout PAGE ARTISTE — immersion totale 100% fidèle au design
+  // ════════════════════════════════════════════════
+  if (activeTab === 'artiste') {
+    return (
+      <ErrorBoundary>
+        <ThemeProvider>
+          <PushProvider>
+            <AudioProvider>
+              <XpProvider>
+                <ArtistPageView
+                  slug={activeArtistSlug || 'victoireK'}
+                  onBack={() => {
+                    handleTabChange('discover');
+                    try {
+                      window.history.pushState({}, '', '/');
+                    } catch (_) {}
+                  }}
+                />
+              </XpProvider>
+            </AudioProvider>
+          </PushProvider>
+        </ThemeProvider>
+      </ErrorBoundary>
+    );
+  }
 
   const isAdminMode = activeTab === 'admin';
 

@@ -1,4 +1,6 @@
 import { getUserId } from '../utils/userId';
+import { artistApi } from './api/artistApi';
+export { artistApi };
 /**
  * RG Play API Client - Connecteur Base de Données & Cloudflare D1
  * Gère les appels API (/api/...) avec synchronisation temps réel inter-onglets/appareils
@@ -1730,6 +1732,11 @@ export const apiClient = {
     }
     return { success: true, stats: { code, referrals: [], creditsEarned: 0, pendingCredits: 0 } };
   },
+
+  getArtists: () => artistApi.getArtists(),
+  getArtistBySlug: (slug) => artistApi.getArtistBySlug(slug),
+  saveArtist: (data) => artistApi.saveArtist(data),
+  deleteArtist: (id) => artistApi.deleteArtist(id),
 };
 
 
