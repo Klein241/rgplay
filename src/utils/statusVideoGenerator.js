@@ -234,8 +234,12 @@ async function recordWithWebCodecs({
   const muxer = new Muxer(muxerOpts);
 
   let videoEncoderError = null;
+  let encodedChunksCount = 0;
   const videoEncoder = new VideoEncoder({
-    output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+    output: (chunk, meta) => {
+      encodedChunksCount++;
+      muxer.addVideoChunk(chunk, meta);
+    },
     error: (e) => {
       videoEncoderError = e;
       console.error('[StatusGenerator] Erreur VideoEncoder H.264:', e);
@@ -273,11 +277,11 @@ async function recordWithWebCodecs({
     if (signal?.aborted) throw new DOMException('Annulé', 'AbortError');
     if (videoEncoderError) throw videoEncoderError;
 
-    // Régulation de flux matérielle
-    while (videoEncoder.encodeQueueSize > 2) {
+    // 🛡️ Synchronisation matérielle stricte : au maximum 2 frames en transit dans tout le pipeline matériel
+    while ((f - encodedChunksCount) > 2 || videoEncoder.encodeQueueSize > 2) {
       if (signal?.aborted) throw new DOMException('Annulé', 'AbortError');
       if (videoEncoderError) throw videoEncoderError;
-      await new Promise((r) => setTimeout(r, 8));
+      await new Promise((r) => setTimeout(r, 10));
     }
 
     const elapsedMs = f * (1000 / fps);
@@ -302,12 +306,12 @@ async function recordWithWebCodecs({
     const pct = Math.round((f / totalFrames) * 85);
     onProgress(pct, Math.min(elapsedMs / 1000, duration));
 
-    // 🛡️ Régulation mémoire mobile : laisser souffler le GPU et le ramasse-miettes
-    if (f % 5 === 0) {
-      await new Promise((r) => setTimeout(r, 6));
+    // 🛡️ Pauses de décompression événementielle (Backpressure GC mobile)
+    if (f % 4 === 0) {
+      await new Promise((r) => setTimeout(r, 8));
     }
-    if (f % 25 === 0) {
-      await new Promise((r) => setTimeout(r, 25));
+    if (f % 20 === 0) {
+      await new Promise((r) => setTimeout(r, 35));
     }
   }
 
