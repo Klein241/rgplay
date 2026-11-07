@@ -1,6 +1,6 @@
 # ============================================================
 # wrangler.toml - Configuration Cloudflare Pages & Workers RG Play
-# Account ID  : 29af63e0139b75f78259902d4ee51e07
+# Account ID  : 0c6536b2366b6a388b4d6a4d331d486e
 # Subdomain   : rgplay.workers.dev
 # Pages URL   : https://rg-play.pages.dev
 # ============================================================
@@ -14,8 +14,8 @@ pages_build_output_dir = "./dist"
 # ============================================================
 [[d1_databases]]
 binding = "DB"
-database_name = "rg-play-db"
-database_id = "755fd405-06f4-4534-92f8-426ca2bd23cb"
+database_name = "rgplay"
+database_id = "edbf4f75-abda-465c-9b95-4409d10b3993"
 migrations_dir = "./migrations"
 
 # ============================================================
@@ -30,7 +30,7 @@ bucket_name = "rg-play-audio"
 # ============================================================
 [[kv_namespaces]]
 binding = "KV_BINDING"
-id = "21ee756709cb4daba97631edb983504f"
+id = "e35fb6a66d92422993509a3d7aa53f5c"
 
 # ============================================================
 # Variables d'environnement Production
@@ -40,8 +40,8 @@ ENVIRONMENT = "production"
 APP_NAME = "RG Play Audiobooks"
 APP_URL = "https://rg-play.pages.dev"
 WORKERS_SUBDOMAIN = "rgplay.workers.dev"
-CLOUDFLARE_ACCOUNT_ID = "29af63e0139b75f78259902d4ee51e07"
-R2_S3_ENDPOINT = "https://29af63e0139b75f78259902d4ee51e07.r2.cloudflarestorage.com"
+CLOUDFLARE_ACCOUNT_ID = "0c6536b2366b6a388b4d6a4d331d486e"
+R2_S3_ENDPOINT = "https://0c6536b2366b6a388b4d6a4d331d486e.r2.cloudflarestorage.com"
 R2_BUCKET_NAME = "rg-play-audio"
 PAYMENT_GATEWAY_URL = "https://camerpay.biz/api/payment/initiate"
 PAYMENT_HMAC_SECRET = "fdc754e525e417261465dcda8caabdc7360395b0ef1934c5"
