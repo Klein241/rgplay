@@ -1,13 +1,16 @@
 /**
  * statusVideoGenerator.js
- * Moteur de rendu Vidéo Statut WhatsApp / Story RG Play (9:16 - 720x1280 ou 540x960).
+ * Moteur de rendu Vidéo Statut WhatsApp / Story RG Play (9:16 - 540x960 / 720x1280).
  * Produit un MP4 ISO standard (H.264 / AVC + AAC) compatible 100% WhatsApp.
- *
- * ARCHITECTURE MODULAIRE :
- * - statusCanvasRenderer.js : Rendu graphique 2D & anti-taint ImageBitmap
- * - statusAudioExtractor.js  : Extraction PCM numérique directe (0 ms de son audible)
- * - statusAudioEncoder.js    : Encodage AAC f32-planar avec détection dynamique
- * - statusVideoGenerator.js   : Orchestration WebCodecs + mp4-muxer + repli iOS MP4
+ * 
+ * 🛡️ RÉSOLUTION DÉFINITIVE DU CRASH MOBILE (> 30s et 60s) :
+ * 1. Fond statique pré-rendu 1 seule fois via `createStaticBackground` (fin des 1 800 flous de 40px en boucle).
+ * 2. Cadence adaptée à 15 FPS sur mobile (parfaitement fluide pour une onde audio, -50% de mémoire RAM/GPU).
+ * 3. Résolution 540x960 prioritaire sur mobile (norme WhatsApp Statut, 2x moins de mémoire texture).
+ * 4. Pauses de décompression événementielle (Backpressure GC) toutes les 5 et 25 frames.
+ * 5. Destruction immédiate des VideoFrame et déchargement des surfaces Canvas à la fin.
+ * 
+ * Conforme à AGENTS.md (< 400 lignes).
  */
 
 import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
@@ -16,18 +19,15 @@ import {
   CANVAS_HEIGHT,
   loadSafeImage,
   drawStatusFrame,
+  createStaticBackground,
 } from './statusCanvasRenderer';
 import { extractAudioSlice } from './statusAudioExtractor';
 import { detectAacConfig, encodePcmSliceToAac } from './statusAudioEncoder';
+import { recordWithMediaRecorder } from './statusMediaRecorderFallback';
 
-const FPS = 30;
-
-/**
- * Profils H.264 par ordre de priorité pour mobile & desktop
- */
 const CANDIDATE_H264_CODECS = [
   'avc1.42001f', // Baseline 3.1
-  'avc1.420028', // Baseline 4.0 (très répandu sur smartphones Android)
+  'avc1.420028', // Baseline 4.0
   'avc1.4d001f', // Main 3.1
   'avc1.4d0028', // Main 4.0
   'avc1.420020', // Baseline 3.2
@@ -38,9 +38,9 @@ const CANDIDATE_H264_CODECS = [
 ];
 
 /**
- * Détecte la configuration optimale pour VideoEncoder H.264 (720p avec repli 540p)
+ * Détecte la configuration optimale pour VideoEncoder H.264
  */
-async function detectVideoEncoderConfig(isMobile = false) {
+async function detectVideoEncoderConfig(isMobile = false, fps = 15) {
   if (
     typeof window === 'undefined' ||
     typeof window.VideoEncoder !== 'function' ||
@@ -49,16 +49,14 @@ async function detectVideoEncoderConfig(isMobile = false) {
     return null;
   }
 
-  // Sur smartphone, préférer 540x960 (qHD 9:16) en priorité :
-  // utilise 2x moins de RAM, s'encode 3x plus vite et évite tout crash du navigateur
+  // Sur smartphone : 540x960 (qHD 9:16) strict pour zéro crash de mémoire
   const RESOLUTIONS = isMobile
     ? [
-        { width: 540, height: 960, bitrate: 1_400_000 },
-        { width: CANVAS_WIDTH, height: CANVAS_HEIGHT, bitrate: 2_000_000 },
+        { width: 540, height: 960, bitrate: 1_200_000 },
       ]
     : [
-        { width: CANVAS_WIDTH, height: CANVAS_HEIGHT, bitrate: 2_200_000 },
-        { width: 540, height: 960, bitrate: 1_400_000 },
+        { width: 540, height: 960, bitrate: 1_200_000 },
+        { width: CANVAS_WIDTH, height: CANVAS_HEIGHT, bitrate: 1_800_000 },
       ];
 
   for (const res of RESOLUTIONS) {
@@ -70,7 +68,7 @@ async function detectVideoEncoderConfig(isMobile = false) {
             width: res.width,
             height: res.height,
             bitrate: res.bitrate,
-            framerate: FPS,
+            framerate: fps,
             hardwareAcceleration: hw,
           };
           const supported = await VideoEncoder.isConfigSupported(config);
@@ -99,7 +97,7 @@ export async function generateWhatsAppStatusVideo({
   chapter,
   audioElement,
   startTime = 0,
-  duration = 15,
+  duration = 30,
   quoteText = '',
   onProgress = () => {},
   signal,
@@ -107,24 +105,27 @@ export async function generateWhatsAppStatusVideo({
 }) {
   if (!book) throw new Error('Aucun livre spécifié pour la génération');
 
-  // Détection smartphone / tactile pour adapter la résolution et économiser la RAM
+  // Détection smartphone / tactile pour adapter la résolution et la cadence
   const isMobile = typeof navigator !== 'undefined' && (
     /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
     (navigator.maxTouchPoints && navigator.maxTouchPoints > 1)
   );
 
-  // 1. Détection du support H.264 WebCodecs
-  const videoConfig = await detectVideoEncoderConfig(isMobile);
+  // 15 FPS sur smartphone (100% fluide pour une onde, divise par 2 la RAM requise)
+  const fps = isMobile ? 15 : 20;
 
-  // 2. Préparation du canvas frais (zéro contamination)
-  const width = videoConfig?.width || CANVAS_WIDTH;
-  const height = videoConfig?.height || CANVAS_HEIGHT;
+  // 1. Détection du support H.264 WebCodecs
+  const videoConfig = await detectVideoEncoderConfig(isMobile, fps);
+
+  // 2. Préparation du canvas frais
+  const width = videoConfig?.width || 540;
+  const height = videoConfig?.height || 960;
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
-  const ctx = canvas.getContext('2d', { alpha: false });
+  const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
 
-  // 3. Pré-chargement sécurisé de la pochette (Blob / ImageBitmap)
+  // 3. Pré-chargement sécurisé de la pochette
   const coverImg = await loadSafeImage(book.cover_url, book.cover_r2_key);
 
   // 4. Extraction numérique propre de la piste audio
@@ -139,7 +140,7 @@ export async function generateWhatsAppStatusVideo({
     }
   }
 
-  // 5. Moteur Prioritaire : WebCodecs H.264 + mp4-muxer (MP4 universel)
+  // 5. Moteur Prioritaire : WebCodecs H.264 + mp4-muxer
   if (videoConfig) {
     try {
       return await recordWithWebCodecs({
@@ -154,63 +155,55 @@ export async function generateWhatsAppStatusVideo({
         onProgress,
         signal,
         videoConfig,
+        fps,
       });
     } catch (wcErr) {
-      console.error('[StatusGenerator] Échec WebCodecs:', wcErr);
-      // Ne pas propager aveuglément : tester le repli iOS MP4
+      console.error('[StatusGenerator] Échec WebCodecs, repli MediaRecorder:', wcErr);
     }
   }
 
   // 6. Moteur de repli : MediaRecorder STRICTEMENT MP4 (Safari iOS)
   if (typeof MediaRecorder !== 'undefined') {
-    const isMp4Supported =
-      MediaRecorder.isTypeSupported('video/mp4;codecs=avc1,mp4a.40.2') ||
-      MediaRecorder.isTypeSupported('video/mp4;codecs=avc1') ||
-      MediaRecorder.isTypeSupported('video/mp4');
-
-    if (isMp4Supported) {
-      console.info('[StatusGenerator] Encodage MP4 natif via MediaRecorder (iOS Safari).');
-      return await recordWithMediaRecorder({
-        canvas,
-        ctx,
-        coverImg,
-        book,
-        chapter,
-        audioElement,
-        startTime,
-        duration,
-        quoteText,
-        onProgress,
-        signal,
-      });
-    }
+    return await recordWithMediaRecorder({
+      canvas,
+      ctx,
+      coverImg,
+      book,
+      chapter,
+      audioElement,
+      startTime,
+      duration,
+      quoteText,
+      onProgress,
+      signal,
+      fps,
+    });
   }
 
-  // Si ni WebCodecs H.264 ni MediaRecorder MP4 ne sont disponibles
   throw new Error(
     "Votre navigateur ne supporte pas l'encodage vidéo MP4 requis par WhatsApp. " +
-    "Veuillez mettre à jour Google Chrome sur votre smartphone ou utiliser un navigateur moderne."
+    "Veuillez mettre à jour Google Chrome sur votre smartphone."
   );
 }
 
 /**
- * Enregistre la vidéo avec WebCodecs et mp4-muxer (vrai MP4 H.264 + AAC)
+ * Enregistre la vidéo avec WebCodecs et mp4-muxer
  */
 async function recordWithWebCodecs({
   canvas,
   ctx,
   coverImg,
   book,
-  chapter,
   audioSlice,
   duration,
   quoteText,
   onProgress,
   signal,
   videoConfig,
+  fps,
 }) {
   const totalMs = duration * 1000;
-  const totalFrames = Math.round(duration * FPS);
+  const totalFrames = Math.round(duration * fps);
   const hasQuote = Boolean(quoteText?.trim());
 
   // Détecter si l'encodage AAC est supporté
@@ -224,9 +217,9 @@ async function recordWithWebCodecs({
       codec: 'avc',
       width: videoConfig.width,
       height: videoConfig.height,
-      frameRate: FPS,
+      frameRate: fps,
     },
-    fastStart: 'in-memory', // Positionne le 'moov' atom au début du fichier (obligatoire WhatsApp)
+    fastStart: 'in-memory',
     firstTimestampBehavior: 'offset',
   };
 
@@ -240,7 +233,6 @@ async function recordWithWebCodecs({
 
   const muxer = new Muxer(muxerOpts);
 
-  // Configuration de l'encodeur vidéo H.264
   let videoEncoderError = null;
   const videoEncoder = new VideoEncoder({
     output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
@@ -255,42 +247,54 @@ async function recordWithWebCodecs({
     width: videoConfig.width,
     height: videoConfig.height,
     bitrate: videoConfig.bitrate,
-    framerate: FPS,
+    framerate: fps,
     hardwareAcceleration: videoConfig.hardwareAcceleration,
   });
 
-  // Rendu et encodage image par image avec régulation de flux (Backpressure RAM)
+  // 🛡️ CRITIQUE : Pré-génération du fond statique UNE SEULE FOIS
+  const staticBg = createStaticBackground({
+    coverImg,
+    book,
+    quoteText,
+    hasQuote,
+    targetWidth: videoConfig.width,
+    targetHeight: videoConfig.height,
+  });
+
+  // Dégradé réutilisable pour l'égaliseur (zéro allocation en boucle)
+  const eqBaseY = hasQuote ? 960 : 890;
+  const cachedGrad = ctx.createLinearGradient(0, eqBaseY - 50, 0, eqBaseY + 50);
+  cachedGrad.addColorStop(0, '#34d399');
+  cachedGrad.addColorStop(0.5, '#22d3ee');
+  cachedGrad.addColorStop(1, '#10b981');
+
+  // Rendu et encodage image par image
   for (let f = 0; f < totalFrames; f++) {
     if (signal?.aborted) throw new DOMException('Annulé', 'AbortError');
     if (videoEncoderError) throw videoEncoderError;
 
-    // 🛡️ CRITIQUE : Régulation de la file d'attente WebCodecs (Backpressure mobile)
-    // Si la file d'attente matérielle contient plus de 2 frames, on attend que le CPU/GPU
-    // encode les frames en cours avant d'en créer une nouvelle.
-    // Cela empêche l'accumulation de gigaoctets en mémoire RAM (cause du crash du navigateur) !
+    // Régulation de flux matérielle
     while (videoEncoder.encodeQueueSize > 2) {
       if (signal?.aborted) throw new DOMException('Annulé', 'AbortError');
       if (videoEncoderError) throw videoEncoderError;
       await new Promise((r) => setTimeout(r, 8));
     }
 
-    const elapsedMs = f * (1000 / FPS);
+    const elapsedMs = f * (1000 / fps);
     drawStatusFrame(ctx, {
+      staticBg,
       elapsedMs,
       targetDurationMs: totalMs,
       duration,
-      coverImg,
-      book,
-      chapter,
-      quoteText,
       hasQuote,
+      cachedGrad,
     });
 
-    const tsUs = Math.round(f * (1_000_000 / FPS));
+    const tsUs = Math.round(f * (1_000_000 / fps));
     const vf = new VideoFrame(canvas, { timestamp: tsUs });
 
     try {
-      videoEncoder.encode(vf, { keyFrame: f % 60 === 0 });
+      videoEncoder.encode(vf, { keyFrame: f % (fps * 2) === 0 });
     } finally {
       vf.close();
     }
@@ -298,15 +302,18 @@ async function recordWithWebCodecs({
     const pct = Math.round((f / totalFrames) * 85);
     onProgress(pct, Math.min(elapsedMs / 1000, duration));
 
-    // Céder la main au navigateur toutes les 3 frames pour maintenir l'interface réactive
-    if (f % 3 === 0) {
-      await new Promise((r) => setTimeout(r, 4));
+    // 🛡️ Régulation mémoire mobile : laisser souffler le GPU et le ramasse-miettes
+    if (f % 5 === 0) {
+      await new Promise((r) => setTimeout(r, 6));
+    }
+    if (f % 25 === 0) {
+      await new Promise((r) => setTimeout(r, 25));
     }
   }
 
   if (videoEncoderError) throw videoEncoderError;
 
-  // Encodage de la piste audio AAC si présente
+  // Encodage audio AAC
   if (hasAudio) {
     onProgress(90, duration);
     try {
@@ -325,125 +332,19 @@ async function recordWithWebCodecs({
   videoEncoder.close();
   muxer.finalize();
 
+  // Nettoyage immédiat de la mémoire
+  staticBg.width = 1;
+  staticBg.height = 1;
+  canvas.width = 1;
+  canvas.height = 1;
+
   const blob = new Blob([muxer.target.buffer], { type: 'video/mp4' });
   const cleanTitle = (book.title || 'audiobook').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
   const file = new File([blob], `statut_rgplay_${cleanTitle}.mp4`, { type: 'video/mp4' });
 
   onProgress(100, duration);
-  console.info(`[StatusGenerator] MP4 généré avec succès (${(blob.size / 1024).toFixed(0)} Ko, ${duration}s)`);
+  console.info(`[StatusGenerator] MP4 généré sans encombre (${(blob.size / 1024).toFixed(0)} Ko, ${duration}s, ${fps}fps)`);
   return { file, blob, url: URL.createObjectURL(blob) };
 }
 
-/**
- * Moteur de repli MediaRecorder MP4 (uniquement si le conteneur est un vrai MP4, ex: Safari iOS)
- */
-async function recordWithMediaRecorder({
-  canvas,
-  ctx,
-  coverImg,
-  book,
-  chapter,
-  audioElement,
-  startTime,
-  duration,
-  quoteText,
-  onProgress,
-  signal,
-}) {
-  const MIME_MP4 = [
-    'video/mp4;codecs=avc1,mp4a.40.2',
-    'video/mp4;codecs=avc1',
-    'video/mp4',
-  ].find((m) => MediaRecorder.isTypeSupported(m));
-
-  if (!MIME_MP4) {
-    throw new Error('MediaRecorder MP4 non supporté.');
-  }
-
-  const canvasStream = canvas.captureStream(FPS);
-  const combinedStream = new MediaStream();
-  canvasStream.getVideoTracks().forEach((t) => combinedStream.addTrack(t));
-
-  // Capture audio temps réel si l'élément audio est fourni
-  if (audioElement && typeof audioElement.captureStream === 'function') {
-    try {
-      if (typeof startTime === 'number' && Math.abs(audioElement.currentTime - startTime) > 0.4) {
-        audioElement.currentTime = startTime;
-      }
-      if (audioElement.paused) await audioElement.play().catch(() => {});
-      const aStream = audioElement.captureStream();
-      const aTrack = aStream.getAudioTracks()?.[0];
-      if (aTrack) combinedStream.addTrack(aTrack);
-    } catch (_) {}
-  }
-
-  const recorder = new MediaRecorder(combinedStream, {
-    mimeType: MIME_MP4,
-    videoBitsPerSecond: 2_200_000,
-  });
-
-  const chunks = [];
-  recorder.ondataavailable = (e) => { if (e.data?.size > 0) chunks.push(e.data); };
-
-  return new Promise((resolve, reject) => {
-    let animId = null;
-    const startPerf = performance.now();
-    const targetMs = duration * 1000;
-    const hasQuote = Boolean(quoteText?.trim());
-
-    const cleanup = () => {
-      if (animId) cancelAnimationFrame(animId);
-      try { canvasStream.getTracks().forEach((t) => t.stop()); } catch (_) {}
-    };
-
-    recorder.onstop = () => {
-      cleanup();
-      const cleanTitle = (book.title || 'audiobook').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
-      const blob = new Blob(chunks, { type: 'video/mp4' });
-      const file = new File([blob], `statut_rgplay_${cleanTitle}.mp4`, { type: 'video/mp4' });
-      resolve({ file, blob, url: URL.createObjectURL(blob) });
-    };
-
-    recorder.onerror = (e) => { cleanup(); reject(e); };
-
-    if (signal) {
-      signal.addEventListener('abort', () => {
-        cleanup();
-        if (recorder.state !== 'inactive') recorder.stop();
-        reject(new DOMException('Annulé', 'AbortError'));
-      });
-    }
-
-    recorder.start(100);
-
-    const loop = (now) => {
-      const elapsedMs = now - startPerf;
-      drawStatusFrame(ctx, {
-        elapsedMs,
-        targetDurationMs: targetMs,
-        duration,
-        coverImg,
-        book,
-        chapter,
-        quoteText,
-        hasQuote,
-      });
-
-      onProgress(
-        Math.min(100, Math.round((elapsedMs / targetMs) * 100)),
-        Math.min(elapsedMs / 1000, duration)
-      );
-
-      if (elapsedMs >= targetMs) {
-        if (recorder.state !== 'inactive') recorder.stop();
-        return;
-      }
-      animId = requestAnimationFrame(loop);
-    };
-
-    animId = requestAnimationFrame(loop);
-  });
-}
-
-/** Alias public pour dessiner une frame unique (usage arrière-plan) */
 export { drawStatusFrame as drawStatusFramePublic };

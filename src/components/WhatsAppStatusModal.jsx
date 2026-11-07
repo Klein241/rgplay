@@ -168,9 +168,9 @@ export const WhatsAppStatusModal = ({ isOpen, onClose, book, chapter }) => {
 
   return (
     <div className="fixed inset-0 z-60 bg-black/85 backdrop-blur-xl flex items-center justify-center p-3 sm:p-4 animate-fadeIn">
-      <div className="relative w-full max-w-md rounded-3xl border border-purple-500/40 bg-[#120524] shadow-[0_20px_60px_rgba(0,0,0,0.9),0_0_50px_rgba(168,85,247,0.35)] overflow-hidden flex flex-col max-h-[92vh]">
+      <div className="relative w-full max-w-md rounded-3xl border border-white/20 glass-panel shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
         {/* Entête */}
-        <div className="p-3.5 sm:p-4 border-b border-purple-500/20 flex items-center justify-between shrink-0 bg-black/20">
+        <div className="p-3.5 sm:p-4 border-b border-white/10 flex items-center justify-between shrink-0 bg-black/40">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-400 shrink-0">
               <Film size={17} />
@@ -320,11 +320,11 @@ export const WhatsAppStatusModal = ({ isOpen, onClose, book, chapter }) => {
                   className="h-full transition-all duration-150"
                   style={{
                     width: `${progress}%`,
-                    background: 'linear-gradient(90deg, #22d3ee 0%, #c084fc 50%, #ec4899 100%)',
+                    background: 'linear-gradient(90deg, #10b981 0%, #34d399 50%, #22d3ee 100%)',
                   }}
                 />
               </div>
-              <p className="text-[10px] text-purple-200/60 text-center">
+              <p className="text-[10px] text-emerald-200/80 text-center">
                 Audio numérique pur en cours d'encodage...
               </p>
             </div>
@@ -332,7 +332,7 @@ export const WhatsAppStatusModal = ({ isOpen, onClose, book, chapter }) => {
         </div>
 
         {/* PIED FIXE / TOUJOURS VISIBLE */}
-        <div className="p-3.5 sm:p-4 border-t border-purple-500/25 bg-[#0f041e] shrink-0 space-y-2">
+        <div className="p-3.5 sm:p-4 border-t border-white/10 bg-[#061612]/95 shrink-0 space-y-2">
           {!generatedVideo ? (
             isGenerating ? (
               <button

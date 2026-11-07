@@ -107,9 +107,8 @@ export async function extractAudioSlice({ book, chapter, audioElement, startTime
     let audioBuffer = null;
 
     try {
-      // Cloner l'ArrayBuffer avant decodeAudioData car certains navigateurs le détachent
-      const bufferCopy = arrayBuffer.slice(0);
-      audioBuffer = await audioCtx.decodeAudioData(bufferCopy);
+      // Éviter de dupliquer arrayBuffer avec .slice(0) pour économiser la mémoire mobile
+      audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
     } catch (decodeErr) {
       console.warn('[StatusAudio] Décodage audio échoué:', decodeErr?.message || decodeErr);
       try { await audioCtx.close(); } catch (_) {}
