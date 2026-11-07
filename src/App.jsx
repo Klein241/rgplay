@@ -27,8 +27,10 @@ import { WelcomeOfferBanner } from './components/WelcomeOfferBanner';
 import { StreakModal } from './components/StreakSystem';
 import { RewardedAdModal } from './components/RewardedAdModal';
 import { PdfReaderModal } from './components/PdfReaderModal';
-import { ArtistPageView } from './views/ArtistPageView';
 import { ErrorBoundary } from './components/ErrorBoundary';
+
+// ── Chargement différé et isolé de la page Artiste (Code-Splitting indépendant) ──
+const ArtistPageView = React.lazy(() => import('./views/ArtistPageView'));
 
 export function App() {
   const [activeTab, setActiveTab] = useState('discover');
@@ -438,15 +440,21 @@ export function App() {
           <PushProvider>
             <AudioProvider>
               <XpProvider>
-                <ArtistPageView
-                  slug={activeArtistSlug || 'victoireK'}
-                  onBack={() => {
-                    handleTabChange('discover');
-                    try {
-                      window.history.pushState({}, '', '/');
-                    } catch (_) {}
-                  }}
-                />
+                <React.Suspense fallback={
+                  <div className="min-h-screen bg-[#07030c] flex items-center justify-center text-white">
+                    <div className="w-8 h-8 rounded-full border-2 border-purple-500 border-t-transparent animate-spin" />
+                  </div>
+                }>
+                  <ArtistPageView
+                    slug={activeArtistSlug || 'victoireK'}
+                    onBack={() => {
+                      handleTabChange('discover');
+                      try {
+                        window.history.pushState({}, '', '/');
+                      } catch (_) {}
+                    }}
+                  />
+                </React.Suspense>
               </XpProvider>
             </AudioProvider>
           </PushProvider>
